@@ -1,0 +1,736 @@
+{% extends 'base.html' %}
+{% block title %}Chat với {{ other_user.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-4">
+    <!-- Header -->
+    <div class="bg-white shadow rounded-lg p-4 mb-4 flex items-center justify-between">
+        <div class="flex items-center">
+            <a href="{{ url_for('home') }}" class="mr-4">
+                <i class="fas fa-arrow-left text-xl text-pink-600"></i>
+            </a>
+            <img src="{{ url_for('static', filename=other_user.avatar or 'default.jpg') }}"
+                class="w-12 h-12 rounded-full object-cover mr-3">
+            <div>
+                <h3 class="font-bold text-lg">{{ other_user.name }}</h3>
+                <p class="text-sm text-green-600">Đang hoạt động</p>
+            </div>
+        </div>
+        
+        <!-- Video Call Button -->
+        <button onclick="startVideoCall()" class="bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600 transition flex items-center gap-2">
+            <i class="fas fa-video"></i>
+            <span>Gọi Video</span>
+        </button>
+    </div>
+
+    <!-- Video Call Modal -->
+    <div id="videoCallModal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+        <div class="w-full h-full relative">
+            <!-- Remote Video (Người nhận) -->
+            <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover"></video>
+            
+            <!-- Local Video (Bạn) -->
+            <video id="localVideo" autoplay muted playsinline class="absolute bottom-20 right-4 w-48 h-36 rounded-lg shadow-lg border-2 border-white object-cover"></video>
+            
+            <!-- Call Info -->
+            <div class="absolute top-4 left-1/2 transform -translate-x-1/2 text-white text-center">
+                <h3 class="text-2xl font-bold mb-2">{{ other_user.name }}</h3>
+                <p id="callStatus" class="text-lg">Đang kết nối...</p>
+                <p id="callTimer" class="text-sm mt-1"></p>
+            </div>
+            
+            <!-- Control Buttons -->
+            <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4">
+                <button onclick="toggleMic()" id="micBtn" class="bg-gray-700 hover:bg-gray-600 text-white w-14 h-14 rounded-full transition">
+                    <i class="fas fa-microphone text-xl"></i>
+                </button>
+                
+                <button onclick="toggleCamera()" id="cameraBtn" class="bg-gray-700 hover:bg-gray-600 text-white w-14 h-14 rounded-full transition">
+                    <i class="fas fa-video text-xl"></i>
+                </button>
+                
+                <button onclick="endVideoCall()" class="bg-red-600 hover:bg-red-700 text-white w-14 h-14 rounded-full transition">
+                    <i class="fas fa-phone-slash text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incoming Call Notification -->
+    <div id="incomingCallNotif" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-2xl p-6 z-50 w-96">
+        <div class="text-center">
+            <img id="callerAvatar" src="" class="w-20 h-20 rounded-full mx-auto mb-3 object-cover">
+            <h3 class="text-xl font-bold mb-2" id="callerName"></h3>
+            <p class="text-gray-600 mb-4">Đang gọi video cho bạn...</p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="acceptCall()" class="bg-green-500 text-white px-6 py-3 rounded-full hover:bg-green-600 transition flex items-center gap-2">
+                    <i class="fas fa-phone"></i>
+                    Chấp nhận
+                </button>
+                <button onclick="rejectCall()" class="bg-red-500 text-white px-6 py-3 rounded-full hover:bg-red-600 transition flex items-center gap-2">
+                    <i class="fas fa-phone-slash"></i>
+                    Từ chối
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Box -->
+    <div id="chatbox" class="bg-gray-50 h-96 overflow-y-auto p-4 rounded-lg mb-4 space-y-3">
+        <p class="text-center text-gray-500">Bắt đầu cuộc trò chuyện!</p>
+    </div>
+
+    <!-- Input Area -->
+    <div class="bg-white rounded-lg shadow p-3">
+        <!-- Preview Area for Selected Media -->
+        <div id="mediaPreview" class="hidden mb-3 p-2 bg-gray-100 rounded-lg">
+            <div class="flex items-center justify-between">
+                <div id="previewContent" class="flex-1"></div>
+                <button onclick="clearMediaPreview()" class="text-red-500 ml-2">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Recording Indicator -->
+        <div id="recordingIndicator" class="hidden mb-3 p-3 bg-red-50 rounded-lg flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="w-3 h-3 bg-red-500 rounded-full animate-pulse mr-2"></div>
+                <span class="text-red-600 font-medium">Đang ghi âm... <span id="recordTime">00:00</span></span>
+            </div>
+            <button onclick="stopRecording()" class="bg-red-500 text-white px-4 py-2 rounded-full text-sm hover:bg-red-600 transition">
+                <i class="fas fa-stop mr-1"></i> Dừng & Gửi
+            </button>
+        </div>
+
+        <!-- Main Input Row -->
+        <div class="flex gap-2 items-center">
+            <!-- Media Buttons -->
+            <div class="flex gap-1">
+                <!-- Image Button -->
+                <button onclick="document.getElementById('imageInput').click()" 
+                    class="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition" title="Gửi ảnh">
+                    <i class="fas fa-image text-xl"></i>
+                </button>
+                <input type="file" id="imageInput" accept="image/*" multiple class="hidden" onchange="handleImageSelect(event)">
+
+                <!-- Video Button -->
+                <button onclick="document.getElementById('videoInput').click()" 
+                    class="p-2 text-purple-600 hover:bg-purple-50 rounded-full transition" title="Gửi video">
+                    <i class="fas fa-video text-xl"></i>
+                </button>
+                <input type="file" id="videoInput" accept="video/*" class="hidden" onchange="handleVideoSelect(event)">
+
+                <!-- Sticker Button -->
+                <button onclick="toggleStickerPanel()" 
+                    class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-full transition" title="Sticker">
+                    <i class="fas fa-smile text-xl"></i>
+                </button>
+
+                <!-- Voice Record Button -->
+                <button onclick="toggleRecording()" id="recordBtn"
+                    class="p-2 text-green-600 hover:bg-green-50 rounded-full transition" title="Ghi âm">
+                    <i class="fas fa-microphone text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Text Input -->
+            <input type="text" id="msgInput" placeholder="Nhắn tin..."
+                class="flex-1 px-4 py-2 rounded-full border focus:outline-none focus:ring-2 focus:ring-pink-500">
+
+            <!-- Send Button -->
+            <button onclick="sendMsg()"
+                class="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-6 py-2 rounded-full font-medium hover:shadow-lg transition">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+
+        <!-- Sticker Panel -->
+        <div id="stickerPanel" class="hidden mt-3 p-3 bg-gray-50 rounded-lg">
+            <div class="grid grid-cols-6 gap-2">
+                <button onclick="sendSticker('😀')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">😀</button>
+                <button onclick="sendSticker('😂')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">😂</button>
+                <button onclick="sendSticker('😍')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">😍</button>
+                <button onclick="sendSticker('🥰')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">🥰</button>
+                <button onclick="sendSticker('😘')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">😘</button>
+                <button onclick="sendSticker('😎')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">😎</button>
+                <button onclick="sendSticker('🤔')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">🤔</button>
+                <button onclick="sendSticker('😢')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">😢</button>
+                <button onclick="sendSticker('😭')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">😭</button>
+                <button onclick="sendSticker('😡')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">😡</button>
+                <button onclick="sendSticker('👍')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">👍</button>
+                <button onclick="sendSticker('❤️')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">❤️</button>
+                <button onclick="sendSticker('💯')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">💯</button>
+                <button onclick="sendSticker('🔥')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">🔥</button>
+                <button onclick="sendSticker('✨')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">✨</button>
+                <button onclick="sendSticker('🎉')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">🎉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+    const socket = io('http://127.0.0.1:5000', {
+        transports: ['websocket', 'polling']
+    });
+    const userId = {{ current_user.id }};
+    const friendId = {{ other_user.id }};
+    const chatbox = document.getElementById('chatbox');
+
+    // Audio Recording Variables
+    let mediaRecorder;
+    let audioChunks = [];
+    let recordingStartTime;
+    let recordingInterval;
+
+    // Video Call Variables
+    let localStream;
+    let remoteStream;
+    let peerConnection;
+    let callTimer;
+    let callStartTime;
+    let isMicOn = true;
+    let isCameraOn = true;
+
+    const config = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+    };
+
+    socket.on('connect', function () {
+        console.log('✅ Connected! Socket ID:', socket.id);
+        socket.emit('join_chat', { user_id: userId, friend_id: friendId });
+        setTimeout(() => loadHistory(), 500);
+    });
+
+    socket.on('receive_message', function (msg) {
+        console.log('📩 Received message:', msg);
+        appendMessage(msg);
+    });
+
+    // Video Call Socket Events
+    socket.on('video_call_request', function(data) {
+        showIncomingCall(data);
+    });
+
+    socket.on('video_call_accepted', async function(data) {
+        await createPeerConnection();
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        socket.emit('video_call_offer', {
+            to: friendId,
+            offer: offer
+        });
+    });
+
+    socket.on('video_call_rejected', function() {
+        alert('{{ other_user.name }} đã từ chối cuộc gọi');
+    });
+
+    socket.on('video_call_offer', async function(data) {
+        await createPeerConnection();
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('video_call_answer', {
+            to: data.from,
+            answer: answer
+        });
+    });
+
+    socket.on('video_call_answer', async function(data) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+    });
+
+    socket.on('ice_candidate', async function(data) {
+        if (peerConnection) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+    });
+
+    socket.on('call_ended', function() {
+        endVideoCall();
+    });
+
+    document.getElementById('msgInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendMsg();
+        }
+    });
+
+    // Send Text Message
+    function sendMsg() {
+        const input = document.getElementById('msgInput');
+        const content = input.value.trim();
+        if (!content) return;
+
+        socket.emit('send_message', {
+            sender_id: userId,
+            receiver_id: friendId,
+            content: content,
+            type: 'text'
+        });
+        input.value = '';
+    }
+
+    // Send Sticker
+    function sendSticker(emoji) {
+        socket.emit('send_message', {
+            sender_id: userId,
+            receiver_id: friendId,
+            content: emoji,
+            type: 'sticker'
+        });
+        toggleStickerPanel();
+    }
+
+    function toggleStickerPanel() {
+        const panel = document.getElementById('stickerPanel');
+        panel.classList.toggle('hidden');
+    }
+
+    // Handle Image Selection
+    function handleImageSelect(event) {
+        const files = event.target.files;
+        if (files.length === 0) return;
+
+        const preview = document.getElementById('mediaPreview');
+        const previewContent = document.getElementById('previewContent');
+        
+        previewContent.innerHTML = '';
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.className = 'h-20 w-20 object-cover rounded mr-2 inline-block';
+                previewContent.appendChild(img);
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        preview.classList.remove('hidden');
+        
+        // Send images
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                socket.emit('send_message', {
+                    sender_id: userId,
+                    receiver_id: friendId,
+                    content: e.target.result,
+                    type: 'image',
+                    filename: file.name
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        setTimeout(() => clearMediaPreview(), 1000);
+    }
+
+    // Handle Video Selection
+    function handleVideoSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const preview = document.getElementById('mediaPreview');
+        const previewContent = document.getElementById('previewContent');
+        
+        previewContent.innerHTML = `<p class="text-sm"><i class="fas fa-video mr-2"></i>${file.name}</p>`;
+        preview.classList.remove('hidden');
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            socket.emit('send_message', {
+                sender_id: userId,
+                receiver_id: friendId,
+                content: e.target.result,
+                type: 'video',
+                filename: file.name
+            });
+        };
+        reader.readAsDataURL(file);
+        
+        setTimeout(() => clearMediaPreview(), 1000);
+    }
+
+    function clearMediaPreview() {
+        document.getElementById('mediaPreview').classList.add('hidden');
+        document.getElementById('previewContent').innerHTML = '';
+        document.getElementById('imageInput').value = '';
+        document.getElementById('videoInput').value = '';
+    }
+
+    // Voice Recording - FIXED VERSION
+    async function toggleRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+    }
+
+    async function startRecording() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 44100
+                }
+            });
+            
+            // Kiểm tra codec hỗ trợ
+            let mimeType = 'audio/webm;codecs=opus';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'audio/webm';
+            }
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'audio/ogg;codecs=opus';
+            }
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'audio/mp4';
+            }
+            
+            console.log('Using mimeType:', mimeType);
+            
+            mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                    console.log('Audio chunk:', event.data.size, 'bytes');
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                console.log('Recording stopped, chunks:', audioChunks.length);
+                
+                const audioBlob = new Blob(audioChunks, { type: mimeType });
+                console.log('Audio blob size:', audioBlob.size, 'bytes');
+                
+                // Chuyển thành base64
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    console.log('Base64 length:', e.target.result.length);
+                    
+                    socket.emit('send_message', {
+                        sender_id: userId,
+                        receiver_id: friendId,
+                        content: e.target.result,
+                        type: 'audio'
+                    });
+                };
+                reader.onerror = (err) => {
+                    console.error('FileReader error:', err);
+                };
+                reader.readAsDataURL(audioBlob);
+                
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start();
+            console.log('Recording started');
+            
+            document.getElementById('recordingIndicator').classList.remove('hidden');
+            document.getElementById('recordBtn').classList.add('text-red-600', 'bg-red-50');
+            
+            recordingStartTime = Date.now();
+            recordingInterval = setInterval(updateRecordTime, 100);
+        } catch (err) {
+            console.error('Recording error:', err);
+            alert('Không thể truy cập microphone: ' + err.message);
+        }
+    }
+
+    function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            document.getElementById('recordingIndicator').classList.add('hidden');
+            document.getElementById('recordBtn').classList.remove('text-red-600', 'bg-red-50');
+            clearInterval(recordingInterval);
+            document.getElementById('recordTime').textContent = '00:00';
+        }
+    }
+
+    function updateRecordTime() {
+        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+        const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+        const seconds = (elapsed % 60).toString().padStart(2, '0');
+        document.getElementById('recordTime').textContent = `${minutes}:${seconds}`;
+    }
+
+    // Video Call Functions
+    async function startVideoCall() {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+
+            document.getElementById('localVideo').srcObject = localStream;
+            document.getElementById('videoCallModal').classList.remove('hidden');
+            document.getElementById('callStatus').textContent = 'Đang gọi...';
+
+            socket.emit('video_call_request', {
+                from: userId,
+                to: friendId,
+                caller_name: '{{ current_user.name }}'
+            });
+
+            startCallTimer();
+        } catch (err) {
+            alert('Không thể truy cập camera/mic: ' + err.message);
+        }
+    }
+
+    function showIncomingCall(data) {
+        document.getElementById('callerName').textContent = data.caller_name;
+        document.getElementById('callerAvatar').src = "{{ url_for('static', filename='default.jpg') }}";
+        document.getElementById('incomingCallNotif').classList.remove('hidden');
+        
+        // Play ringtone
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.loop = true;
+        audio.play();
+        window.ringtone = audio;
+    }
+
+    async function acceptCall() {
+        if (window.ringtone) {
+            window.ringtone.pause();
+        }
+        
+        document.getElementById('incomingCallNotif').classList.add('hidden');
+        
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true
+        });
+
+        document.getElementById('localVideo').srcObject = localStream;
+        document.getElementById('videoCallModal').classList.remove('hidden');
+        document.getElementById('callStatus').textContent = 'Đang kết nối...';
+
+        socket.emit('video_call_accepted', {
+            from: userId,
+            to: friendId
+        });
+
+        startCallTimer();
+    }
+
+    function rejectCall() {
+        if (window.ringtone) {
+            window.ringtone.pause();
+        }
+        
+        document.getElementById('incomingCallNotif').classList.add('hidden');
+        socket.emit('video_call_rejected', {
+            from: userId,
+            to: friendId
+        });
+    }
+
+    async function createPeerConnection() {
+        peerConnection = new RTCPeerConnection(config);
+
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        peerConnection.ontrack = (event) => {
+            document.getElementById('remoteVideo').srcObject = event.streams[0];
+            document.getElementById('callStatus').textContent = 'Đã kết nối';
+        };
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('ice_candidate', {
+                    to: friendId,
+                    candidate: event.candidate
+                });
+            }
+        };
+    }
+
+    function toggleMic() {
+        isMicOn = !isMicOn;
+        localStream.getAudioTracks()[0].enabled = isMicOn;
+        
+        const btn = document.getElementById('micBtn');
+        if (isMicOn) {
+            btn.innerHTML = '<i class="fas fa-microphone text-xl"></i>';
+            btn.classList.remove('bg-red-600');
+            btn.classList.add('bg-gray-700');
+        } else {
+            btn.innerHTML = '<i class="fas fa-microphone-slash text-xl"></i>';
+            btn.classList.remove('bg-gray-700');
+            btn.classList.add('bg-red-600');
+        }
+    }
+
+    function toggleCamera() {
+        isCameraOn = !isCameraOn;
+        localStream.getVideoTracks()[0].enabled = isCameraOn;
+        
+        const btn = document.getElementById('cameraBtn');
+        if (isCameraOn) {
+            btn.innerHTML = '<i class="fas fa-video text-xl"></i>';
+            btn.classList.remove('bg-red-600');
+            btn.classList.add('bg-gray-700');
+        } else {
+            btn.innerHTML = '<i class="fas fa-video-slash text-xl"></i>';
+            btn.classList.remove('bg-gray-700');
+            btn.classList.add('bg-red-600');
+        }
+    }
+
+    function endVideoCall() {
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+        }
+        
+        if (peerConnection) {
+            peerConnection.close();
+        }
+
+        document.getElementById('videoCallModal').classList.add('hidden');
+        document.getElementById('localVideo').srcObject = null;
+        document.getElementById('remoteVideo').srcObject = null;
+
+        if (callTimer) {
+            clearInterval(callTimer);
+        }
+
+        socket.emit('call_ended', { to: friendId });
+        
+        localStream = null;
+        peerConnection = null;
+        isMicOn = true;
+        isCameraOn = true;
+    }
+
+    function startCallTimer() {
+        callStartTime = Date.now();
+        callTimer = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const seconds = (elapsed % 60).toString().padStart(2, '0');
+            document.getElementById('callTimer').textContent = `${minutes}:${seconds}`;
+        }, 1000);
+    }
+
+    // Load Chat History
+    function loadHistory() {
+        fetch(`/chat/history/${friendId}`)
+            .then(r => r.json())
+            .then(msgs => {
+                chatbox.innerHTML = '';
+                msgs.forEach(msg => appendMessage(msg));
+                chatbox.scrollTop = chatbox.scrollHeight;
+            });
+    }
+
+    // Append Message to Chat
+    function appendMessage(msg) {
+        const isMine = msg.sender_id == userId;
+        const div = document.createElement('div');
+        div.className = `flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`;
+        
+        let content = '';
+        const type = msg.type || 'text';
+        
+        switch(type) {
+            case 'sticker':
+                content = `<p class="text-6xl">${msg.content}</p>`;
+                break;
+            case 'image':
+                content = `<img src="${msg.content}" class="max-w-xs rounded-lg cursor-pointer hover:opacity-90 transition" onclick="window.open('${msg.content}', '_blank')">`;
+                break;
+            case 'video':
+                content = `<video controls class="max-w-xs rounded-lg"><source src="${msg.content}" type="video/mp4"></video>`;
+                break;
+            case 'audio':
+                content = `
+                    <div class="flex items-center gap-2 p-2 rounded-lg min-w-[240px]">
+                        <button onclick="playAudio(this, '${msg.content}')" class="bg-white bg-opacity-30 hover:bg-opacity-50 p-2 rounded-full transition">
+                            <i class="fas fa-play text-sm"></i>
+                        </button>
+                        <audio src="${msg.content}" class="hidden"></audio>
+                        <div class="flex-1 flex items-center gap-2">
+                            <div class="h-1 bg-white bg-opacity-30 rounded-full flex-1">
+                                <div class="h-1 bg-white rounded-full w-0 audio-progress"></div>
+                            </div>
+                            <span class="text-xs opacity-70 audio-time">0:00</span>
+                        </div>
+                    </div>
+                `;
+                break;
+            default:
+                content = `<p>${msg.content}</p>`;
+        }
+        
+        div.innerHTML = `
+            <div class="max-w-xs ${type === 'sticker' ? '' : 'px-4 py-3'} rounded-2xl ${isMine ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white' : 'bg-white border shadow'}">
+                ${type !== 'sticker' ? `<p class="text-xs opacity-70 mb-1">${msg.sender_name}</p>` : ''}
+                ${content}
+                ${type !== 'sticker' ? `<p class="text-xs opacity-60 mt-1 text-right">${msg.timestamp}</p>` : ''}
+            </div>
+        `;
+        chatbox.appendChild(div);
+        chatbox.scrollTop = chatbox.scrollHeight;
+    }
+
+    // Audio Player Functions
+    function playAudio(button, src) {
+        const container = button.parentElement;
+        const audio = container.querySelector('audio');
+        const icon = button.querySelector('i');
+        const progress = container.querySelector('.audio-progress');
+        const timeDisplay = container.querySelector('.audio-time');
+        
+        if (audio.paused) {
+            // Stop all other audios
+            document.querySelectorAll('audio').forEach(a => {
+                if (a !== audio) {
+                    a.pause();
+                    a.currentTime = 0;
+                    const btn = a.parentElement.querySelector('button i');
+                    if (btn) btn.className = 'fas fa-play text-sm';
+                }
+            });
+            
+            audio.play();
+            icon.className = 'fas fa-pause text-sm';
+            
+            audio.ontimeupdate = () => {
+                const percent = (audio.currentTime / audio.duration) * 100;
+                progress.style.width = percent + '%';
+                
+                const minutes = Math.floor(audio.currentTime / 60);
+                const seconds = Math.floor(audio.currentTime % 60);
+                timeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            };
+            
+            audio.onended = () => {
+                icon.className = 'fas fa-play text-sm';
+                progress.style.width = '0%';
+                timeDisplay.textContent = '0:00';
+            };
+        } else {
+            audio.pause();
+            icon.className = 'fas fa-play text-sm';
+        }
+    }
+
+    loadHistory();
+</script>
+{% endblock %}

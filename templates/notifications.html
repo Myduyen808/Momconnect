@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Thông báo{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+        <h2 class="text-2xl font-bold text-pink-600 mb-4 flex items-center gap-2">
+            <i class="fas fa-bell"></i> Thông báo của bạn
+        </h2>
+
+        {% if notifications|length == 0 %}
+        <div class="text-center py-12 text-gray-500">
+            <i class="fas fa-bell-slash text-5xl mb-4 text-gray-300"></i>
+            <p class="text-lg font-medium">Chưa có thông báo nào</p>
+        </div>
+        {% else %}
+        <div class="space-y-3">
+            {% for notif in notifications %}
+            <div
+                class="flex items-start gap-3 p-4 rounded-xl border hover:shadow-md transition
+                        {% if not notif.is_read %}bg-blue-50 border-blue-200{% else %}bg-gray-50 border-gray-200{% endif %}">
+
+                <!-- Avatar người gửi -->
+                {% if notif.related_user and notif.related_user.avatar %}
+                <img src="{{ url_for('static', filename=notif.related_user.avatar) }}"
+                    class="w-12 h-12 rounded-full object-cover border-2 border-white shadow">
+                {% else %}
+                <img src="{{ url_for('static', filename='uploads/default.jpg') }}"
+                    class="w-12 h-12 rounded-full object-cover border-2 border-white shadow">
+                {% endif %}
+
+
+                <!-- Nội dung -->
+                <div class="flex-1">
+                    <p class="font-medium text-gray-800">{{ notif.title }}</p>
+                    <p class="text-sm text-gray-600 mt-1">{{ notif.message }}</p>
+                    <p class="text-xs text-gray-400 mt-2">{{ notif.created_at.strftime('%H:%M %d/%m/%Y') }}</p>
+                </div>
+
+                <!-- Icon loại -->
+                <div class="flex-shrink-0">
+                    {% if notif.type == 'like' %}
+                    <i class="fas fa-heart text-red-500 text-xl"></i>
+                    {% elif notif.type == 'comment' %}
+                    <i class="fas fa-comment text-blue-500 text-xl"></i>
+                    {% elif notif.type == 'follow' %}
+                    <i class="fas fa-user-plus text-green-500 text-xl"></i>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="text-center">
+        <a href="{{ url_for('home') }}" class="text-pink-600 hover:underline font-medium">
+            <i class="fas fa-arrow-left"></i> Quay lại trang chủ
+        </a>
+    </div>
+</div>
+{% endblock %}

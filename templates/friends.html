@@ -1,0 +1,72 @@
+<!-- templates/friends.html -->
+{% extends "base.html" %}
+{% block title %}Bạn bè & Lời mời{% endblock %}
+
+<!-- Thêm ngay trên cùng của block content -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-r mb-6">
+    <p class="font-bold">Warning: {{ message }}</p>
+</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-4">
+    <h2 class="text-2xl font-bold mb-6">Bạn bè & Lời mời</h2>
+
+    <!-- LỜI MỜI ĐẾN -->
+    <div class="bg-white rounded-xl shadow p-6 mb-6">
+        <h3 class="font-bold text-lg mb-4">Lời mời kết bạn</h3>
+        {% if pending_requests %}
+        {% for f in pending_requests %}
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-3">
+            <div class="flex items-center gap-3">
+                <img src="{{ url_for('static', filename=f.follower.avatar or 'default.jpg') }}"
+                    class="w-10 h-10 rounded-full object-cover">
+                <span class="font-medium">{{ f.follower.name }}</span>
+            </div>
+            <div class="flex gap-2">
+                <form action="{{ url_for('accept_friend_request', user_id=f.follower.id) }}" method="post">
+                    <button class="px-4 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600">
+                        Chấp nhận
+                    </button>
+                </form>
+                <form action="{{ url_for('reject_friend_request', user_id=f.follower.id) }}" method="post">
+                    <button class="px-4 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">
+                        Từ chối
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="text-gray-500">Không có lời mời nào.</p>
+        {% endif %}
+    </div>
+
+    <!-- DANH SÁCH BẠN BÈ -->
+    <div class="bg-white rounded-xl shadow p-6">
+        <h3 class="font-bold text-lg mb-4">Bạn bè ({{ friends|length }})</h3>
+        {% if friends %}
+        {% for friend in friends %}
+        <div class="flex items-center justify-between p-3 border-b last:border-0">
+            <div class="flex items-center gap-3">
+                <img src="{{ url_for('static', filename=friend.avatar or 'default.jpg') }}"
+                    class="w-10 h-10 rounded-full object-cover">
+                <span class="font-medium">{{ friend.name }}</span>
+            </div>
+            <a href="{{ url_for('chat', user_id=friend.id) }}"
+                class="px-4 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition">
+                Nhắn tin
+            </a>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="text-gray-500">Chưa có bạn bè. Hãy gửi lời mời!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

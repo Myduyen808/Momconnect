@@ -1,0 +1,218 @@
+<div class="container mx-auto">
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-2xl font-bold mb-6 text-gray-800">
+            <i class="fas fa-users mr-2"></i>Quản lý người dùng
+        </h2>
+
+        <div class="mb-4 flex justify-between">
+            <input type="text" id="searchUser" placeholder="Tìm tên, email..." 
+                   class="px-4 py-2 border rounded-lg w-64">
+            <a href="{{ url_for('admin_dashboard') }}" 
+               class="text-pink-600 hover:underline">Làm mới</a>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full table-auto">
+                <thead class="bg-gray-50">
+                    <tr class="text-left text-sm font-semibold text-gray-700">
+                        <th class="px-4 py-3">ID</th>
+                        <th class="px-4 py-3">Tên</th>
+                        <th class="px-4 py-3">Email</th>
+                        <th class="px-4 py-3">Vai trò</th>
+                        <th class="px-4 py-3">Điểm</th>
+                        <th class="px-4 py-3">Trạng thái</th>
+                        <th class="px-4 py-3 text-center">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody" class="divide-y">
+                    {% for user in users %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm">#{{ user.id }}</td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center space-x-3">
+                                <img src="{{ url_for('static', filename=user.avatar or 'images/default-avatar.png') }}"
+                                    class="w-8 h-8 rounded-full object-cover">
+                                <span class="font-medium">{{ user.name }}</span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600">{{ user.email }}</td>
+                        <td class="px-4 py-3">
+                            {% if user.role == 'admin' %}
+                            <span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs">Admin</span>
+                            {% elif user.is_verified_expert %}
+                            <span class="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs">Chuyên gia</span>
+                            {% else %}
+                            <span class="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs">Người dùng</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-green-600 font-medium">{{ user.points }}</td>
+                        <td class="px-4 py-3">
+                            {% if user.is_active %}
+                            <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">Hoạt động</span>
+                            {% else %}
+                            <span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs">Bị khóa</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-center space-x-3">
+                            <button type="button"
+                                onclick="openUserEditModal({{ user.id }}, '{{ user.name|replace("'", "\\'") }}', '{{ user.email }}', '{{ user.role }}', {{ user.points }})"
+                                class="text-blue-600 hover:text-blue-800 text-xl" title="Chỉnh sửa">
+                                <i class="fas fa-edit"></i>
+                            </button>
+
+                            {% if user.id != current_user.id %}
+                                {% if user.is_active %}
+                                <a href="{{ url_for('admin_user_action', user_id=user.id, action='block') }}"
+                                    class="text-red-600 hover:text-red-800 text-xl" title="Khóa tài khoản"
+                                    onclick="return confirm('Khóa tài khoản {{ user.name }}?')">
+                                    <i class="fas fa-ban"></i>
+                                </a>
+                                {% else %}
+                                <a href="{{ url_for('admin_user_action', user_id=user.id, action='unblock') }}"
+                                    class="text-green-600 hover:text-green-800 text-xl" title="Mở khóa"
+                                    onclick="return confirm('Mở khóa tài khoản {{ user.name }}?')">
+                                    <i class="fas fa-unlock"></i>
+                                </a>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-gray-400 text-xs">Bạn</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="userEditModal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-8">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-gray-800">
+                <i class="fas fa-user-edit mr-2"></i>Chỉnh sửa người dùng
+            </h3>
+            <button type="button" onclick="closeUserEditModal()" class="text-gray-500 hover:text-gray-700 text-3xl">
+                &times;
+            </button>
+        </div>
+
+        <form id="userEditForm" enctype="multipart/form-data">
+            <input type="hidden" name="user_id" id="edit_user_id">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-user mr-1"></i>Tên
+                    </label>
+                    <input type="text" name="name" id="edit_name" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-pink-300 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-envelope mr-1"></i>Email
+                    </label>
+                    <input type="email" name="email" id="edit_email" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-pink-300 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-shield-alt mr-1"></i>Vai trò
+                    </label>
+                    <select name="role" id="edit_role"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-pink-300 outline-none">
+                        <option value="user">Người dùng</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-coins mr-1"></i>Điểm tích lũy
+                    </label>
+                    <input type="number" name="points" id="edit_points" min="0" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-pink-300 outline-none">
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-image mr-1"></i>Avatar mới (tùy chọn)
+                </label>
+                <input type="file" name="avatar" accept="image/*"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-xl">
+                <p class="text-xs text-gray-500 mt-2">Để trống nếu không muốn thay đổi</p>
+            </div>
+
+            <div class="mt-8 flex justify-end gap-4">
+                <button type="button" onclick="closeUserEditModal()"
+                    class="px-6 py-3 bg-gray-200 text-gray-700 rounded-full font-bold hover:bg-gray-300 transition">
+                    <i class="fas fa-times mr-2"></i>Hủy
+                </button>
+                <button type="submit"
+                    class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full font-bold hover:shadow-xl transition">
+                    <i class="fas fa-save mr-2"></i>Lưu thay đổi
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('searchUser').addEventListener('input', function (e) {
+    const query = e.target.value.toLowerCase();
+    document.querySelectorAll('#userTableBody tr').forEach(function(row) {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(query) ? '' : 'none';
+    });
+});
+
+function openUserEditModal(userId, name, email, role, points) {
+    console.log('Opening modal for user:', userId);
+    document.getElementById('edit_user_id').value = userId;
+    document.getElementById('edit_name').value = name;
+    document.getElementById('edit_email').value = email;
+    document.getElementById('edit_role').value = role;
+    document.getElementById('edit_points').value = points;
+    document.getElementById('userEditModal').classList.remove('hidden');
+}
+
+function closeUserEditModal() {
+    document.getElementById('userEditModal').classList.add('hidden');
+    document.getElementById('userEditForm').reset();
+}
+
+document.getElementById('userEditForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang lưu...';
+    submitBtn.disabled = true;
+
+    try {
+        const formData = new FormData(this);
+        const res = await fetch('/admin/user/edit', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            alert('✅ Cập nhật người dùng thành công!');
+            location.reload();
+        } else {
+            alert('❌ Lỗi: ' + (data.error || 'Không thể cập nhật'));
+        }
+    } catch (err) {
+        console.error(err);
+        alert('❌ Lỗi kết nối đến server!');
+    } finally {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }
+});
+</script>

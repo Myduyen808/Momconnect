@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MomConnect{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .badge-pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.6
+            }
+        }
+
+        .dropdown {
+            transition: all 0.3s ease;
+        }
+
+        .notif-item:hover {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-pink-50 to-blue-50 min-h-screen">
+
+    <!-- THANH ĐIỀU HƯỚNG -->
+    <nav class="bg-white shadow-lg p-4 sticky top-0 z-50 border-b border-pink-100">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <a href="{{ url_for('home') }}"
+                class="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                MomConnect
+            </a>
+
+            <form action="{{ url_for('search') }}" method="get" class="flex-1 max-w-md mx-4">
+                <div class="relative">
+                    <input type="text" name="q" placeholder="Tìm kiếm bài viết, mẹ bỉm..."
+                        class="w-full pl-10 pr-4 py-2 border border-pink-200 rounded-full focus:outline-none focus:ring-2 focus:ring-pink-400 transition">
+                    <i class="fas fa-search absolute left-3 top-3 text-pink-400"></i>
+                </div>
+            </form>
+
+            <div class="flex items-center space-x-6">
+                {% if current_user.is_authenticated %}
+                <!-- THÔNG BÁO - ĐÃ CÓ AVATAR + SỐ MỚI NHƯ FACEBOOK -->
+                <div class="relative">
+                    <button onclick="toggleNotif()" class="relative p-2 hover:bg-gray-100 rounded-full transition">
+                        <i class="fas fa-bell text-2xl text-pink-600"></i>
+                        <span id="notif-count"
+                            class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center badge-pulse hidden">
+                            0
+                        </span>
+                    </button>
+
+                    <!-- Dropdown thông báo -->
+                    <div id="notifDropdown"
+                        class="hidden absolute right-0 mt-3 w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
+                        <div class="p-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-t-2xl">
+                            <h3 class="text-xl font-bold">Thông báo mới</h3>
+                        </div>
+                        <div id="notifList" class="divide-y divide-gray-100">
+                            <div class="text-center py-12 text-gray-500">
+                                <i class="fas fa-bell-slash text-5xl mb-4 text-gray-300"></i>
+                                <p>Chưa có thông báo nào</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Điểm -->
+                <div class="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full border border-green-200">
+                    <i class="fas fa-coins text-green-600"></i>
+                    <span class="text-green-700 font-bold">{{ current_user.points }} điểm</span>
+                </div>
+
+                <a href="{{ url_for('friends') }}" class="text-pink-600 hover:text-pink-700 font-medium">
+                    <i class="fas fa-user-friends mr-1"></i> Bạn bè
+                </a>
+
+                <!-- Vai trò -->
+                <!-- NÚT QUẢN TRỊ VIÊN - CHỈ HIỆN KHI LÀ ADMIN, VÀ LÀ NÚT BẤM ĐƯỢC -->
+                {% if current_user.role == 'admin' %}
+                <a href="{{ url_for('admin_dashboard') }}"
+                    class="bg-gradient-to-r from-red-600 to-pink-600 text-white px-6 py-3 rounded-full font-bold hover:shadow-xl transition flex items-center gap-2 shadow-lg">
+                    <i class="fas fa-crown"></i> Quản trị viên
+                </a>
+                {% elif current_user.is_verified_expert %}
+                <span
+                    class="bg-gradient-to-r from-purple-500 to-blue-600 text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1">
+                    <i class="fas fa-stethoscope"></i> Chuyên gia
+                </span>
+                {% else %}
+                <a href="{{ url_for('expert_request') }}" class="text-purple-600 hover:underline text-sm font-medium">
+                    Trở thành chuyên gia?
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('create_post') }}"
+                    class="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full font-bold hover:shadow-lg transition">
+                    Đăng bài
+                </a>
+
+                <!-- Avatar + Logout -->
+                <div class="flex items-center gap-3">
+                    <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
+                        class="w-10 h-10 rounded-full object-cover ring-2 ring-pink-300">
+
+                    <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-red-600">
+                        <i class="fas fa-sign-out-alt text-xl"></i>
+                    </a>
+                </div>
+                {% else %}
+                <a href="{{ url_for('login') }}" class="text-pink-600 font-bold">Đăng nhập</a>
+                <a href="{{ url_for('register') }}"
+                    class="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full font-bold">Đăng
+                    ký</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- NỘI DUNG CHÍNH -->
+    <div class="max-w-7xl mx-auto p-6">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div
+            class="bg-{{ 'green' if category == 'success' else 'red' }}-100 border border-{{ 'green' if category == 'success' else 'red' }}-300 text-{{ 'green' if category == 'success' else 'red' }}-700 px-6 py-4 rounded-xl mb-4 shadow flex items-center gap-3">
+            <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' }} text-2xl"></i>
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- JS CHO THÔNG BÁO -->
+    <script>
+        async function updateNotificationBadge() {
+            try {
+                const res = await fetch('/notifications/count');
+                const data = await res.json();
+                const badge = document.getElementById('notif-count');
+                const list = document.getElementById('notifList');
+
+                if (data.count > 0) {
+                    badge.textContent = data.count > 99 ? '99+' : data.count;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+
+                // Load danh sách thông báo khi mở
+                if (!document.getElementById('notifDropdown').classList.contains('hidden')) {
+                    const notifRes = await fetch('/api/notifications');
+                    const notifs = await notifRes.json();
+
+                    if (notifs.length === 0) {
+                        list.innerHTML = `
+                            <div class="text-center py-12 text-gray-500">
+                                <i class="fas fa-bell-slash text-5xl mb-4 text-gray-300"></i>
+                                <p>Chưa có thông báo nào</p>
+                            </div>`;
+                        return;
+                    }
+
+                    list.innerHTML = notifs.map(n => `
+                        <div class="p-4 notif-item transition ${!n.is_read ? 'bg-blue-50' : ''}">
+                            <div class="flex gap-4">
+                            <img src="${n.related_user_avatar}"
+                                class="w-12 h-12 rounded-full object-cover ring-2 ring-pink-300">
+                            <div class="flex-1">
+                                <p class="font-bold text-gray-800">${n.title}</p>
+                                <p class="text-sm text-gray-600 mt-1">${n.message}</p>
+                                <p class="text-xs text-gray-400 mt-2">${n.created_at}</p>
+                            </div>
+                            </div>
+                        </div>
+                        `).join('');
+
+                }
+            } catch (e) {
+                console.error("Lỗi load thông báo:", e);
+            }
+        }
+
+        function toggleNotif() {
+            const dropdown = document.getElementById('notifDropdown');
+            dropdown.classList.toggle('hidden');
+            if (!dropdown.classList.contains('hidden')) {
+                updateNotificationBadge();
+            }
+        }
+
+        // Click ngoài để đóng
+        document.addEventListener('click', function (e) {
+            const dropdown = document.getElementById('notifDropdown');
+            const button = e.target.closest('button[onclick="toggleNotif()"]');
+            if (dropdown && !dropdown.contains(e.target) && !button) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        // Cập nhật badge mỗi 10s
+        document.addEventListener('DOMContentLoaded', () => {
+            updateNotificationBadge();
+            setInterval(updateNotificationBadge, 10000);
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

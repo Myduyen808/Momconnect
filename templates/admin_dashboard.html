@@ -1,0 +1,171 @@
+<!-- templates/admin_dashboard.html -->
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - MomConnect{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2 flex items-center">
+            <i class="fas fa-crown mr-3 text-red-600"></i>
+            Admin Dashboard
+        </h1>
+        <p class="text-gray-600">Chào mừng quay lại, <strong>{{ current_user.name }}</strong>!</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="border-b border-gray-200">
+            <nav class="flex space-x-8 px-6" aria-label="Tabs">
+                <button onclick="showTab('stats')" class="tab-btn active py-4 px-1 border-b-2 font-medium text-sm" data-tab="stats">
+                    <i class="fas fa-chart-pie mr-2"></i> Thống kê
+                </button>
+                <button onclick="showTab('users')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm" data-tab="users">
+                    <i class="fas fa-users mr-2"></i> Người dùng
+                </button>
+                <button onclick="showTab('experts')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm" data-tab="experts">
+                    <i class="fas fa-user-check mr-2"></i> Chuyên gia
+                </button>
+                <button onclick="showTab('posts')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm" data-tab="posts">
+                    <i class="fas fa-newspaper mr-2"></i> Bài viết
+                </button>
+                <button onclick="showTab('reports')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm" data-tab="reports">
+                    <i class="fas fa-flag mr-2"></i> Báo cáo
+                </button>
+            </nav>
+        </div>
+
+        <div class="p-6">
+            <!-- TAB: Thống kê -->
+            <div id="stats" class="tab-content">
+                {% include "admin/partials/stats.html" %}
+            </div>
+
+            <!-- TAB: Người dùng -->
+            <div id="users" class="tab-content hidden">
+                {% include "admin/partials/users.html" %}
+            </div>
+
+            <!-- TAB: Chuyên gia -->
+            <div id="experts" class="tab-content hidden">
+                {% include "admin/partials/experts.html" %}
+            </div>
+
+            <!-- TAB: Bài viết (MỚI) -->
+            <div id="posts" class="tab-content hidden">
+                {% include "admin/partials/posts.html" %}
+            </div>
+
+            <!-- TAB: Báo cáo -->
+            <div id="reports" class="tab-content hidden">
+                {% include "admin/partials/reports.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(el => {
+            el.classList.remove('active', 'border-pink-600', 'text-pink-600');
+            el.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700');
+        });
+        document.getElementById(tabName).classList.remove('hidden');
+        const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+        btn.classList.add('active', 'border-pink-600', 'text-pink-600');
+        btn.classList.remove('border-transparent', 'text-gray-500');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        showTab('stats');
+    });
+
+    // Các hàm cũ vẫn giữ nguyên
+    function openEditModal(userId, name, email, role, points, avatar) { /* giữ nguyên */ }
+    function closeEditModal() { /* giữ nguyên */ }
+    document.getElementById('editUserForm')?.addEventListener('submit', /* giữ nguyên */);
+
+    // Hàm mở modal xem chi tiết bài viết
+    function openPostModal(postId, title, content, author, created_at, is_locked, commentCount) {
+        document.getElementById('modal_post_id').value = postId;
+        document.getElementById('modal_title').textContent = title;
+        document.getElementById('modal_author').textContent = author;
+        document.getElementById('modal_date').textContent = created_at;
+        document.getElementById('modal_content').innerHTML = content.replace(/\n/g, '<br>');
+        document.getElementById('modal_comment_count').textContent = commentCount;
+        document.getElementById('lock_status').textContent = is_locked ? 'Đã khóa' : 'Bình thường';
+        document.getElementById('lock_status').className = is_locked ? 'text-red-600 font-bold' : 'text-green-600 font-bold';
+        
+        // Load bình luận
+        fetch(`/admin/post/${postId}/comments`)
+            .then(r => r.json())
+            .then(data => {
+                const list = document.getElementById('comments_list');
+                list.innerHTML = '';
+                if (data.comments.length === 0) {
+                    list.innerHTML = '<p class="text-gray-500">Chưa có bình luận nào</p>';
+                } else {
+                    data.comments.forEach(c => {
+                        const div = document.createElement('div');
+                        div.className = 'flex justify-between items-start bg-gray-50 p-3 rounded mb-2';
+                        div.innerHTML = `
+                            <div>
+                                <strong>${c.author}</strong> <span class="text-xs text-gray-500">${c.created_at}</span><br>
+                                <p class="mt-1">${c.content.replace(/\n/g, '<br>')}</p>
+                            </div>
+                            <button onclick="deleteComment(${c.id}, this)" class="text-red-600 hover:text-red-800 text-sm">
+                                Xóa
+                            </button>
+                        `;
+                        list.appendChild(div);
+                    });
+                }
+            });
+        
+        document.getElementById('postDetailModal').classList.remove('hidden');
+    }
+
+    function closePostModal() {
+        document.getElementById('postDetailModal').classList.add('hidden');
+    }
+
+    function deleteComment(commentId, btn) {
+        if (!confirm('Xóa bình luận này?')) return;
+        fetch(`/admin/comment/${commentId}/delete`, {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    btn.parentElement.parentElement.remove();
+                } else {
+                    alert('Lỗi: ' + data.error);
+                }
+            });
+    }
+
+    // Xóa bài viết
+    function deletePost(postId) {
+        if (!confirm('XÓA HOÀN TOÀN bài viết này? Không thể khôi phục!')) return;
+        fetch(`/admin/post/${postId}/delete`, {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Lỗi: ' + data.error);
+                }
+            });
+    }
+
+    // Khóa/Mở khóa bài viết
+    function toggleLock(postId, current) {
+        const action = current ? 'unlock' : 'lock';
+        fetch(`/admin/post/${postId}/${action}`, {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+<!-- templates/search.html -->
+{% extends "base.html" %}
+{% block title %}Tìm kiếm: {{ query }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-4">
+    <h1 class="text-2xl font-bold mb-6">Kết quả tìm kiếm: "{{ query }}"</h1>
+
+    <!-- Người dùng -->
+    {% if users %}
+    <div class="mb-8">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Người dùng</h2>
+        <div class="space-y-3">
+            {% for user in users %}
+            <a href="{{ url_for('profile') }}?user={{ user.id }}"
+                class="flex items-center space-x-3 p-3 bg-white rounded-lg hover:shadow-md transition">
+                <img src="/static/{{ user.avatar }}" class="w-12 h-12 rounded-full">
+                <div>
+                    <p class="font-medium">{{ user.name }}</p>
+                    <p class="text-sm text-gray-500">{{ user.points }} điểm</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Bài viết -->
+    {% if posts %}
+    <div>
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Bài viết</h2>
+        <div class="space-y-4">
+            {% for post in posts %}
+            <a href="{{ url_for('post_detail', post_id=post.id) }}"
+                class="block bg-white p-4 rounded-lg hover:shadow-md transition">
+                <div class="flex items-center space-x-2 text-sm text-gray-500 mb-2">
+                    <img src="/static/{{ post.author.avatar }}" class="w-8 h-8 rounded-full">
+                    <span>{{ post.author.name }}</span>
+                    <span>•</span>
+                    <span>{{ post.created_at.strftime('%d/%m') }}</span>
+                </div>
+                <h3 class="font-bold text-lg text-gray-900">{{ post.title }}</h3>
+                <p class="text-gray-700 line-clamp-2">{{ post.content }}</p>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <p class="text-center text-gray-500 py-12">Không tìm thấy kết quả nào.</p>
+    {% endif %}
+</div>
+{% endblock %}

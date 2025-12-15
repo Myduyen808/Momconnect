@@ -1,0 +1,40 @@
+{% if expert_requests %}
+<div class="space-y-4">
+    {% for req in expert_requests %}
+    <div class="border rounded-lg p-4 hover:shadow transition">
+        <div class="flex justify-between items-start">
+            <div>
+                <p class="font-semibold">{{ req.user.name }} <span class="text-sm text-gray-500">#{{ req.user.id
+                        }}</span></p>
+                <p class="text-sm text-gray-600">Email: {{ req.user.email }}</p>
+                <p class="mt-2"><strong>Lý do:</strong> {{ req.reason }}</p>
+                {% if req.certificate %}
+                <a href="{{ url_for('static', filename=req.certificate) }}" target="_blank"
+                    class="text-blue-600 text-sm hover:underline">
+                    Xem chứng chỉ
+                </a>
+                {% endif %}
+            </div>
+            <div class="flex space-x-2">
+                <form method="POST" action="{{ url_for('admin_expert_action', req_id=req.id, action='approve') }}"
+                    class="inline">
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700"
+                        onclick="return confirm('Duyệt chuyên gia?')">
+                        Duyệt
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('admin_expert_action', req_id=req.id, action='reject') }}"
+                    class="inline">
+                    <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700"
+                        onclick="return confirm('Từ chối yêu cầu?')">
+                        Từ chối
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-center text-gray-500 py-8">Không có yêu cầu nào đang chờ duyệt.</p>
+{% endif %}

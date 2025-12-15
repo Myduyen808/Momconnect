@@ -1,0 +1,31 @@
+{% if reports %}
+<div class="space-y-4">
+    {% for report in reports %}
+    <div class="border rounded-lg p-4 bg-red-50 hover:shadow transition">
+        <div class="flex justify-between items-start">
+            <div>
+                <p class="font-medium">
+                    <a href="{{ url_for('post_detail', post_id=report.post.id) }}"
+                        class="text-pink-600 hover:underline">
+                        {{ report.post.title }}
+                    </a>
+                </p>
+                <p class="text-sm text-gray-600">
+                    Báo cáo bởi: <strong>{{ report.user.name }}</strong> • {{ report.created_at.strftime('%d/%m %H:%M')
+                    }}
+                </p>
+                <p class="text-sm mt-1"><strong>Lý do:</strong> {{ report.reason }}</p>
+            </div>
+            <form method="POST" action="{{ url_for('delete_post', post_id=report.post.id) }}" class="inline">
+                <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700"
+                    onclick="return confirm('XÓA bài viết này? Hành động không thể khôi phục.')">
+                    Xóa bài
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-center text-gray-500 py-8">Không có báo cáo nào.</p>
+{% endif %}
