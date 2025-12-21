@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+instance/
+static/uploads/
+*.db
+db/
+venv/
+*_backup.py
+git add .gitignore
+git commit -m "Add gitignore"
+git push
