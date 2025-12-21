@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% block title %}Hồ sơ cá nhân{% endblock %}
+
 {% block content %}
 <div class="max-w-2xl mx-auto">
     <div class="bg-white rounded-2xl shadow-xl p-8">
@@ -7,7 +9,8 @@
 
         <div class="text-center mb-8">
             <div class="relative inline-block group">
-                <img src="/static/{{ user.avatar }}"
+                <!-- ✅ SỬA ĐƯỜNG DẪN AVATAR - ĐỒNG BỘ VỚI HEADER -->
+                <img src="{{ url_for('static', filename=user.avatar or 'images/default-avatar.png') }}"
                     class="w-32 h-32 rounded-full object-cover ring-4 ring-pink-100 shadow-lg mx-auto">
                 <label
                     class="absolute -bottom-2 -right-2 bg-white p-3 rounded-full shadow-lg cursor-pointer hover:shadow-xl transition border-2 border-pink-200 group-hover:border-pink-300">
@@ -50,4 +53,31 @@
         </form>
     </div>
 </div>
+
+<!-- ✅ THÊM SCRIPT CHỐNG CACHE -->
+<script>
+document.getElementById('profileForm').addEventListener('submit', function() {
+    setTimeout(() => {
+        // Cập nhật tất cả avatar trên trang
+        const avatarImages = document.querySelectorAll('img[src*="avatar"], img[src*="default-avatar"]');
+        avatarImages.forEach(img => {
+            const src = img.src.split('?')[0];
+            img.src = src + '?t=' + new Date().getTime();
+        });
+        
+        // Reload trang sau 1.5 giây để đảm bảo ảnh mới được load
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+    }, 1000);
+});
+
+// Cập nhật avatar ngay khi load trang để chống cache
+document.addEventListener('DOMContentLoaded', function() {
+    const avatarImg = document.querySelector('img[src*="avatar"], img[src*="default-avatar"]');
+    if (avatarImg && !avatarImg.src.includes('?t=')) {
+        avatarImg.src = avatarImg.src + '?t=' + new Date().getTime();
+    }
+});
+</script>
 {% endblock %}

@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_migrate import Migrate
 from database import db, init_app
-from models import User, Post, Comment, Follow, FriendRequest, Notification, Report, ExpertRequest, Message
+from models import User, Post, Comment, Follow, FriendRequest, Notification, Report, ExpertRequest, Message, Friendship
 from config import Config
 import os
 from datetime import datetime, timedelta
@@ -17,7 +17,14 @@ from markupsafe import Markup
 from sqlalchemy import func
 import base64   
 import time
+# Trong file app.py hoặc routes.py
+from notification_service import NotificationService
+from notifications_api import notifications_api
 
+app.register_blueprint(notifications_api)
+# # XÓA DÒNG NÀY:
+# from friendship_routes import *
+# from friendship_status_route import *
 # ========================
 # TẠO APP VÀ CẤU HÌNH
 # ========================
@@ -89,7 +96,7 @@ def init_db():
 
 # === HÀM HỖ TRỢ ===
 def get_friends(user):
-    """Lấy danh sách bạn bè (đã follow 2 chiều)"""
+    """Lấy danh sách bạn bè (ưã follow 2 chiều)"""
     # Người mình follow
     following = {f.followed_id for f in Follow.query.filter_by(follower_id=user.id).all()}
     # Người follow mình
@@ -163,7 +170,7 @@ def like(post_id):
         notif = Notification(
             user_id=post.author.id,
             title="Có lượt thích mới!",
-            message=f"{current_user.name} đã thích bài viết của bạn.",
+            message=f"{current_user.name} ưã thích bài viết của bạn.",
             type='like',
             related_id=post.id,
             related_user_id=current_user.id
@@ -190,7 +197,7 @@ def comment(post_id):
         notif = Notification(
             user_id=post.author.id,
             title="Bình luận mới!",
-            message=f"{current_user.name} đã bình luận: \"{content[:50]}{'...' if len(content)>50 else ''}\"",
+            message=f"{current_user.name} ưã bình luận: \"{content[:50]}{'...' if len(content)>50 else ''}\"",
             type='comment',
             related_id=post.id,
             related_user_id=current_user.id
@@ -294,14 +301,14 @@ def register():
             flash('Mật khẩu xác nhận không khớp!', 'danger')
             return render_template('register.html')
         if User.query.filter_by(email=email).first():
-            flash('Email đã được sử dụng!', 'danger')
+            flash('Email ưã ưược sử dụng!', 'danger')
             return render_template('register.html')
 
         hashed = generate_password_hash(password)
         user = User(name=name, email=email, password=hashed, points=10)
         db.session.add(user)
         db.session.commit()
-        flash('Đăng ký thành công! Hãy đăng nhập.', 'success')
+        flash('Đăng ký thành công! Hãy ưăng nhập.', 'success')
         return redirect(url_for('login'))
     
     return render_template('register.html')
@@ -315,7 +322,7 @@ def follow_user(user_id):
     if target_user.id == current_user.id:
         return jsonify({'error': 'Không thể theo dõi chính mình!'}), 400
     
-    # Kiểm tra đã theo dõi chưa
+    # Kiểm tra ưã theo dõi chưa
     is_following = current_user.following.filter_by(followed_id=target_user.id).first()
     
     if request.json.get('action') == 'unfollow' or is_following:
@@ -344,8 +351,8 @@ def follow_user(user_id):
 from sqlalchemy import not_, and_, exists
 
 def get_pending_requests(user):
-    """Lấy danh sách lời mời đang chờ (người follow mình nhưng mình chưa follow lại)"""
-    # Tất cả người đã follow mình
+    """Lấy danh sách lời mời ưang chờ (người follow mình nhưng mình chưa follow lại)"""
+    # Tất cả người ưã follow mình
     incoming = Follow.query.filter_by(followed_id=user.id).all()
     pending = []
     
@@ -356,28 +363,28 @@ def get_pending_requests(user):
     
     return pending
 
-@app.route('/friends')
-@login_required
-def friends():
-    friends_list = current_user.friends
+# @app.route('/friends')
+# @login_required
+# def friends():
+#     friends_list = current_user.friends
 
-    pending_requests = FriendRequest.query.filter_by(
-        recipient_id=current_user.id
-    ).all()
+#     pending_requests = FriendRequest.query.filter_by(
+#         recipient_id=current_user.id
+#     ).all()
 
-    friend_ids = [u.id for u in friends_list]
+#     friend_ids = [u.id for u in friends_list]
 
-    suggested_users = User.query.filter(
-        User.id != current_user.id,
-        ~User.id.in_(friend_ids)
-    ).order_by(func.random()).limit(10).all()
+#     suggested_users = User.query.filter(
+#         User.id != current_user.id,
+#         ~User.id.in_(friend_ids)
+#     ).order_by(func.random()).limit(10).all()
 
-    return render_template(
-        'friends.html',
-        friends=friends_list,
-        pending_requests=pending_requests,
-        suggested_users=suggested_users
-    )
+#     return render_template(
+#         'friends.html',
+#         friends=friends_list,
+#         pending_requests=pending_requests,
+#         suggested_users=suggested_users
+#     )
 
 
 
@@ -407,7 +414,7 @@ def api_notifications():
     results = []
     for n in notifs:
         if n.related_user and n.related_user.avatar:
-            # avatar đã là 'uploads/xxx.jpg'
+            # avatar ưã là 'uploads/xxx.jpg'
             avatar_path = n.related_user.avatar.replace('\\', '/').lstrip('/')
         else:
             avatar_path = 'static/default.jpg'
@@ -448,7 +455,7 @@ def search():
     if not query:
         return render_template('search.html', query='', posts=[], users=[])
 
-    # Tìm bài viết (tiêu đề + nội dung)
+    # Tìm bài viết (tiêu ưề + nội dung)
     posts = Post.query.filter(
         db.or_(
             Post.title.ilike(f'%{query}%'),
@@ -476,10 +483,10 @@ def report_post(post_id):
     if not reason:
         return jsonify({'error': 'Vui lòng chọn lý do!'}), 400
 
-    # Kiểm tra đã báo cáo chưa
+    # Kiểm tra ưã báo cáo chưa
     existing = Report.query.filter_by(post_id=post_id, user_id=current_user.id).first()
     if existing:
-        return jsonify({'error': 'Bạn đã báo cáo bài viết này rồi!'}), 400
+        return jsonify({'error': 'Bạn ưã báo cáo bài viết này rồi!'}), 400
 
     # Tạo báo cáo
     report = Report(post_id=post_id, user_id=current_user.id, reason=reason)
@@ -509,7 +516,7 @@ def verify_post(post_id):
 @login_required
 def expert_post():
     if not current_user.is_verified_expert:
-        flash('Chỉ chuyên gia mới đăng được!', 'error')
+        flash('Chỉ chuyên gia mới ưăng ưược!', 'error')
         return redirect(url_for('home'))
     
     if request.method == 'POST':
@@ -533,9 +540,9 @@ def expert_post():
 @app.route('/expert/request', methods=['GET', 'POST'])
 @login_required
 def expert_request():
-    # Nếu đã là chuyên gia → chuyển về trang chủ
+    # Nếu ưã là chuyên gia → chuyển về trang chủ
     if current_user.is_verified_expert:
-        flash('Bạn đã là chuyên gia!', 'info')
+        flash('Bạn ưã là chuyên gia!', 'info')
         return redirect(url_for('home'))
 
     if request.method == 'POST':
@@ -544,7 +551,7 @@ def expert_request():
         file = request.files.get('certificate')
 
         if not reason or not category:
-            flash('Vui lòng điền đầy đủ thông tin!', 'danger')
+            flash('Vui lòng ưiền ưầy ưủ thông tin!', 'danger')
             return render_template('expert_request.html')
 
         filename = None
@@ -569,31 +576,6 @@ def expert_request():
 
     return render_template('expert_request.html')
 
-@app.route('/admin')
-@login_required
-def admin_dashboard():
-    if current_user.role != 'admin':
-        flash('Bạn không có quyền truy cập!', 'error')
-        return redirect(url_for('home'))
-
-    stats = {
-        'total_users': User.query.count(),
-        'total_posts': Post.query.count(),
-        'total_experts': User.query.filter_by(is_verified_expert=True).count(),
-        'total_points': db.session.query(db.func.sum(User.points)).scalar() or 0
-    }
-
-    users = User.query.order_by(User.id.desc()).all()
-    expert_requests = ExpertRequest.query.filter_by(status='pending').all()
-    reports = Report.query.order_by(Report.created_at.desc()).all()
-
-    return render_template(
-        'admin_dashboard.html',
-        stats=stats,
-        users=users,
-        expert_requests=expert_requests,
-        reports=reports
-    )
 
 @app.route('/admin/user/<int:user_id>/<action>', methods=['GET', 'POST'])
 @login_required
@@ -611,7 +593,7 @@ def admin_user_action(user_id, action):
         user.is_active = True
         flash(f'Đã mở khóa tài khoản {user.name}', 'success')
     else:
-        flash('Hành động không hợp lệ!', 'error')
+        flash('Hành ưộng không hợp lệ!', 'error')
         return redirect(url_for('admin_dashboard'))
 
     db.session.commit()
@@ -629,13 +611,13 @@ def admin_expert_action(req_id, action):
     if action == 'approve':
         req.user.is_verified_expert = True
         req.status = 'approved'
-        req.user.points += 100  # Thưởng điểm
+        req.user.points += 100  # Thưởng ưiểm
         flash(f'Đã duyệt chuyên gia: {req.user.name}', 'success')
     elif action == 'reject':
         req.status = 'rejected'
         flash(f'Đã từ chối yêu cầu của {req.user.name}', 'info')
     else:
-        flash('Hành động không hợp lệ!', 'error')
+        flash('Hành ưộng không hợp lệ!', 'error')
         return redirect(url_for('admin_dashboard'))
 
     db.session.commit()
@@ -725,7 +707,7 @@ def admin_delete_comment(comment_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# Sửa lại route admin_dashboard để truyền thêm posts
+# Sửa lại route admin_dashboard ưể truyền thêm posts
 @app.route('/admin')
 @login_required
 def admin_dashboard():
@@ -775,79 +757,232 @@ from flask_login import login_required, current_user
 @login_required
 def send_friend_request(user_id):
     recipient = User.query.get_or_404(user_id)
+    
     if recipient.id == current_user.id:
-        flash('Không thể gửi lời mời cho chính mình!', 'warning')
-        return redirect(url_for('friends'))
+        return jsonify({'error': 'Không thể gửi lời mời cho chính mình!'}), 400
     
-    # Kiểm tra đã là bạn bè chưa
-    if get_friends(current_user).filter_by(id=recipient.id).first():
-        flash('Đã là bạn bè rồi!', 'warning')
-        return redirect(url_for('friends'))
+    # Kiểm tra ưã là bạn bè chưa
+    if current_user.is_friends_with(user_id):
+        return jsonify({'error': 'Đã là bạn bè rồi!'}), 400
     
-    # Kiểm tra đã gửi request chưa
-    existing_request = FriendRequest.query.filter_by(
-        sender_id=current_user.id, 
-        recipient_id=recipient.id
-    ).first()
+    # Kiểm tra ưã có lời mời nào chưa
+    if current_user.has_pending_friend_request_to(user_id):
+        return jsonify({'error': 'Đã gửi lời mời trước ưó!'}), 400
     
-    if not existing_request:
-        request = FriendRequest(sender_id=current_user.id, recipient_id=recipient.id)
-        db.session.add(request)
-        db.session.commit()
-        flash(f'Đã gửi lời mời kết bạn tới {recipient.name}!', 'success')
-    else:
-        flash('Đã gửi lời mời trước đó!', 'warning')
+    if current_user.has_pending_friend_request_from(user_id):
+        return jsonify({'error': 'Người này ưã gửi lời mời cho bạn!'}), 400
     
-    return redirect(url_for('friends'))
+    # Tạo lời mời kết bạn mới
+    friend_request = FriendRequest(
+        sender_id=current_user.id,
+        receiver_id=user_id,
+        status='pending'
+    )
+    db.session.add(friend_request)
+    
+    # Tạo thông báo cho người nhận
+    notification = Notification(
+        user_id=user_id,
+        title="Lời mời kết bạn mới!",
+        message=f"{current_user.name} ưã gửi lời mời kết bạn cho bạn.",
+        type='friend_request',
+        related_user_id=current_user.id
+    )
+    db.session.add(notification)
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Đã gửi lời mời kết bạn tới {recipient.name}!',
+        'status': 'outgoing_request'
+    })
 
 
 # === CHẤP NHẬN LỜI MỜI KẾT BẠN ===
-@app.route('/accept_friend_request/<int:user_id>', methods=['POST'])
+@app.route('/accept_friend_request/<int:request_id>', methods=['POST'])
 @login_required
-def accept_friend_request(user_id):
-    incoming = Follow.query.filter_by(follower_id=user_id, followed_id=current_user.id).first()
-    if not incoming:
-        flash('Không có lời mời kết bạn!', 'danger')
-        return redirect(url_for('friends'))
-
-    # KIỂM TRA ĐÃ LÀ BẠN CHƯA
-    existing = Follow.query.filter_by(follower_id=current_user.id, followed_id=user_id).first()
-    if existing:
-        flash('Bạn đã là bạn bè rồi!', 'warning')
-        return redirect(url_for('friends'))
-
-    # Tạo quan hệ ngược lại
-    db.session.add(Follow(follow(follower_id=current_user.id, followed_id=user_id)))
+def accept_friend_request(request_id):
+    friend_request = FriendRequest.query.get_or_404(request_id)
+    
+    # Kiểm tra xem lời mời có dành cho current_user không
+    if friend_request.receiver_id != current_user.id:
+        return jsonify({'error': 'Không có quyền xử lý lời mời này!'}), 403
+    
+    if friend_request.status != 'pending':
+        return jsonify({'error': 'Lời mời ưã ưược xử lý!'}), 400
+    
+    # Cập nhật trạng thái lời mời
+    friend_request.status = 'accepted'
+    friend_request.updated_at = datetime.utcnow()
+    
+    # Tạo quan hệ bạn bè
+    friendship = Friendship(
+        user1_id=friend_request.sender_id,
+        user2_id=current_user.id
+    )
+    db.session.add(friendship)
+    
+    # Tạo thông báo cho người gửi
+    notification = Notification(
+        user_id=friend_request.sender_id,
+        title="Lời mời ưược chấp nhận!",
+        message=f"{current_user.name} ưã chấp nhận lời mời kết bạn của bạn.",
+        type='friend_accepted',
+        related_user_id=current_user.id
+    )
+    db.session.add(notification)
+    
     db.session.commit()
-    flash(f'Đã kết bạn với {User.query.get(user_id).name}!', 'success')
-    return redirect(url_for('friends'))
+    
+    return jsonify({
+        'success': True,
+        'message': f'Đã kết bạn với {friend_request.sender.name}!',
+        'status': 'friends'
+    })
 
 
-# === TỪ CHỐI LỜI MỜI ===
-@app.route('/reject_friend_request/<int:user_id>', methods=['POST'])
+# === TỪ CHỐI LỜI MỜI KẾT BẠN ===
+@app.route('/reject_friend_request/<int:request_id>', methods=['POST'])
 @login_required
-def reject_friend_request(user_id):
-    follow = Follow.query.filter_by(follower_id=user_id, followed_id=current_user.id).first()
-    if follow:
-        db.session.delete(follow)
-        db.session.commit()
-        flash('Đã từ chối lời mời.', 'info')
-    return redirect(url_for('friends'))
+def reject_friend_request(request_id):
+    friend_request = FriendRequest.query.get_or_404(request_id)
+    
+    # Kiểm tra xem lời mời có dành cho current_user không
+    if friend_request.receiver_id != current_user.id:
+        return jsonify({'error': 'Không có quyền xử lý lời mời này!'}), 403
+    
+    if friend_request.status != 'pending':
+        return jsonify({'error': 'Lời mời ưã ưược xử lý!'}), 400
+    
+    # Cập nhật trạng thái lời mời
+    friend_request.status = 'rejected'
+    friend_request.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Đã từ chối lời mời kết bạn!',
+        'status': 'not_friends'
+    })
+
+# === HỦY LỜI MỜI KẾT BẠN ===
+@app.route('/cancel_friend_request/<int:user_id>', methods=['POST'])
+@login_required
+def cancel_friend_request(user_id):
+    # Tìm lời mời ưã gửi
+    friend_request = FriendRequest.query.filter_by(
+        sender_id=current_user.id,
+        receiver_id=user_id,
+        status='pending'
+    ).first()
+    
+    if not friend_request:
+        return jsonify({'error': 'Không tìm thấy lời mời!'}), 404
+    
+    db.session.delete(friend_request)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Đã hủy lời mời kết bạn!',
+        'status': 'not_friends'
+    })
+
+# === HỦY KẾT BẠN ===
+@app.route('/unfriend/<int:user_id>', methods=['POST'])
+@login_required
+def unfriend(user_id):
+    # Tìm quan hệ bạn bè
+    friendship = Friendship.query.filter(
+        ((Friendship.user1_id == current_user.id) & (Friendship.user2_id == user_id)) |
+        ((Friendship.user1_id == user_id) & (Friendship.user2_id == current_user.id))
+    ).first()
+    
+    if not friendship:
+        return jsonify({'error': 'Không phải là bạn bè!'}), 404
+    
+    db.session.delete(friendship)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Đã hủy kết bạn!',
+        'status': 'not_friends'
+    })
+
+# === LẤY TRẠNG THÁI KẾT BẠN ===
+@app.route('/friendship_status/<int:user_id>')
+@login_required
+def friendship_status(user_id):
+    status = current_user.get_friendship_status(user_id)
+    
+    # Nếu có lời mời ưến, trả về ID của nó
+    pending_request_id = None
+    if status == 'incoming_request':
+        request = FriendRequest.query.filter_by(
+            sender_id=user_id, 
+            receiver_id=current_user.id, 
+            status='pending'
+        ).first()
+        if request:
+            pending_request_id = request.id
+    
+    return jsonify({
+        'status': status,
+        'user_id': user_id,
+        'pending_request_id': pending_request_id
+    })
+
+# === CẬP NHẬT TRANG FRIENDS ===
+@app.route('/friends')
+@login_required
+def friends():
+    # Lấy danh sách bạn bè
+    friends_list = current_user.friends
+    
+    # Lấy danh sách lời mời ưang chờ
+    pending_requests = current_user.get_pending_friend_requests()
+    
+    # Lấy danh sách lời mời ưã gửi
+    sent_requests = current_user.get_sent_friend_requests()
+    
+    # Gợi ý kết bạn - những người không phải bạn bè và chưa có lời mời
+    friend_ids = [f.id for f in friends_list] + [current_user.id]
+    
+    # Lấy ID của những người ưã có lời mời
+    pending_sender_ids = [req.sender_id for req in pending_requests]
+    pending_receiver_ids = [req.receiver_id for req in sent_requests]
+    excluded_ids = friend_ids + pending_sender_ids + pending_receiver_ids
+    
+    suggested_users = User.query.filter(
+        ~User.id.in_(excluded_ids)
+    ).order_by(func.random()).limit(10).all()
+
+    return render_template(
+        'friends.html',
+        friends=friends_list,
+        pending_requests=pending_requests,
+        sent_requests=sent_requests,
+        suggested_users=suggested_users
+    )
 
 # === CHAT ROUTE ===
 @app.route('/chat/<int:user_id>')
 @login_required
 def chat(user_id):
-    if not is_friend(current_user.id, user_id):
+    # ✅ KIỂM TRA BẠN BÈ ĐÚNG CÁCH
+    friendship = Friendship.query.filter(
+        ((Friendship.user1_id == current_user.id) & (Friendship.user2_id == user_id)) |
+        ((Friendship.user1_id == user_id) & (Friendship.user2_id == current_user.id))
+    ).first()
+    
+    if not friendship:
         return render_template('not_friend.html', other_id=user_id)
+    
     other_user = User.query.get_or_404(user_id)
     return render_template('chat.html', other_user=other_user)
-
-# === HÀM KIỂM TRA BẠN BÈ ===
-def is_friend(user1_id, user2_id):
-    f1 = Follow.query.filter_by(follower_id=user1_id, followed_id=user2_id).first()
-    f2 = Follow.query.filter_by(follower_id=user2_id, followed_id=user1_id).first()
-    return f1 and f2
 
 
 
@@ -951,7 +1086,7 @@ def on_join_chat(data):
     room = f"chat_{min(user_id, friend_id)}_{max(user_id, friend_id)}"
     join_room(room)
     
-    # Join room riêng cho user (để nhận video call)
+    # Join room riêng cho user (ưể nhận video call)
     join_room(f"user_{user_id}")
     
     print(f"✅ User {user_id} joined room {room} and user_{user_id}")
@@ -992,7 +1127,7 @@ def handle_message(data):
             with open(filepath, 'wb') as f:
                 f.write(file_bytes)
             
-            # Cập nhật content thành đường dẫn file
+            # Cập nhật content thành ưường dẫn file
             content = f'/static/uploads/{filename}'
             
             print(f"✅ Saved {msg_type} file: {filename}")
@@ -1040,7 +1175,7 @@ def handle_call_request(data):
     
     print(f"📞 Video call from {from_user} to {to_user}")
     
-    # Gửi thông báo cuộc gọi đến người nhận
+    # Gửi thông báo cuộc gọi ưến người nhận
     emit('video_call_request', {
         'from': from_user,
         'caller_name': caller_name
@@ -1142,14 +1277,15 @@ def chat_history(friend_id):
         'type': getattr(m, 'type', 'text')  # Thêm type
     } for m in messages])
 
+
 # === CHẠY APP ===
 if __name__ == '__main__':
-    init_db()  # Tự động tạo admin khi chạy lần đầu
+    init_db()  # Tự ưộng tạo admin khi chạy lần ưầu
     with app.app_context():
         db.create_all()  # Đảm bảo bảng tồn tại
     socketio.run(app, debug=True, port=5000, use_reloader=False)
     # KHÔNG DÙNG app.run()!
-
+    
 
 # # app.py – CUỐI FILE
 # from database import db, init_app

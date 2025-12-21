@@ -8,7 +8,8 @@
         <div class="p-8 border-b border-gray-100">
             <div class="flex items-start justify-between mb-6">
                 <div class="flex items-center gap-4">
-                    <img src="{{ post.author.avatar_url or url_for('static', filename='images/default.jpg') }}"
+                    <!-- ✅ SỬA AVATAR TÁC GIẢ -->
+                    <img src="{{ url_for('static', filename=post.author.avatar or 'images/default-avatar.png') }}"
                         class="w-16 h-16 rounded-full object-cover ring-4 ring-pink-200 shadow-lg">
                     <div>
                         <h3 class="text-2xl font-bold text-gray-900">{{ post.author.name }}</h3>
@@ -16,8 +17,7 @@
                             <i class="far fa-clock"></i>
                             {{ post.created_at.strftime('%H:%M • %d/%m/%Y') }}
                             {% if post.is_expert_post %}
-                            <span
-                                class="ml-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                            <span class="ml-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
                                 <i class="fas fa-stethoscope mr-1"></i> Tư vấn chuyên gia
                             </span>
                             {% endif %}
@@ -27,18 +27,15 @@
 
                 <!-- Menu 3 chấm -->
                 <div class="relative">
-                    <button onclick="toggleMenu({{ post.id }})" class="p-2 hover:bg-gray-100 rounded-full transition">
-                        <i class="fas fa-ellipsis-v text-gray-600 text-xl"></i>
+                    <button onclick="toggleMenu({{ post.id }})" class="p-3 hover:bg-gray-100 rounded-full transition">
+                        <i class="fas fa-ellipsis-h text-gray-600 text-xl"></i>
                     </button>
-                    <div id="menu-{{ post.id }}"
-                        class="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border z-10">
-                        <button onclick="reportPost({{ post.id }})"
-                            class="w-full text-left px-4 py-3 hover:bg-gray-50 transition flex items-center gap-3">
-                            <i class="fas fa-flag text-red-500"></i> Báo cáo bài viết
+                    <div id="menu-{{ post.id }}" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border z-30">
+                        <button onclick="reportPost({{ post.id }})" class="w-full text-left px-5 py-3 hover:bg-gray-50 flex items-center gap-3 text-red-600">
+                            <i class="fas fa-flag"></i> Báo cáo bài viết
                         </button>
                         {% if current_user.id == post.user_id or current_user.role == 'admin' %}
-                        <button onclick="deletePost({{ post.id }})"
-                            class="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 transition flex items-center gap-3">
+                        <button onclick="deletePost({{ post.id }})" class="w-full text-left px-5 py-3 hover:bg-red-50 flex items-center gap-3 text-red-600">
                             <i class="fas fa-trash"></i> Xóa bài viết
                         </button>
                         {% endif %}
@@ -47,25 +44,28 @@
             </div>
 
             <!-- Tiêu đề -->
-            <h1 class="text-3xl font-bold text-gray-900 mb-4">{{ post.title }}</h1>
+            <h1 class="text-4xl font-bold text-gray-900 mb-4">{{ post.title }}</h1>
 
             <!-- Chủ đề -->
             <div class="flex items-center gap-3 mb-6">
-                <span class="px-4 py-2 bg-pink-100 text-pink-700 rounded-full text-sm font-medium">
-                    {{ {'health': 'Sức khỏe', 'nutrition': 'Dinh dưỡng', 'story': 'Tâm sự', 'tips': 'Mẹo hay', 'other':
-                    'Khác'}[post.category] }}
+                <span class="px-4 py-2 rounded-full text-sm font-medium
+                    {% if post.category == 'health' %}bg-green-100 text-green-700
+                    {% elif post.category == 'nutrition' %}bg-yellow-100 text-yellow-700
+                    {% elif post.category == 'story' %}bg-purple-100 text-purple-700
+                    {% elif post.category == 'tips' %}bg-blue-100 text-blue-700
+                    {% else %}bg-gray-100 text-gray-700{% endif %}">
+                    {{ {'health': 'Sức khỏe', 'nutrition': 'Dinh dưỡng', 'story': 'Tâm sự', 'tips': 'Mẹo hay', 'other': 'Khác'}[post.category] }}
                 </span>
             </div>
 
             <!-- Nội dung -->
-            <div class="prose max-w-none text-gray-700 leading-relaxed text-lg">
+            <div class="prose max-w-none text-gray-700 leading-relaxed text-lg mb-8">
                 {{ post.content | replace('\n', '<br>') | safe }}
             </div>
 
-            <!-- Hình ảnh nếu có -->
-            <!-- MEDIA: NHIỀU ẢNH + VIDEO -->
+            <!-- Media: Nhiều ảnh + Video -->
             {% if post.get_images_list() or post.video %}
-            <div class="mt-8 -mx-8">
+            <div class="mb-8 -mx-8">
                 <!-- Nhiều ảnh -->
                 {% if post.get_images_list() %}
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-8">
@@ -79,7 +79,7 @@
                 </div>
                 {% endif %}
 
-                <!-- Video (nếu có) -->
+                <!-- Video -->
                 {% if post.video %}
                 <div class="px-8 mt-6">
                     <div class="relative rounded-2xl overflow-hidden shadow-2xl bg-black">
@@ -88,8 +88,7 @@
                             Trình duyệt của bạn không hỗ trợ video.
                         </video>
                         <div class="absolute top-4 left-4">
-                            <span
-                                class="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2">
+                            <span class="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2">
                                 <i class="fas fa-play-circle"></i> Video
                             </span>
                         </div>
@@ -98,23 +97,32 @@
                 {% endif %}
             </div>
             {% endif %}
-        </div>
 
-        <!-- Hành động: Thích + Bình luận -->
-        <div class="p-6 border-b border-gray-100">
-            <div class="flex items-center justify-between">
+            <!-- Hành động: Thích + Bình luận -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-100">
                 <div class="flex items-center gap-8">
-                    <button onclick="likePost({{ post.id }})"
-                        class="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-pink-100 to-purple-100 rounded-full hover:shadow-lg transition group">
+                    <button onclick="likePost({{ post.id }})" class="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-pink-100 to-purple-100 rounded-full hover:shadow-lg transition group">
                         <i class="fas fa-heart text-2xl text-pink-600 group-hover:scale-110 transition"></i>
                         <span class="font-bold text-pink-700">Thích • {{ post.likes }}</span>
                     </button>
 
-                    <button onclick="focusCommentInput()"
-                        class="flex items-center gap-3 px-6 py-3 bg-gray-100 rounded-full hover:bg-gray-200 transition">
+                    <button onclick="focusCommentInput()" class="flex items-center gap-3 px-6 py-3 bg-gray-100 rounded-full hover:bg-gray-200 transition">
                         <i class="fas fa-comment text-2xl text-blue-600"></i>
                         <span class="font-bold text-gray-700">Bình luận • {{ post.comments_count }}</span>
                     </button>
+                </div>
+
+                <!-- Đánh giá sao -->
+                <div class="flex items-center gap-2">
+                    <span class="text-lg font-medium text-gray-700">Đánh giá bài viết:</span>
+                    <div class="flex items-center gap-1">
+                        {% for i in range(1, 6) %}
+                        <button onclick="ratePost({{ post.id }}, {{ i }})" class="text-3xl hover:scale-125 transition {% if i <= (post.rating|default(0)) %}text-yellow-400{% else %}text-gray-300{% endif %}">
+                            ★
+                        </button>
+                        {% endfor %}
+                    </div>
+                    <span class="text-sm text-gray-600">({{ post.rating_count|default(0) }} đánh giá)</span>
                 </div>
             </div>
         </div>
@@ -122,15 +130,15 @@
         <!-- Form bình luận -->
         <div class="p-6 bg-gray-50">
             <div class="flex gap-4">
-                <img src="{{ current_user.avatar_url or url_for('static', filename='images/default.png') }}"
+                <!-- ✅ SỬA AVATAR CURRENT_USER -->
+                <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
                     class="w-12 h-12 rounded-full ring-4 ring-white shadow">
                 <div class="flex-1">
                     <textarea id="comment-input" rows="3" placeholder="Viết bình luận của bạn..."
                         class="w-full px-5 py-4 border border-gray-300 rounded-2xl focus:ring-4 focus:ring-pink-300 focus:border-pink-500 outline-none resize-none"></textarea>
                     <div class="mt-3 flex justify-end">
-                        <button onclick="submitComment({{ post.id }})"
-                            class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold rounded-full hover:shadow-xl transition transform hover:scale-105">
-                            Gửi bình luận
+                        <button onclick="submitComment({{ post.id }})" class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold rounded-full hover:shadow-xl transition transform hover:scale-105">
+                            <i class="fas fa-paper-plane mr-2"></i> Gửi bình luận
                         </button>
                     </div>
                 </div>
@@ -139,20 +147,20 @@
 
         <!-- Danh sách bình luận -->
         <div class="p-6">
-            <h3 class="text-xl font-bold text-gray-800 mb-6">Bình luận ({{ comments|length }})</h3>
+            <h3 class="text-2xl font-bold text-gray-800 mb-6">Bình luận ({{ comments|length }})</h3>
             {% if comments %}
             <div class="space-y-6">
                 {% for comment in comments %}
                 <div class="flex gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition">
-                    <img src="{{ comment.author.avatar_url or url_for('static', filename='images/default.jpg') }}"
+                    <!-- ✅ SỬA AVATAR TÁC GIẢ BÌNH LUẬN -->
+                    <img src="{{ url_for('static', filename=comment.author.avatar or 'images/default-avatar.png') }}"
                         class="w-12 h-12 rounded-full ring-4 ring-white shadow">
                     <div class="flex-1">
                         <div class="flex items-center justify-between mb-2">
                             <h4 class="font-bold text-gray-900">{{ comment.author.name }}</h4>
-                            <p class="text-xs text-gray-500">{{ comment.created_at.strftime('%H:%M %d/%m') }}</p>
+                            <span class="text-sm text-gray-500">{{ comment.created_at.strftime('%H:%M %d/%m') }}</span>
                         </div>
-                        <p class="text-gray-700 leading-relaxed">{{ comment.content | replace('\n', '<br>') | safe }}
-                        </p>
+                        <p class="text-gray-700 leading-relaxed">{{ comment.content | replace('\n', '<br>') | safe }}</p>
                     </div>
                 </div>
                 {% endfor %}
@@ -161,31 +169,25 @@
             <div class="text-center py-12 text-gray-400">
                 <i class="fas fa-comment-slash text-6xl mb-4"></i>
                 <p class="text-lg">Chưa có bình luận nào</p>
-                <p>Hãy là người đầu tiên bình luận nhé!</p>
+                <p class="text-sm mt-2">Hãy là người đầu tiên bình luận nhé!</p>
             </div>
             {% endif %}
         </div>
     </div>
-    <!-- Thêm vào phần tương tác trong post_detail.html -->
-    <div class="flex items-center gap-2 mt-6">
-        <span class="text-lg font-medium text-gray-700">Đánh giá bài viết:</span>
-        <div class="flex items-center gap-1">
-            {% for i in range(1, 6) %}
-            <button onclick="ratePost({{ post.id }}, {{ i }})"
-                class="text-3xl hover:scale-125 transition {% if i <= (post.rating|default(0)) %}text-yellow-400{% else %}text-gray-300{% endif %}">
-                ★
-            </button>
-            {% endfor %}
-        </div>
-        <span class="ml-3 text-sm text-gray-600">({{ post.rating_count|default(0) }} đánh giá)</span>
-    </div>
 
     <!-- Nút quay lại -->
     <div class="text-center mt-8">
-        <a href="{{ url_for('home') }}"
-            class="inline-flex items-center gap-2 text-pink-600 hover:text-pink-700 font-bold text-lg">
+        <a href="{{ url_for('home') }}" class="inline-flex items-center gap-2 text-pink-600 hover:text-pink-700 font-bold text-lg">
             <i class="fas fa-arrow-left"></i> Quay lại trang chủ
         </a>
+    </div>
+</div>
+
+<!-- Toast thông báo -->
+<div id="toast" class="hidden fixed top-20 right-4 bg-white border-l-4 border-green-500 shadow-xl rounded-lg p-4 z-50">
+    <div class="flex items-center gap-3">
+        <i class="fas fa-check-circle text-green-500 text-2xl"></i>
+        <span id="toast-message" class="font-medium text-gray-800"></span>
     </div>
 </div>
 
@@ -198,7 +200,7 @@
     }
 
     function likePost(postId) {
-        fetch(`/like/${postId}`, { method: 'GET' })
+        fetch(`/like/${postId}`, { method: 'POST' })
             .then(r => r.json())
             .then(data => {
                 location.reload();
@@ -251,6 +253,48 @@
         if (!confirm('Bạn chắc chắn muốn xóa bài viết này?')) return;
         fetch(`/post/${postId}/delete`, { method: 'POST' })
             .then(() => location.href = '/');
+    }
+
+    function ratePost(postId, rating) {
+        fetch(`/rate/${postId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stars: rating })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Đã đánh giá bài viết!', true);
+                } else {
+                    showToast(data.error || 'Lỗi khi đánh giá', false);
+                }
+            });
+    }
+
+    function showToast(message, isSuccess = true) {
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toast-message');
+        const icon = toast.querySelector('i');
+
+        toastMessage.textContent = message;
+
+        if (isSuccess) {
+            toast.classList.remove('border-red-500');
+            toast.classList.add('border-green-500');
+            icon.classList.remove('fa-exclamation-circle', 'text-red-500');
+            icon.classList.add('fa-check-circle', 'text-green-500');
+        } else {
+            toast.classList.remove('border-green-500');
+            toast.classList.add('border-red-500');
+            icon.classList.remove('fa-check-circle', 'text-green-500');
+            icon.classList.add('fa-exclamation-circle', 'text-red-500');
+        }
+
+        toast.classList.remove('hidden');
+
+        setTimeout(() => {
+            toast.classList.add('hidden');
+        }, 3000);
     }
 </script>
 {% endblock %}

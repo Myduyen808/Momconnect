@@ -36,6 +36,26 @@
         .notif-item:hover {
             background-color: #f8f9fa;
         }
+
+        .notif-item {
+            transition: all 0.2s ease;
+        }
+
+        .notif-item.unread {
+            background-color: #eff6ff;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .notif-link {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .notif-link:hover {
+            text-decoration: none;
+            color: inherit;
+        }
     </style>
 </head>
 
@@ -59,7 +79,7 @@
 
             <div class="flex items-center space-x-6">
                 {% if current_user.is_authenticated %}
-                <!-- THÔNG BÁO - ĐÃ CÓ AVATAR + SỐ MỚI NHƯ FACEBOOK -->
+                <!-- THÔNG BÁO - ĐÃ CÃ³ AVATAR + SỐ MỚI NHƯ FACEBOOK -->
                 <div class="relative">
                     <button onclick="toggleNotif()" class="relative p-2 hover:bg-gray-100 rounded-full transition">
                         <i class="fas fa-bell text-2xl text-pink-600"></i>
@@ -183,23 +203,72 @@
                         return;
                     }
 
-                    list.innerHTML = notifs.map(n => `
-                        <div class="p-4 notif-item transition ${!n.is_read ? 'bg-blue-50' : ''}">
-                            <div class="flex gap-4">
-                            <img src="${n.related_user_avatar}"
-                                class="w-12 h-12 rounded-full object-cover ring-2 ring-pink-300">
-                            <div class="flex-1">
-                                <p class="font-bold text-gray-800">${n.title}</p>
-                                <p class="text-sm text-gray-600 mt-1">${n.message}</p>
-                                <p class="text-xs text-gray-400 mt-2">${n.created_at}</p>
-                            </div>
-                            </div>
-                        </div>
-                        `).join('');
+                    list.innerHTML = notifs.map(n => {
+                        // Xác định URL redirect dựa trên loại thông báo
+                        let redirectUrl = '#';
+                        if (n.type === 'comment' && n.post_id) {
+                            redirectUrl = `/post/${n.post_id}#comment-${n.comment_id || ''}`;
+                        } else if (n.type === 'like' && n.post_id) {
+                            redirectUrl = `/post/${n.post_id}`;
+                        } else if (n.type === 'follow' && n.related_user_id) {
+                            redirectUrl = `/profile/${n.related_user_id}`;
+                        }
+
+                        return `
+                            <a href="${redirectUrl}" 
+                               class="notif-link block p-4 notif-item transition ${!n.is_read ? 'unread bg-blue-50' : 'hover:bg-gray-50'}"
+                               onclick="handleNotificationClick(event, ${n.id}, '${redirectUrl}')">
+                                <div class="flex gap-4">
+                                    <img src="${n.related_user_avatar || '/static/uploads/default.jpg'}"
+                                        class="w-12 h-12 rounded-full object-cover ring-2 ring-pink-300 flex-shrink-0">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="font-bold text-gray-800 hover:text-pink-600 transition-colors">${n.title}</p>
+                                        <p class="text-sm text-gray-600 mt-1">${n.message}</p>
+                                        <p class="text-xs text-gray-400 mt-2">${n.created_at}</p>
+                                    </div>
+                                    <div class="flex-shrink-0">
+                                        ${n.type === 'like' ? '<i class="fas fa-heart text-red-500 text-xl"></i>' : 
+                                          n.type === 'comment' ? '<i class="fas fa-comment text-blue-500 text-xl"></i>' :
+                                          '<i class="fas fa-user-plus text-green-500 text-xl"></i>'}
+                                    </div>
+                                </div>
+                            </a>`;
+                    }).join('');
 
                 }
             } catch (e) {
                 console.error("Lỗi load thông báo:", e);
+            }
+        }
+
+        // Xử lý click vào thông báo
+        async function handleNotificationClick(event, notifId, redirectUrl) {
+            event.preventDefault();
+            
+            // Đánh dấu đã đọc
+            if (!event.currentTarget.classList.contains('read')) {
+                try {
+                    await fetch(`/api/notifications/${notifId}/read`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+                    
+                    // Cập nhật UI
+                    event.currentTarget.classList.remove('unread', 'bg-blue-50');
+                    event.currentTarget.classList.add('read');
+                    
+                    // Cập nhật số lượng thông báo chưa đọc
+                    updateNotificationBadge();
+                } catch (error) {
+                    console.error('Error marking notification as read:', error);
+                }
+            }
+            
+            // Chuyển hướng nếu có URL hợp lệ
+            if (redirectUrl && redirectUrl !== '#') {
+                window.location.href = redirectUrl;
             }
         }
 

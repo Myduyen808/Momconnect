@@ -1,72 +1,339 @@
-<!-- templates/friends.html -->
 {% extends "base.html" %}
 {% block title %}Bạn bè & Lời mời{% endblock %}
 
-<!-- Thêm ngay trên cùng của block content -->
-{% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-{% for category, message in messages %}
-<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-r mb-6">
-    <p class="font-bold">Warning: {{ message }}</p>
-</div>
-{% endfor %}
-{% endif %}
-{% endwith %}
-
 {% block content %}
-<div class="max-w-4xl mx-auto p-4">
-    <h2 class="text-2xl font-bold mb-6">Bạn bè & Lời mời</h2>
+<div class="max-w-6xl mx-auto p-4">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- CỘT CHÍNH - LỜI MỜI KẾT BẠN -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- LỜI MỜI ĐẾN -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-900 flex items-center">
+                        <i class="fas fa-user-plus text-blue-600 mr-3"></i>
+                        Lời mời kết bạn
+                        {% if pending_requests %}
+                        <span class="ml-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
+                            {{ pending_requests|length }}
+                        </span>
+                        {% endif %}
+                    </h3>
+                </div>
+                
+                <div class="p-6">
+                    {% if pending_requests %}
+                    <div class="space-y-4">
+                        {% for request in pending_requests %}
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition">
+                            <div class="flex items-center gap-4">
+                                <img src="{{ url_for('static', filename=request.sender.avatar or 'images/default-avatar.png') }}" 
+                                     class="w-16 h-16 rounded-full object-cover ring-2 ring-gray-200">
+                                <div>
+                                    <h4 class="font-bold text-gray-900 text-lg">{{ request.sender.name }}</h4>
+                                    <p class="text-sm text-gray-600">
+                                        <i class="far fa-clock mr-1"></i>
+                                        {{ request.created_at.strftime('%d/%m/%Y') }}
+                                    </p>
+                                    {% if request.sender.bio %}
+                                    <p class="text-sm text-gray-700 mt-1 line-clamp-2">{{ request.sender.bio }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="flex gap-2">
+                                <form action="{{ url_for('accept_friend_request', request_id=request.id) }}" 
+                                      method="post" class="inline">
+                                    <button type="submit" 
+                                            class="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-2">
+                                        <i class="fas fa-check"></i>
+                                        Chấp nhận
+                                    </button>
+                                </form>
+                                
+                                <form action="{{ url_for('reject_friend_request', request_id=request.id) }}" 
+                                      method="post" class="inline">
+                                    <button type="submit" 
+                                            class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition">
+                                        Từ chối
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-12">
+                        <i class="fas fa-user-clock text-6xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-600 text-lg">Không có lời mời kết bạn nào</p>
+                        <p class="text-gray-500 text-sm mt-2">Khi có người mời kết bạn, bạn sẽ thấy ở đây</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
 
-    <!-- LỜI MỜI ĐẾN -->
-    <div class="bg-white rounded-xl shadow p-6 mb-6">
-        <h3 class="font-bold text-lg mb-4">Lời mời kết bạn</h3>
-        {% if pending_requests %}
-        {% for f in pending_requests %}
-        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-3">
-            <div class="flex items-center gap-3">
-                <img src="{{ url_for('static', filename=f.follower.avatar or 'default.jpg') }}"
-                    class="w-10 h-10 rounded-full object-cover">
-                <span class="font-medium">{{ f.follower.name }}</span>
+            <!-- LỜI MỜI ĐÃ GỬI -->
+            {% if sent_requests %}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-900 flex items-center">
+                        <i class="fas fa-paper-plane text-gray-600 mr-3"></i>
+                        Lời mời đã gửi
+                        <span class="ml-2 bg-gray-600 text-white text-xs px-2 py-1 rounded-full">
+                            {{ sent_requests|length }}
+                        </span>
+                    </h3>
+                </div>
+                
+                <div class="p-6">
+                    <div class="space-y-4">
+                        {% for request in sent_requests %}
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                            <div class="flex items-center gap-4">
+                                <img src="{{ url_for('static', filename=request.receiver.avatar or 'images/default-avatar.png') }}" 
+                                     class="w-12 h-12 rounded-full object-cover">
+                                <div>
+                                    <h4 class="font-bold text-gray-900">{{ request.receiver.name }}</h4>
+                                    <p class="text-sm text-gray-600">
+                                        Đã gửi {{ request.created_at.strftime('%d/%m/%Y') }}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <form action="{{ url_for('cancel_friend_request', user_id=request.receiver.id) }}" 
+                                  method="post" class="inline">
+                                <button type="submit" 
+                                        class="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg transition">
+                                    <i class="fas fa-times mr-1"></i>
+                                    Hủy
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
-            <div class="flex gap-2">
-                <form action="{{ url_for('accept_friend_request', user_id=f.follower.id) }}" method="post">
-                    <button class="px-4 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600">
-                        Chấp nhận
-                    </button>
-                </form>
-                <form action="{{ url_for('reject_friend_request', user_id=f.follower.id) }}" method="post">
-                    <button class="px-4 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">
-                        Từ chối
-                    </button>
-                </form>
-            </div>
+            {% endif %}
         </div>
-        {% endfor %}
-        {% else %}
-        <p class="text-gray-500">Không có lời mời nào.</p>
-        {% endif %}
-    </div>
 
-    <!-- DANH SÁCH BẠN BÈ -->
-    <div class="bg-white rounded-xl shadow p-6">
-        <h3 class="font-bold text-lg mb-4">Bạn bè ({{ friends|length }})</h3>
-        {% if friends %}
-        {% for friend in friends %}
-        <div class="flex items-center justify-between p-3 border-b last:border-0">
-            <div class="flex items-center gap-3">
-                <img src="{{ url_for('static', filename=friend.avatar or 'default.jpg') }}"
-                    class="w-10 h-10 rounded-full object-cover">
-                <span class="font-medium">{{ friend.name }}</span>
+        <!-- SIDEBAR - DANH SÁCH BẠN BÈ -->
+        <div class="space-y-6">
+            
+            <!-- DANH SÁCH BẠN BÈ -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-900 flex items-center">
+                        <i class="fas fa-users text-green-600 mr-3"></i>
+                        Bạn bè
+                        <span class="ml-2 bg-green-600 text-white text-xs px-2 py-1 rounded-full">
+                            {{ friends|length }}
+                        </span>
+                    </h3>
+                </div>
+                
+                <div class="p-6">
+                    {% if friends %}
+                    <div class="space-y-3 max-h-96 overflow-y-auto">
+                        {% for friend in friends %}
+                        <div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition">
+                            <div class="flex items-center gap-3">
+                                <img src="{{ url_for('static', filename=friend.avatar or 'images/default-avatar.png') }}" 
+                                     class="w-12 h-12 rounded-full object-cover ring-2 ring-green-200">
+                                <div>
+                                    <h4 class="font-bold text-gray-900">{{ friend.name }}</h4>
+                                    <p class="text-sm text-gray-600">Bạn bè</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex gap-2">
+                                <a href="{{ url_for('chat', user_id=friend.id) }}" 
+                                   class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Nhắn tin">
+                                    <i class="fas fa-comment"></i>
+                                </a>
+                                
+                                <form action="{{ url_for('unfriend', user_id=friend.id) }}" 
+                                      method="post" class="inline">
+                                    <button type="submit" 
+                                            class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" 
+                                            title="Hủy kết bạn"
+                                            onclick="return confirm('Bạn có chắc muốn hủy kết bạn với {{ friend.name }}?')">
+                                        <i class="fas fa-user-minus"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    {% if friends|length > 8 %}
+                    <div class="mt-4 text-center">
+                        <button class="text-blue-600 hover:text-blue-700 font-medium">
+                            Xem tất cả bạn bè
+                        </button>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="text-center py-8">
+                        <i class="fas fa-user-friends text-6xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-600">Chưa có bạn bè</p>
+                        <p class="text-gray-500 text-sm mt-2">Hãy gửi lời mời kết bạn để kết nối!</p>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
-            <a href="{{ url_for('chat', user_id=friend.id) }}"
-                class="px-4 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition">
-                Nhắn tin
-            </a>
+
+            <!-- GỢI Ý KẾT BẠN -->
+            {% if suggested_users %}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-900 flex items-center">
+                        <i class="fas fa-user-plus text-purple-600 mr-3"></i>
+                        Gợi ý kết bạn
+                    </h3>
+                </div>
+                
+                <div class="p-6">
+                    <div class="space-y-4">
+                        {% for user in suggested_users %}
+                        <div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition">
+                            <div class="flex items-center gap-3">
+                                <img src="{{ url_for('static', filename=user.avatar or 'images/default-avatar.png') }}" 
+                                     class="w-12 h-12 rounded-full object-cover">
+                                <div>
+                                    <h4 class="font-bold text-gray-900">{{ user.name }}</h4>
+                                    {% if user.bio %}
+                                    <p class="text-sm text-gray-600 line-clamp-1">{{ user.bio }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <form action="{{ url_for('send_friend_request', user_id=user.id) }}" 
+                                  method="post" class="inline">
+                                <button type="submit" 
+                                        class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">
+                                    Kết bạn
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
-        {% endfor %}
-        {% else %}
-        <p class="text-gray-500">Chưa có bạn bè. Hãy gửi lời mời!</p>
-        {% endif %}
     </div>
 </div>
+
+<style>
+.line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Custom scrollbar */
+.max-h-96::-webkit-scrollbar {
+    width: 6px;
+}
+
+.max-h-96::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.max-h-96::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.max-h-96::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+</style>
+
+<script>
+// Xử lý AJAX cho các hành động kết bạn
+document.addEventListener('DOMContentLoaded', function() {
+    // Helper function để hiển thị toast
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 px-6 py-4 rounded-lg shadow-lg z-50 flex items-center gap-3 ${
+            type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`;
+        toast.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+            <span>${message}</span>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+    
+    // Xử lý các form submit với AJAX
+    function handleFormSubmit(form, successMessage) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            const url = form.action;
+            
+            fetch(url, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message || successMessage, 'success');
+                    
+                    // Reload trang sau 1 giây để cập nhật UI
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showToast(data.error || 'Đã có lỗi xảy ra', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Lỗi kết nối', 'error');
+            });
+        });
+    }
+    
+    // Áp dụng cho tất cả các form liên quan đến kết bạn
+    document.querySelectorAll('form[action*="friend_request"], form[action*="unfriend"]').forEach(form => {
+        const action = form.action;
+        let successMessage = 'Thao tác thành công!';
+        
+        if (action.includes('accept')) {
+            successMessage = 'Đã chấp nhận lời mời kết bạn!';
+        } else if (action.includes('reject')) {
+            successMessage = 'Đã từ chối lời mời kết bạn!';
+        } else if (action.includes('cancel')) {
+            successMessage = 'Đã hủy lời mời kết bạn!';
+        } else if (action.includes('unfriend')) {
+            successMessage = 'Đã hủy kết bạn!';
+        } else if (action.includes('send_friend_request')) {
+            successMessage = 'Đã gửi lời mời kết bạn!';
+        }
+        
+        handleFormSubmit(form, successMessage);
+    });
+});
+</script>
 {% endblock %}

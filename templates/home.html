@@ -24,7 +24,7 @@
             <div class="p-6 pb-4 border-b border-gray-100">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-4">
-                        <img src="{{ post.author.avatar_url or url_for('static', filename='uploads/default.jpg') }}"
+                        <img src="{{ url_for('static', filename=post.author.avatar or 'images/default-avatar.png') }}"
                             class="w-14 h-14 rounded-full object-cover ring-4 ring-pink-200 shadow-lg">
                         <div>
                             <div class="flex items-center gap-3">
@@ -43,25 +43,36 @@
                         </div>
                     </div>
 
-                    <!-- Nút theo dõi (ĐÃ SỬA) -->
-                    <!-- Nút theo dõi SA - SỬA LẠI -->
+                    <!-- NÚT KẾT BẠN GIỐNG FACEBOOK -->
                     {% if current_user.is_authenticated and post.author.id != current_user.id %}
-                    <button onclick="toggleFollow({{ post.author.id }}, this)"
-                        data-following="{% if current_user in post.author.followers %}true{% else %}false{% endif %}"
-                        class="px-5 py-2 rounded-full font-medium transition shadow-md follow-btn 
-               {% if current_user in post.author.followers %}
-               bg-gray-200 text-gray-700 hover:bg-gray-300 
-               {% else %}
-               bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:shadow-lg 
-               {% endif %}">
-                        <span class="follow-text">
-                            {% if current_user in post.author.followers %}
-                            Hủy theo dõi
-                            {% else %}
-                            Theo dõi
-                            {% endif %}
-                        </span>
-                    </button>
+                    <div id="friend-button-{{ post.author.id }}">
+                        {% set friendship_status = current_user.get_friendship_status(post.author.id) %}
+                        
+                        {% if friendship_status == 'friends' %}
+                        <button onclick="handleFriendAction('{{ post.author.id }}', 'unfriend', this)"
+                            class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300">
+                            <i class="fas fa-user-minus mr-2"></i>Bạn bè
+                        </button>
+                        
+                        {% elif friendship_status == 'incoming_request' %}
+                        <button onclick="handleFriendAction('{{ post.author.id }}', 'accept_request', this)"
+                            class="px-5 py-2 rounded-full font-medium transition shadow-md bg-blue-600 text-white hover:bg-blue-700">
+                            <i class="fas fa-user-check mr-2"></i>Chấp nhận
+                        </button>
+                        
+                        {% elif friendship_status == 'outgoing_request' %}
+                        <button onclick="handleFriendAction('{{ post.author.id }}', 'cancel_request', this)"
+                            class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300">
+                            <i class="fas fa-clock mr-2"></i>Đã gửi
+                        </button>
+                        
+                        {% else %}
+                        <button onclick="handleFriendAction('{{ post.author.id }}', 'add_friend', this)"
+                            class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:shadow-lg">
+                            <i class="fas fa-user-plus mr-2"></i>Kết bạn
+                        </button>
+                        {% endif %}
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -165,7 +176,7 @@
                     </div>
                 </div>
 
-                <!-- Menu chia sẻ (MỚI THÊM) -->
+                <!-- Menu chia sẻ -->
                 <div id="share-menu-{{ post.id }}"
                     class="hidden mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border-2 border-blue-200">
                     <p class="text-sm font-bold text-gray-700 mb-3">Chia sẻ bài viết đến:</p>
@@ -203,9 +214,9 @@
                     </div>
                 </div>
 
-                <!-- Bình luận nhanh (ĐÃ SỬA) -->
+                <!-- Bình luận nhanh -->
                 <div class="mt-6 flex gap-4">
-                    <img src="{{ current_user.avatar_url or url_for('static', filename='uploads/default.jpg') }}"
+                    <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
                         class="w-10 h-10 rounded-full ring-2 ring-pink-200 flex-shrink-0 object-cover">
                     <input type="text" placeholder="Viết bình luận..." id="quick-comment-{{ post.id }}"
                         class="flex-1 px-5 py-3 border border-gray-300 rounded-full focus:ring-4 focus:ring-pink-300 outline-none"
@@ -236,7 +247,7 @@
         <!-- Hồ sơ nhanh -->
         <div class="bg-gradient-to-br from-pink-400 to-purple-600 p-8 rounded-3xl text-white shadow-2xl">
             <div class="text-center">
-                <img src="{{ current_user.avatar_url or url_for('static', filename='images/default.jpg') }}"
+                <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
                     class="w-24 h-24 rounded-full mx-auto ring-8 ring-white shadow-2xl mb-4 object-cover">
                 <h3 class="text-2xl font-bold">{{ current_user.name }}</h3>
                 <p class="mt-2 text-pink-100">{{ current_user.points }} điểm tích lũy</p>
@@ -255,13 +266,14 @@
                 {% for friend in friends %}
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <img src="{{ friend.avatar_url }}"
+                        <img src="{{ url_for('static', filename=friend.avatar or 'images/default-avatar.png') }}"
                             class="w-12 h-12 rounded-full ring-2 ring-pink-200 object-cover">
                         <span class="font-medium">{{ friend.name }}</span>
                     </div>
-                    <a href="{{ url_for('chat', user_id=friend.id) }}" class="text-blue-600 hover:text-blue-700">
+                    <!-- ✅ SỬA NÚT CHAT - DÙNG openChat() THAY VÌ href -->
+                    <button onclick="openChat({{ friend.id }})" class="text-blue-600 hover:text-blue-700">
                         <i class="fas fa-comment-dots text-xl"></i>
-                    </a>
+                    </button>
                 </div>
                 {% endfor %}
             </div>
@@ -278,16 +290,14 @@
                 {% for user in suggested_users %}
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <img src="{{ user.avatar_url }}"
+                        <img src="{{ url_for('static', filename=user.avatar or 'images/default-avatar.png') }}"
                             class="w-12 h-12 rounded-full ring-2 ring-pink-200 object-cover">
                         <span class="font-medium">{{ user.name }}</span>
                     </div>
-                    <form method="POST" action="{{ url_for('send_friend_request', user_id=user.id) }}">
-                        <button
-                            class="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full text-sm font-medium hover:shadow-lg transition">
-                            Kết bạn
-                        </button>
-                    </form>
+                    <button onclick="handleFriendAction('{{ user.id }}', 'add_friend', this)"
+                        class="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full text-sm font-medium hover:shadow-lg transition">
+                        Kết bạn
+                    </button>
                 </div>
                 {% endfor %}
             </div>
@@ -298,7 +308,7 @@
     </div>
 </div>
 
-<!-- Toast thông báo (MỚI THÊM) -->
+<!-- Toast thông báo -->
 <div id="toast"
     class="hidden fixed top-20 right-4 bg-white border-l-4 border-green-500 shadow-2xl rounded-lg p-4 z-50 animate-slide-in">
     <div class="flex items-center gap-3">
@@ -323,10 +333,146 @@
     .animate-slide-in {
         animation: slide-in 0.3s ease-out;
     }
+    
+    .line-clamp-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
 </style>
 
 <script>
-    // Hàm hiển thị toast thông báo
+    // ✅ HÀM MỞ CHAT - KIỂM TRA BẠN BÈ TRƯỚC
+    async function openChat(userId) {
+        try {
+            // Kiểm tra trạng thái bạn bè
+            const response = await fetch(`/friendship_status/${userId}`);
+            const data = await response.json();
+            
+            if (data.status === 'friends') {
+                // Nếu là bạn bè, chuyển đến trang chat
+                window.location.href = `/chat/${userId}`;
+            } else {
+                // Nếu chưa là bạn bè, hiển thị thông báo
+                showToast('Bạn cần kết bạn với người này trước khi có thể nhắn tin!', false);
+                
+                // Tự động mở nút kết bạn
+                const button = document.querySelector(`button[onclick*="${userId}"]`);
+                if (button && button.textContent.includes('Kết bạn')) {
+                    button.click();
+                }
+            }
+        } catch (error) {
+            console.error('Lỗi khi kiểm tra trạng thái bạn bè:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    // Hàm xử lý các hành động kết bạn
+    async function handleFriendAction(userId, action, button) {
+        try {
+            let url, method, successMessage;
+            
+            switch(action) {
+                case 'add_friend':
+                    url = `/send_friend_request/${userId}`;
+                    method = 'POST';
+                    successMessage = 'Đã gửi lời mời kết bạn!';
+                    break;
+                case 'accept_request':
+                    // Tìm request ID trước
+                    const response = await fetch(`/friendship_status/${userId}`);
+                    const data = await response.json();
+                    if (data.pending_request_id) {
+                        url = `/accept_friend_request/${data.pending_request_id}`;
+                        method = 'POST';
+                        successMessage = 'Đã chấp nhận lời mời kết bạn!';
+                    }
+                    break;
+                case 'cancel_request':
+                    url = `/cancel_friend_request/${userId}`;
+                    method = 'POST';
+                    successMessage = 'Đã hủy lời mời kết bạn!';
+                    break;
+                case 'unfriend':
+                    if (confirm('Bạn có chắc muốn hủy kết bạn?')) {
+                        url = `/unfriend/${userId}`;
+                        method = 'POST';
+                        successMessage = 'Đã hủy kết bạn!';
+                    } else {
+                        return;
+                    }
+                    break;
+            }
+            
+            if (!url) return;
+            
+            const res = await fetch(url, { method });
+            const result = await res.json();
+            
+            if (result.success) {
+                showToast(result.message || successMessage);
+                
+                // Cập nhật UI
+                setTimeout(() => {
+                    updateFriendButton(userId, button, action);
+                }, 500);
+            } else {
+                showToast(result.error || 'Đã có lỗi xảy ra', false);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+    
+    // Cập nhật giao diện nút kết bạn
+    function updateFriendButton(userId, button, currentAction) {
+        const container = document.getElementById(`friend-button-${userId}`);
+        if (!container) return;
+        
+        let newButton, newAction;
+        
+        switch(currentAction) {
+            case 'add_friend':
+                newButton = `
+                    <button onclick="handleFriendAction('${userId}', 'cancel_request', this)"
+                        class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300">
+                        <i class="fas fa-clock mr-2"></i>Đã gửi
+                    </button>`;
+                newAction = 'cancel_request';
+                break;
+            case 'accept_request':
+                newButton = `
+                    <button onclick="handleFriendAction('${userId}', 'unfriend', this)"
+                        class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300">
+                        <i class="fas fa-user-minus mr-2"></i>Bạn bè
+                    </button>`;
+                newAction = 'friends';
+                break;
+            case 'cancel_request':
+                newButton = `
+                    <button onclick="handleFriendAction('${userId}', 'add_friend', this)"
+                        class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:shadow-lg">
+                        <i class="fas fa-user-plus mr-2"></i>Kết bạn
+                    </button>`;
+                newAction = 'add_friend';
+                break;
+            case 'unfriend':
+                newButton = `
+                    <button onclick="handleFriendAction('${userId}', 'add_friend', this)"
+                        class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:shadow-lg">
+                        <i class="fas fa-user-plus mr-2"></i>Kết bạn
+                    </button>`;
+                newAction = 'add_friend';
+                break;
+        }
+        
+        container.innerHTML = newButton;
+    }
+    
+    // Hàm hiển thị toast
     function showToast(message, isSuccess = true) {
         const toast = document.getElementById('toast');
         const toastMessage = document.getElementById('toast-message');
@@ -353,7 +499,7 @@
         }, 3000);
     }
 
-    // Like bài viết (ĐÃ SỬA)
+    // Các hàm khác giữ nguyên từ code cũ
     async function likePost(postId) {
         try {
             const res = await fetch(`/like/${postId}`, {
@@ -379,7 +525,6 @@
         }
     }
 
-    // Bình luận nhanh (ĐÃ SỬA)
     async function quickComment(postId) {
         const input = document.getElementById(`quick-comment-${postId}`);
         const content = input.value.trim();
@@ -415,7 +560,6 @@
         }
     }
 
-    // Focus vào ô bình luận
     function focusComment(postId) {
         const input = document.getElementById(`quick-comment-${postId}`);
         if (input) {
@@ -423,49 +567,6 @@
         }
     }
 
-    // Theo dõi người dùng (ĐÃ SỬA)
-    // Theo dõi người dùng SA - SỬA HOÀN CHỈNH
-    async function toggleFollow(userId, btn) {
-        try {
-            const res = await fetch(`/follow/${userId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ action: btn.querySelector('.follow-text').textContent.includes('Hủy') ? 'unfollow' : 'follow' })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                const isFollowing = data.following;
-                const followText = btn.querySelector('.follow-text');
-
-                if (isFollowing) {
-                    // ĐANG theo dõi -> nút xám "Hủy theo dõi"
-                    btn.classList.remove('bg-gradient-to-r', 'from-pink-500', 'to-purple-600', 'text-white');
-                    btn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
-                    followText.textContent = 'Hủy theo dõi';
-                    showToast('Đã theo dõi thành công!', true);
-                } else {
-                    // BỎ theo dõi -> nút gradient "Theo dõi"
-                    btn.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
-                    btn.classList.add('bg-gradient-to-r', 'from-pink-500', 'to-purple-600', 'text-white');
-                    followText.textContent = 'Theo dõi';
-                    showToast('Đã bỏ theo dõi!', true);
-                }
-
-                btn.setAttribute('data-following', isFollowing);
-            } else {
-                showToast('Không thể thực hiện thao tác!', false);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            showToast('Lỗi kết nối!', false);
-        }
-    }
-
-
-    // Toggle menu 3 chấm
     function toggleMenu(postId) {
         document.querySelectorAll('[id^="menu-"]').forEach(menu => {
             if (menu.id !== 'menu-' + postId) menu.classList.add('hidden');
@@ -476,7 +577,6 @@
         document.getElementById('menu-' + postId).classList.toggle('hidden');
     }
 
-    // Toggle menu chia sẻ (MỚI)
     function toggleShareMenu(postId) {
         document.querySelectorAll('[id^="menu-"]').forEach(menu => {
             menu.classList.add('hidden');
@@ -487,7 +587,6 @@
         document.getElementById('share-menu-' + postId).classList.toggle('hidden');
     }
 
-    // Chia sẻ lên Facebook
     function shareFacebook(postId) {
         const url = window.location.origin + '/post/' + postId;
         const shareUrl = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
@@ -495,7 +594,6 @@
         showToast('Đang mở Facebook để chia sẻ...');
     }
 
-    // Chia sẻ lên Zalo
     function shareZalo(postId) {
         const url = window.location.origin + '/post/' + postId;
         const shareUrl = 'https://zalo.me/share?url=' + encodeURIComponent(url);
@@ -503,7 +601,6 @@
         showToast('Đang mở Zalo để chia sẻ...');
     }
 
-    // Chia sẻ lên Twitter/X (MỚI)
     function shareTwitter(postId) {
         const url = window.location.origin + '/post/' + postId;
         const shareUrl = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent('Xem bài viết này!');
@@ -511,13 +608,11 @@
         showToast('Đang mở Twitter/X để chia sẻ...');
     }
 
-    // Chia sẻ lên Instagram (MỚI - lưu ý Instagram không hỗ trợ chia sẻ link trực tiếp)
     function shareInstagram(postId) {
         showToast('Instagram không hỗ trợ chia sẻ link trực tiếp. Vui lòng copy link và dán vào story/bio!', false);
         copyLink(postId);
     }
 
-    // Chia sẻ lên Telegram (MỚI)
     function shareTelegram(postId) {
         const url = window.location.origin + '/post/' + postId;
         const shareUrl = 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent('Xem bài viết này!');
@@ -525,14 +620,12 @@
         showToast('Đang mở Telegram để chia sẻ...');
     }
 
-    // Copy link (MỚI)
     async function copyLink(postId) {
         const url = window.location.origin + '/post/' + postId;
         try {
             await navigator.clipboard.writeText(url);
             showToast('Đã copy link bài viết!');
         } catch (err) {
-            // Fallback cho trình duyệt cũ
             const textarea = document.createElement('textarea');
             textarea.value = url;
             document.body.appendChild(textarea);
@@ -543,7 +636,6 @@
         }
     }
 
-    // Báo cáo bài viết
     async function reportPost(postId) {
         const reason = prompt('Lý do báo cáo bài viết:');
         if (!reason) return;
@@ -565,7 +657,6 @@
         }
     }
 
-    // Xóa bài viết
     async function deletePost(postId) {
         if (!confirm('Bạn chắc chắn muốn xóa bài viết này?')) return;
 
@@ -603,361 +694,6 @@
         }
     });
 
-    // Xử lý scroll để ẩn menu
-    let lastScrollTop = 0;
-    window.addEventListener('scroll', function () {
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-        if (Math.abs(scrollTop - lastScrollTop) > 50) {
-            document.querySelectorAll('[id^="menu-"]').forEach(menu => {
-                menu.classList.add('hidden');
-            });
-            document.querySelectorAll('[id^="share-menu-"]').forEach(menu => {
-                menu.classList.add('hidden');
-            });
-        }
-
-        lastScrollTop = scrollTop;
-    });
-
-    // Lazy loading cho ảnh
-    document.addEventListener('DOMContentLoaded', function () {
-        const images = document.querySelectorAll('img[src]');
-
-        const imageObserver = new IntersectionObserver((entries, observer) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const img = entry.target;
-                    img.classList.add('loaded');
-                    observer.unobserve(img);
-                }
-            });
-        });
-
-        images.forEach(img => imageObserver.observe(img));
-    });
-
-    // Xử lý video tự động pause khi không trong viewport
-    document.addEventListener('DOMContentLoaded', function () {
-        const videos = document.querySelectorAll('video');
-
-        const videoObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                const video = entry.target;
-                if (!entry.isIntersecting) {
-                    video.pause();
-                }
-            });
-        }, { threshold: 0.5 });
-
-        videos.forEach(video => videoObserver.observe(video));
-    });
-
-    // Debounce function để tối ưu performance
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    // Xử lý infinite scroll (tùy chọn)
-    let isLoading = false;
-    let currentPage = 1;
-
-    const handleScroll = debounce(function () {
-        const scrollHeight = document.documentElement.scrollHeight;
-        const scrollTop = document.documentElement.scrollTop;
-        const clientHeight = document.documentElement.clientHeight;
-
-        if (scrollTop + clientHeight >= scrollHeight - 500 && !isLoading) {
-            loadMorePosts();
-        }
-    }, 200);
-
-    async function loadMorePosts() {
-        if (isLoading) return;
-
-        isLoading = true;
-        currentPage++;
-
-        try {
-            const res = await fetch(`/api/posts?page=${currentPage}`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.posts && data.posts.length > 0) {
-                    appendPosts(data.posts);
-                } else {
-                    // Không còn bài viết nào
-                    window.removeEventListener('scroll', handleScroll);
-                }
-            }
-        } catch (error) {
-            console.error('Error loading more posts:', error);
-        } finally {
-            isLoading = false;
-        }
-    }
-
-    function appendPosts(posts) {
-        const postsContainer = document.querySelector('.lg\\:col-span-2');
-        // Logic thêm bài viết vào DOM
-        // Cần implement dựa trên cấu trúc HTML của bài viết
-    }
-
-    // Uncomment dòng dưới để enable infinite scroll
-    // window.addEventListener('scroll', handleScroll);
-
-    // Preview ảnh trước khi tải lên (nếu có form tạo bài viết)
-    function previewImages(input) {
-        const preview = document.getElementById('image-preview');
-        if (!preview) return;
-
-        preview.innerHTML = '';
-
-        if (input.files) {
-            Array.from(input.files).forEach((file, index) => {
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-
-                    reader.onload = function (e) {
-                        const div = document.createElement('div');
-                        div.className = 'relative group';
-                        div.innerHTML = `
-                            <img src="${e.target.result}" class="w-full h-48 object-cover rounded-xl shadow-lg">
-                            <button type="button" onclick="removePreviewImage(${index})" 
-                                class="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        `;
-                        preview.appendChild(div);
-                    };
-
-                    reader.readAsDataURL(file);
-                }
-            });
-        }
-    }
-
-    // Double-tap to like (mobile friendly)
-    let lastTap = 0;
-    document.addEventListener('DOMContentLoaded', function () {
-        const postCards = document.querySelectorAll('.bg-white.rounded-3xl');
-
-        postCards.forEach(card => {
-            card.addEventListener('touchend', function (e) {
-                const currentTime = new Date().getTime();
-                const tapLength = currentTime - lastTap;
-
-                if (tapLength < 300 && tapLength > 0) {
-                    // Double tap detected
-                    const postId = this.querySelector('[onclick^="likePost"]')?.onclick.toString().match(/\d+/)?.[0];
-                    if (postId) {
-                        likePost(parseInt(postId));
-
-                        // Hiệu ứng tim bay lên
-                        const heart = document.createElement('div');
-                        heart.innerHTML = '<i class="fas fa-heart"></i>';
-                        heart.className = 'heart-animation';
-                        heart.style.cssText = `
-                            position: fixed;
-                            left: ${e.changedTouches[0].clientX}px;
-                            top: ${e.changedTouches[0].clientY}px;
-                            font-size: 80px;
-                            color: #ec4899;
-                            z-index: 9999;
-                            pointer-events: none;
-                            animation: heartFloat 1s ease-out forwards;
-                        `;
-                        document.body.appendChild(heart);
-
-                        setTimeout(() => heart.remove(), 1000);
-                    }
-                }
-                lastTap = currentTime;
-            });
-        });
-    });
-
-    // Thêm CSS animation cho tim bay lên
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes heartFloat {
-            0% {
-                opacity: 1;
-                transform: translateY(0) scale(0);
-            }
-            50% {
-                opacity: 1;
-                transform: translateY(-50px) scale(1);
-            }
-            100% {
-                opacity: 0;
-                transform: translateY(-100px) scale(1.2);
-            }
-        }
-        
-        img:not(.loaded) {
-            filter: blur(10px);
-            transition: filter 0.3s;
-        }
-        
-        img.loaded {
-            filter: blur(0);
-        }
-        
-        .line-clamp-3 {
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-    `;
-    document.head.appendChild(style);
-
-    // Tự động lưu draft bình luận (localStorage)
-    const commentInputs = document.querySelectorAll('[id^="quick-comment-"]');
-    commentInputs.forEach(input => {
-        const postId = input.id.replace('quick-comment-', '');
-
-        // Load draft từ localStorage
-        const draft = localStorage.getItem(`comment-draft-${postId}`);
-        if (draft) {
-            input.value = draft;
-        }
-
-        // Save draft khi typing
-        input.addEventListener('input', debounce(function () {
-            if (this.value.trim()) {
-                localStorage.setItem(`comment-draft-${postId}`, this.value);
-            } else {
-                localStorage.removeItem(`comment-draft-${postId}`);
-            }
-        }, 500));
-
-        // Xóa draft khi gửi comment
-        input.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                localStorage.removeItem(`comment-draft-${postId}`);
-            }
-        });
-    });
-
-    // Keyboard shortcuts
-    document.addEventListener('keydown', function (e) {
-        // ESC để đóng tất cả menu
-        if (e.key === 'Escape') {
-            document.querySelectorAll('[id^="menu-"], [id^="share-menu-"]').forEach(menu => {
-                menu.classList.add('hidden');
-            });
-        }
-    });
-
-    // Xử lý emoji cho bình luận (tùy chọn)
-    function insertEmoji(emoji, postId) {
-        const input = document.getElementById(`quick-comment-${postId}`);
-        if (input) {
-            input.value += emoji;
-            input.focus();
-        }
-    }
-
-    // Loading state cho các button
-    function setButtonLoading(button, isLoading) {
-        if (isLoading) {
-            button.disabled = true;
-            button.dataset.originalHtml = button.innerHTML;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        } else {
-            button.disabled = false;
-            button.innerHTML = button.dataset.originalHtml || button.innerHTML;
-        }
-    }
-
-    // Confirmation dialog đẹp hơn
-    function confirmDialog(message, callback) {
-        const dialog = document.createElement('div');
-        dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        dialog.innerHTML = `
-            <div class="bg-white rounded-3xl p-8 max-w-md mx-4 shadow-2xl transform transition-all">
-                <div class="text-center mb-6">
-                    <i class="fas fa-exclamation-circle text-6xl text-yellow-500 mb-4"></i>
-                    <p class="text-xl font-bold text-gray-800">${message}</p>
-                </div>
-                <div class="flex gap-4">
-                    <button onclick="this.closest('.fixed').remove()" 
-                        class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-full font-bold hover:bg-gray-300 transition">
-                        Hủy
-                    </button>
-                    <button id="confirm-btn"
-                        class="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-full font-bold hover:shadow-lg transition">
-                        Xác nhận
-                    </button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(dialog);
-
-        dialog.querySelector('#confirm-btn').addEventListener('click', function () {
-            callback();
-            dialog.remove();
-        });
-
-        dialog.addEventListener('click', function (e) {
-            if (e.target === dialog) {
-                dialog.remove();
-            }
-        });
-    }
-
-    // Cập nhật deletePost để dùng confirmDialog
-    async function deletePostWithDialog(postId) {
-        confirmDialog('Bạn chắc chắn muốn xóa bài viết này?', async function () {
-            try {
-                const res = await fetch(`/post/${postId}/delete`, { method: 'POST' });
-                if (res.ok) {
-                    showToast('Đã xóa bài viết thành công!');
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    showToast('Không thể xóa bài viết', false);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showToast('Lỗi kết nối', false);
-            }
-        });
-    }
-
-    // Analytics tracking (tùy chọn)
-    function trackEvent(category, action, label) {
-        if (typeof gtag !== 'undefined') {
-            gtag('event', action, {
-                'event_category': category,
-                'event_label': label
-            });
-        }
-        console.log('Event tracked:', category, action, label);
-    }
-
-    // Track user interactions
-    document.addEventListener('click', function (e) {
-        if (e.target.closest('[onclick^="likePost"]')) {
-            trackEvent('Engagement', 'Like', 'Post');
-        } else if (e.target.closest('[onclick^="quickComment"]')) {
-            trackEvent('Engagement', 'Comment', 'Post');
-        } else if (e.target.closest('[onclick^="shareFacebook"]')) {
-            trackEvent('Share', 'Facebook', 'Post');
-        } else if (e.target.closest('[onclick^="shareZalo"]')) {
-            trackEvent('Share', 'Zalo', 'Post');
-        }
-    });
-
-    console.log('🎉 Home page scripts loaded successfully!');
+    console.log('🎉 Home page with Facebook-style friend system loaded!');
 </script>
 {% endblock %}

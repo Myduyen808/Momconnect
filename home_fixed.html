@@ -1,0 +1,677 @@
+{% extends "base.html" %}
+{% block title %}Trang chủ{% endblock %}
+
+{% block content %}
+<div class="grid lg:grid-cols-3 gap-8 max-w-7xl mx-auto px-4 py-8">
+    <!-- CỘT CHÍNH - BÀI VIẾT -->
+    <div class="lg:col-span-2 space-y-8">
+        <!-- BỘ LỌC CHỦ ĐỀ -->
+        <div class="flex flex-wrap gap-3">
+            {% for cat in categories %}
+            <a href="{{ url_for('home', category=cat) }}"
+                class="px-6 py-3 rounded-full font-medium transition-all shadow-sm
+                    {% if selected_category == cat %}bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg{% else %}bg-white text-gray-700 hover:shadow-md{% endif %}">
+                {{ category_names[cat] }}
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- DANH SÁCH BÀI VIẾT -->
+        {% if posts %}
+        {% for post in posts %}
+        <div class="bg-white rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-all">
+            <!-- Header bài viết -->
+            <div class="p-6 pb-4 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <!-- ✅ SỬA AVATAR TÁC GIẢ -->
+                        <img src="{{ url_for('static', filename=post.author.avatar or 'images/default-avatar.png') }}"
+                            class="w-14 h-14 rounded-full object-cover ring-4 ring-pink-200 shadow-lg">
+                        <div>
+                            <div class="flex items-center gap-3">
+                                <h3 class="text-xl font-bold text-gray-900">{{ post.author.name }}</h3>
+                                {% if post.author.is_verified_expert %}
+                                <span
+                                    class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                                    <i class="fas fa-stethoscope"></i> Chuyên gia
+                                </span>
+                                {% endif %}
+                            </div>
+                            <p class="text-sm text-gray-500 flex items-center gap-2 mt-1">
+                                <i class="far fa-clock"></i>
+                                {{ post.created_at.strftime('%H:%M • %d/%m/%Y') }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- NÚT KẾT BẠN GIỐNG FACEBOOK -->
+                    {% if current_user.is_authenticated and post.author.id != current_user.id %}
+                    <div id="friend-button-{{ post.author.id }}">
+                        {% set friendship_status = current_user.get_friendship_status(post.author.id) %}
+                        
+                        {% if friendship_status == 'friends' %}
+                        <button onclick="handleFriendAction('{{ post.author.id }}', 'unfriend', this)"
+                            class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300">
+                            <i class="fas fa-user-minus mr-2"></i>Bạn bè
+                        </button>
+                        
+                        {% elif friendship_status == 'incoming_request' %}
+                        <button onclick="handleFriendAction('{{ post.author.id }}', 'accept_request', this)"
+                            class="px-5 py-2 rounded-full font-medium transition shadow-md bg-blue-600 text-white hover:bg-blue-700">
+                            <i class="fas fa-user-check mr-2"></i>Chấp nhận
+                        </button>
+                        
+                        {% elif friendship_status == 'outgoing_request' %}
+                        <button onclick="handleFriendAction('{{ post.author.id }}', 'cancel_request', this)"
+                            class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300">
+                            <i class="fas fa-clock mr-2"></i>Đã gửi
+                        </button>
+                        
+                        {% else %}
+                        <button onclick="handleFriendAction('{{ post.author.id }}', 'add_friend', this)"
+                            class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:shadow-lg">
+                            <i class="fas fa-user-plus mr-2"></i>Kết bạn
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Nội dung bài viết -->
+            <div class="p-6 pt-4">
+                <a href="{{ url_for('post_detail', post_id=post.id) }}" class="block">
+                    <h2 class="text-2xl font-bold text-gray-900 hover:text-pink-600 transition mb-3">
+                        {{ post.title }}
+                    </h2>
+                    <p class="text-gray-700 leading-relaxed line-clamp-3 mb-4">
+                        {{ post.content | truncate(300) }}
+                    </p>
+                </a>
+
+                <!-- Chủ đề + badge -->
+                <div class="flex items-center gap-4 mb-4">
+                    <span class="px-4 py-2 rounded-full text-sm font-medium
+                    {% if post.category == 'health' %}bg-green-100 text-green-700
+                    {% elif post.category == 'nutrition' %}bg-yellow-100 text-yellow-700
+                    {% elif post.category == 'story' %}bg-purple-100 text-purple-700
+                    {% elif post.category == 'tips' %}bg-blue-100 text-blue-700
+                    {% else %}bg-gray-100 text-gray-700{% endif %}">
+                        {{ category_names[post.category] }}
+                    </span>
+                    {% if post.is_expert_post %}
+                    <span
+                        class="bg-gradient-to-r from-teal-500 to-blue-600 text-white px-4 py-2 rounded-full text-sm font-bold">
+                        Tư vấn chuyên gia
+                    </span>
+                    {% endif %}
+                </div>
+
+                <!-- Media (ảnh + video) -->
+                {% if post.get_images_list() or post.video %}
+                <div class="mb-6 -mx-6">
+                    {% if post.get_images_list() %}
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 px-6">
+                        {% for img in post.get_images_list()[:6] %}
+                        <div class="relative group overflow-hidden rounded-2xl shadow-lg bg-gray-100">
+                            <img src="{{ url_for('static', filename='uploads/' ~ img) }}"
+                                class="w-full h-64 object-cover hover:scale-110 transition duration-500">
+                            {% if loop.index == 6 and post.get_images_list()|length > 6 %}
+                            <div class="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
+                                <span class="text-white text-4xl font-bold">+{{ post.get_images_list()|length - 6
+                                    }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if post.video %}
+                    <div class="px-6 mt-4">
+                        <video controls class="w-full rounded-2xl shadow-2xl">
+                            <source src="{{ url_for('static', filename='uploads/' ~ post.video) }}" type="video/mp4">
+                        </video>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Tương tác + Menu 3 chấm -->
+                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                    <div class="flex items-center gap-8">
+                        <button onclick="likePost({{ post.id }})" class="flex items-center gap-2 group">
+                            <i class="fas fa-heart text-2xl text-pink-600 group-hover:scale-110 transition"></i>
+                            <span class="font-bold text-pink-700" id="like-count-{{ post.id }}">{{ post.likes }}
+                                Thích</span>
+                        </button>
+                        <button onclick="focusComment({{ post.id }})" class="flex items-center gap-2 group">
+                            <i class="fas fa-comment text-2xl text-blue-600 group-hover:scale-110 transition"></i>
+                            <span class="font-bold text-blue-700" id="comment-count-{{ post.id }}">{{
+                                post.comments_count }} Bình luận</span>
+                        </button>
+                        <button onclick="toggleShareMenu({{ post.id }})" class="flex items-center gap-2 group relative">
+                            <i class="fas fa-share text-2xl text-green-600 group-hover:scale-110 transition"></i>
+                            <span class="font-bold text-green-700">Chia sẻ</span>
+                        </button>
+                    </div>
+
+                    <div class="relative">
+                        <button onclick="toggleMenu({{ post.id }})"
+                            class="p-3 hover:bg-gray-100 rounded-full transition">
+                            <i class="fas fa-ellipsis-h text-gray-600 text-xl"></i>
+                        </button>
+                        <div id="menu-{{ post.id }}"
+                            class="hidden absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border z-30 overflow-hidden">
+                            <button onclick="reportPost({{ post.id }})"
+                                class="w-full text-left px-5 py-3 hover:bg-gray-50 flex items-center gap-3 text-red-600">
+                                <i class="fas fa-flag"></i> Báo cáo bài viết
+                            </button>
+                            {% if current_user.id == post.user_id or current_user.role == 'admin' %}
+                            <button onclick="deletePost({{ post.id }})"
+                                class="w-full text-left px-5 py-3 hover:bg-red-50 flex items-center gap-3 text-red-600">
+                                <i class="fas fa-trash"></i> Xóa bài viết
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Menu chia sẻ -->
+                <div id="share-menu-{{ post.id }}"
+                    class="hidden mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border-2 border-blue-200">
+                    <p class="text-sm font-bold text-gray-700 mb-3">Chia sẻ bài viết đến:</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="shareFacebook({{ post.id }})"
+                            class="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition shadow-md">
+                            <i class="fab fa-facebook-f text-xl"></i>
+                            <span class="font-medium">Facebook</span>
+                        </button>
+                        <button onclick="shareZalo({{ post.id }})"
+                            class="flex items-center justify-center gap-2 px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition shadow-md">
+                            <i class="fas fa-comment-dots text-xl"></i>
+                            <span class="font-medium">Zalo</span>
+                        </button>
+                        <button onclick="shareTwitter({{ post.id }})"
+                            class="flex items-center justify-center gap-2 px-4 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition shadow-md">
+                            <i class="fab fa-x-twitter text-xl"></i>
+                            <span class="font-medium">Twitter/X</span>
+                        </button>
+                        <button onclick="shareInstagram({{ post.id }})"
+                            class="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg transition">
+                            <i class="fab fa-instagram text-xl"></i>
+                            <span class="font-medium">Instagram</span>
+                        </button>
+                        <button onclick="shareTelegram({{ post.id }})"
+                            class="flex items-center justify-center gap-2 px-4 py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition shadow-md">
+                            <i class="fab fa-telegram-plane text-xl"></i>
+                            <span class="font-medium">Telegram</span>
+                        </button>
+                        <button onclick="copyLink({{ post.id }})"
+                            class="flex items-center justify-center gap-2 px-4 py-3 bg-gray-700 text-white rounded-xl hover:bg-gray-800 transition shadow-md">
+                            <i class="fas fa-link text-xl"></i>
+                            <span class="font-medium">Copy link</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bình luận nhanh -->
+                <div class="mt-6 flex gap-4">
+                    <!-- ✅ SỬA AVATAR CURRENT_USER -->
+                    <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
+                        class="w-10 h-10 rounded-full ring-2 ring-pink-200 flex-shrink-0 object-cover">
+                    <input type="text" placeholder="Viết bình luận..." id="quick-comment-{{ post.id }}"
+                        class="flex-1 px-5 py-3 border border-gray-300 rounded-full focus:ring-4 focus:ring-pink-300 outline-none"
+                        onkeypress="if(event.key === 'Enter') quickComment({{ post.id }})">
+                    <button onclick="quickComment({{ post.id }})"
+                        class="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full font-bold hover:shadow-lg transition flex items-center gap-2">
+                        <i class="fas fa-paper-plane"></i>
+                        Gửi
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center py-20 bg-white rounded-3xl shadow-xl">
+            <i class="fas fa-feather-alt text-8xl text-gray-200 mb-6"></i>
+            <p class="text-2xl text-gray-500 font-medium">Chưa có bài viết nào</p>
+            <a href="{{ url_for('create_post') }}"
+                class="mt-6 inline-block px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xl font-bold rounded-full hover:shadow-2xl transition">
+                Đăng bài đầu tiên
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- SIDEBAR PHẢI -->
+    <div class="space-y-8">
+        <!-- Hồ sơ nhanh -->
+        <div class="bg-gradient-to-br from-pink-400 to-purple-600 p-8 rounded-3xl text-white shadow-2xl">
+            <div class="text-center">
+                <!-- ✅ SỬA AVATAR SIDEBAR -->
+                <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
+                    class="w-24 h-24 rounded-full mx-auto ring-8 ring-white shadow-2xl mb-4 object-cover">
+                <h3 class="text-2xl font-bold">{{ current_user.name }}</h3>
+                <p class="mt-2 text-pink-100">{{ current_user.points }} điểm tích lũy</p>
+                <a href="{{ url_for('profile') }}"
+                    class="mt-6 inline-block px-8 py-3 bg-white text-pink-600 rounded-full font-bold hover:shadow-xl transition">
+                    Cập nhật hồ sơ
+                </a>
+            </div>
+        </div>
+
+        <!-- Bạn bè -->
+        <div class="bg-white rounded-3xl shadow-xl p-6">
+            <h3 class="text-xl font-bold mb-4">Bạn bè ({{ friends|length }})</h3>
+            {% if friends %}
+            <div class="space-y-3">
+                {% for friend in friends %}
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <!-- ✅ SỬA AVATAR BẠN BÈ -->
+                        <img src="{{ url_for('static', filename=friend.avatar or 'images/default-avatar.png') }}"
+                            class="w-12 h-12 rounded-full ring-2 ring-pink-200 object-cover">
+                        <span class="font-medium">{{ friend.name }}</span>
+                    </div>
+                    <a href="{{ url_for('chat', user_id=friend.id) }}" class="text-blue-600 hover:text-blue-700">
+                        <i class="fas fa-comment-dots text-xl"></i>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-8">Chưa có bạn bè</p>
+            {% endif %}
+        </div>
+
+        <!-- Gợi ý kết bạn -->
+        <div class="bg-white rounded-3xl shadow-xl p-6">
+            <h3 class="text-xl font-bold mb-4">Gợi ý kết bạn</h3>
+            {% if suggested_users %}
+            <div class="space-y-3">
+                {% for user in suggested_users %}
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <!-- ✅ SỬA AVATAR GỢI Ý -->
+                        <img src="{{ url_for('static', filename=user.avatar or 'images/default-avatar.png') }}"
+                            class="w-12 h-12 rounded-full ring-2 ring-pink-200 object-cover">
+                        <span class="font-medium">{{ user.name }}</span>
+                    </div>
+                    <button onclick="handleFriendAction('{{ user.id }}', 'add_friend', this)"
+                        class="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full text-sm font-medium hover:shadow-lg transition">
+                        Kết bạn
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-8">Không có gợi ý</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Toast thông báo -->
+<div id="toast"
+    class="hidden fixed top-20 right-4 bg-white border-l-4 border-green-500 shadow-2xl rounded-lg p-4 z-50 animate-slide-in">
+    <div class="flex items-center gap-3">
+        <i class="fas fa-check-circle text-green-500 text-2xl"></i>
+        <span id="toast-message" class="font-medium text-gray-800"></span>
+    </div>
+</div>
+
+<style>
+    @keyframes slide-in {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .animate-slide-in {
+        animation: slide-in 0.3s ease-out;
+    }
+    
+    .line-clamp-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+</style>
+
+<script>
+    // Hàm xử lý các hành động kết bạn
+    async function handleFriendAction(userId, action, button) {
+        try {
+            let url, method, successMessage;
+            
+            switch(action) {
+                case 'add_friend':
+                    url = `/send_friend_request/${userId}`;
+                    method = 'POST';
+                    successMessage = 'Đã gửi lời mời kết bạn!';
+                    break;
+                case 'accept_request':
+                    // Tìm request ID trước
+                    const response = await fetch(`/friendship_status/${userId}`);
+                    const data = await response.json();
+                    if (data.pending_request_id) {
+                        url = `/accept_friend_request/${data.pending_request_id}`;
+                        method = 'POST';
+                        successMessage = 'Đã chấp nhận lời mời kết bạn!';
+                    }
+                    break;
+                case 'cancel_request':
+                    url = `/cancel_friend_request/${userId}`;
+                    method = 'POST';
+                    successMessage = 'Đã hủy lời mời kết bạn!';
+                    break;
+                case 'unfriend':
+                    if (confirm('Bạn có chắc muốn hủy kết bạn?')) {
+                        url = `/unfriend/${userId}`;
+                        method = 'POST';
+                        successMessage = 'Đã hủy kết bạn!';
+                    } else {
+                        return;
+                    }
+                    break;
+            }
+            
+            if (!url) return;
+            
+            const res = await fetch(url, { method });
+            const result = await res.json();
+            
+            if (result.success) {
+                showToast(result.message || successMessage);
+                
+                // Cập nhật UI
+                setTimeout(() => {
+                    updateFriendButton(userId, button, action);
+                }, 500);
+            } else {
+                showToast(result.error || 'Đã có lỗi xảy ra', false);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+    
+    // Cập nhật giao diện nút kết bạn
+    function updateFriendButton(userId, button, currentAction) {
+        const container = document.getElementById(`friend-button-${userId}`);
+        if (!container) return;
+        
+        let newButton, newAction;
+        
+        switch(currentAction) {
+            case 'add_friend':
+                newButton = `
+                    <button onclick="handleFriendAction('${userId}', 'cancel_request', this)"
+                        class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300">
+                        <i class="fas fa-clock mr-2"></i>Đã gửi
+                    </button>`;
+                newAction = 'cancel_request';
+                break;
+            case 'accept_request':
+                newButton = `
+                    <button onclick="handleFriendAction('${userId}', 'unfriend', this)"
+                        class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300">
+                        <i class="fas fa-user-minus mr-2"></i>Bạn bè
+                    </button>`;
+                newAction = 'friends';
+                break;
+            case 'cancel_request':
+                newButton = `
+                    <button onclick="handleFriendAction('${userId}', 'add_friend', this)"
+                        class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:shadow-lg">
+                        <i class="fas fa-user-plus mr-2"></i>Kết bạn
+                    </button>`;
+                newAction = 'add_friend';
+                break;
+            case 'unfriend':
+                newButton = `
+                    <button onclick="handleFriendAction('${userId}', 'add_friend', this)"
+                        class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:shadow-lg">
+                        <i class="fas fa-user-plus mr-2"></i>Kết bạn
+                    </button>`;
+                newAction = 'add_friend';
+                break;
+        }
+        
+        container.innerHTML = newButton;
+    }
+    
+    // Hàm hiển thị toast
+    function showToast(message, isSuccess = true) {
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toast-message');
+        const icon = toast.querySelector('i');
+
+        toastMessage.textContent = message;
+
+        if (isSuccess) {
+            toast.classList.remove('border-red-500');
+            toast.classList.add('border-green-500');
+            icon.classList.remove('fa-exclamation-circle', 'text-red-500');
+            icon.classList.add('fa-check-circle', 'text-green-500');
+        } else {
+            toast.classList.remove('border-green-500');
+            toast.classList.add('border-red-500');
+            icon.classList.remove('fa-check-circle', 'text-green-500');
+            icon.classList.add('fa-exclamation-circle', 'text-red-500');
+        }
+
+        toast.classList.remove('hidden');
+
+        setTimeout(() => {
+            toast.classList.add('hidden');
+        }, 3000);
+    }
+
+    // Các hàm khác giữ nguyên từ code cũ
+    async function likePost(postId) {
+        try {
+            const res = await fetch(`/like/${postId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const likeCount = document.getElementById(`like-count-${postId}`);
+                if (likeCount && data.likes !== undefined) {
+                    likeCount.textContent = `${data.likes} Thích`;
+                }
+                showToast(data.liked ? 'Đã thích bài viết!' : 'Đã bỏ thích bài viết!');
+            } else {
+                showToast('Không thể thích bài viết', false);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    async function quickComment(postId) {
+        const input = document.getElementById(`quick-comment-${postId}`);
+        const content = input.value.trim();
+
+        if (!content) {
+            showToast('Vui lòng nhập nội dung bình luận', false);
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('content', content);
+
+            const res = await fetch(`/comment/${postId}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                input.value = '';
+                const commentCount = document.getElementById(`comment-count-${postId}`);
+                if (commentCount) {
+                    const currentCount = parseInt(commentCount.textContent);
+                    commentCount.textContent = `${currentCount + 1} Bình luận`;
+                }
+                showToast('Đã gửi bình luận thành công!');
+            } else {
+                showToast('Không thể gửi bình luận', false);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    function focusComment(postId) {
+        const input = document.getElementById(`quick-comment-${postId}`);
+        if (input) {
+            input.focus();
+        }
+    }
+
+    function toggleMenu(postId) {
+        document.querySelectorAll('[id^="menu-"]').forEach(menu => {
+            if (menu.id !== 'menu-' + postId) menu.classList.add('hidden');
+        });
+        document.querySelectorAll('[id^="share-menu-"]').forEach(menu => {
+            menu.classList.add('hidden');
+        });
+        document.getElementById('menu-' + postId).classList.toggle('hidden');
+    }
+
+    function toggleShareMenu(postId) {
+        document.querySelectorAll('[id^="menu-"]').forEach(menu => {
+            menu.classList.add('hidden');
+        });
+        document.querySelectorAll('[id^="share-menu-"]').forEach(menu => {
+            if (menu.id !== 'share-menu-' + postId) menu.classList.add('hidden');
+        });
+        document.getElementById('share-menu-' + postId).classList.toggle('hidden');
+    }
+
+    function shareFacebook(postId) {
+        const url = window.location.origin + '/post/' + postId;
+        const shareUrl = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
+        window.open(shareUrl, '_blank', 'width=600,height=400');
+        showToast('Đang mở Facebook để chia sẻ...');
+    }
+
+    function shareZalo(postId) {
+        const url = window.location.origin + '/post/' + postId;
+        const shareUrl = 'https://zalo.me/share?url=' + encodeURIComponent(url);
+        window.open(shareUrl, '_blank', 'width=600,height=400');
+        showToast('Đang mở Zalo để chia sẻ...');
+    }
+
+    function shareTwitter(postId) {
+        const url = window.location.origin + '/post/' + postId;
+        const shareUrl = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent('Xem bài viết này!');
+        window.open(shareUrl, '_blank', 'width=600,height=400');
+        showToast('Đang mở Twitter/X để chia sẻ...');
+    }
+
+    function shareInstagram(postId) {
+        showToast('Instagram không hỗ trợ chia sẻ link trực tiếp. Vui lòng copy link và dán vào story/bio!', false);
+        copyLink(postId);
+    }
+
+    function shareTelegram(postId) {
+        const url = window.location.origin + '/post/' + postId;
+        const shareUrl = 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent('Xem bài viết này!');
+        window.open(shareUrl, '_blank', 'width=600,height=400');
+        showToast('Đang mở Telegram để chia sẻ...');
+    }
+
+    async function copyLink(postId) {
+        const url = window.location.origin + '/post/' + postId;
+        try {
+            await navigator.clipboard.writeText(url);
+            showToast('Đã copy link bài viết!');
+        } catch (err) {
+            const textarea = document.createElement('textarea');
+            textarea.value = url;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('Đã copy link bài viết!');
+        }
+    }
+
+    async function reportPost(postId) {
+        const reason = prompt('Lý do báo cáo bài viết:');
+        if (!reason) return;
+
+        try {
+            const formData = new FormData();
+            formData.append('reason', reason);
+
+            const res = await fetch(`/report/${postId}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            showToast(data.success ? 'Đã gửi báo cáo thành công!' : data.error || 'Lỗi khi báo cáo', !!data.success);
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    async function deletePost(postId) {
+        if (!confirm('Bạn chắc chắn muốn xóa bài viết này?')) return;
+
+        try {
+            const res = await fetch(`/post/${postId}/delete`, { method: 'POST' });
+            if (res.ok) {
+                showToast('Đã xóa bài viết thành công!');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Không thể xóa bài viết', false);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    // Đóng menu khi click bên ngoài
+    document.addEventListener('click', function (event) {
+        const isMenuButton = event.target.closest('[onclick^="toggleMenu"]');
+        const isShareButton = event.target.closest('[onclick^="toggleShareMenu"]');
+        const isMenu = event.target.closest('[id^="menu-"]');
+        const isShareMenu = event.target.closest('[id^="share-menu-"]');
+
+        if (!isMenuButton && !isMenu) {
+            document.querySelectorAll('[id^="menu-"]').forEach(menu => {
+                menu.classList.add('hidden');
+            });
+        }
+
+        if (!isShareButton && !isShareMenu) {
+            document.querySelectorAll('[id^="share-menu-"]').forEach(menu => {
+                menu.classList.add('hidden');
+            });
+        }
+    });
+
+    console.log('🎉 Home page with Facebook-style friend system loaded!');
+</script>
+{% endblock %}
