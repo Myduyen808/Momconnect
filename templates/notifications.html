@@ -3,105 +3,238 @@
 
 {% block content %}
 <div class="max-w-3xl mx-auto">
-    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
-        <h2 class="text-2xl font-bold text-pink-600 mb-4 flex items-center gap-2">
-            <i class="fas fa-bell"></i> Thông báo của bạn
-        </h2>
+  <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+    <h2 class="text-2xl font-bold text-pink-600 mb-4 flex items-center gap-2">
+      <i class="fas fa-bell"></i> Thông báo của bạn
+    </h2>
 
-        {% if notifications|length == 0 %}
-        <div class="text-center py-12 text-gray-500">
-            <i class="fas fa-bell-slash text-5xl mb-4 text-gray-300"></i>
-            <p class="text-lg font-medium">Chưa có thông báo nào</p>
-        </div>
-        {% else %}
-        <div class="space-y-3">
-            {% for notif in notifications %}
-            <!-- Wrapper clickable cho toàn bộ thông báo -->
-            <a href="{{ notif.redirect_url or '#' }}" 
-               class="block transition hover:shadow-md"
-               onclick="{% if notif.redirect_url %}window.location.href='{{ notif.redirect_url }}'{% else %}return false{% endif %}; {% if not notif.is_read %}markNotificationAsRead({{ notif.id }}){% endif %}">
-                <div
-                    class="flex items-start gap-3 p-4 rounded-xl border cursor-pointer
-                           {% if not notif.is_read %}bg-blue-50 border-blue-200 hover:bg-blue-100{% else %}bg-gray-50 border-gray-200 hover:bg-gray-100{% endif %}
-                           transition-all duration-200">
+    {% if notifications|length == 0 %}
+      <div class="text-center py-12 text-gray-500">
+        <i class="fas fa-bell-slash text-6xl text-gray-300 mb-4"></i>
+        <p class="text-lg">Chưa có thông báo nào</p>
+      </div>
+    {% else %}
+      <div class="space-y-3 max-h-[70vh] overflow-y-auto" id="notifications-container">
+        {% for notif in notifications %}
+        <!-- Thêm data-notif-id và href="#notif-{{ notif.id }}" -->
+        <a href="{{ notif.redirect_url or '#notif-' ~ notif.id }}"
+           class="notification-item block"
+           data-notif-id="{{ notif.id }}"
+           onclick="{% if not notif.is_read %}markNotificationAsRead({{ notif.id }});{% endif %}handleNotificationClick({{ notif.id }});">
+          
+          <div id="notif-{{ notif.id }}"
+               class="notification-card flex items-start gap-3 p-4 rounded-xl border transition-all duration-300 group
+               {% if not notif.is_read %}
+                 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-sm
+               {% else %}
+                 bg-gray-50 border-gray-200 hover:bg-gray-100
+               {% endif %}">
 
-                    <!-- Avatar người gửi -->
-                    {% if notif.related_user and notif.related_user.avatar %}
-                    <img src="{{ url_for('static', filename=notif.related_user.avatar) }}"
-                        class="w-12 h-12 rounded-full object-cover border-2 border-white shadow flex-shrink-0">
-                    {% else %}
-                    <img src="{{ url_for('static', filename='uploads/default.jpg') }}"
-                        class="w-12 h-12 rounded-full object-cover border-2 border-white shadow flex-shrink-0">
-                    {% endif %}
+            <!-- Avatar -->
+            <img src="{{ url_for('static', filename=notif.related_user.avatar if notif.related_user and notif.related_user.avatar else 'images/default-avatar.png') }}"
+                 class="w-12 h-12 rounded-full object-cover ring-2 ring-white shadow-md flex-shrink-0
+                 {% if notif.related_user.is_verified_expert %}ring-blue-300{% endif %}">
 
-                    <!-- Nội dung -->
-                    <div class="flex-1 min-w-0">
-                        <!-- Dòng thông báo chính có thể click -->
-                        <p class="font-medium text-gray-800 hover:text-pink-600 transition-colors cursor-pointer">
-                            {{ notif.title }}
-                        </p>
-                        <p class="text-sm text-gray-600 mt-1">{{ notif.message }}</p>
-                        <p class="text-xs text-gray-400 mt-2">{{ notif.created_at.strftime('%H:%M %d/%m/%Y') }}</p>
-                    </div>
+            <!-- Nội dung -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between mb-1">
+                <p class="font-semibold text-gray-900 text-sm leading-tight group-hover:text-pink-600 transition">
+                  {{ notif.title }}
+                </p>
+                {% if not notif.is_read %}
+                <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse ml-2 flex-shrink-0"></div>
+                {% endif %}
+              </div>
+              
+              <p class="text-sm text-gray-600 leading-relaxed mb-2">{{ notif.message }}</p>
+              
+              <p class="text-xs text-gray-400 flex items-center gap-1">
+                <i class="fas fa-clock"></i>
+                {{ notif.created_at.strftime('%H:%M %d/%m') }}
+              </p>
+            </div>
 
-                    <!-- Icon loại -->
-                    <div class="flex-shrink-0">
-                        {% if notif.type == 'like' %}
-                        <i class="fas fa-heart text-red-500 text-xl"></i>
-                        {% elif notif.type == 'comment' %}
-                        <i class="fas fa-comment text-blue-500 text-xl"></i>
-                        {% elif notif.type == 'follow' %}
-                        <i class="fas fa-user-plus text-green-500 text-xl"></i>
-                        {% endif %}
-                    </div>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        {% endif %}
-    </div>
-
-    <div class="text-center">
-        <a href="{{ url_for('home') }}" class="text-pink-600 hover:underline font-medium">
-            <i class="fas fa-arrow-left"></i> Quay lại trang chủ
+            <!-- Icon loại thông báo -->
+            <div class="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
+              {% if notif.type == 'like' %}
+                <i class="fas fa-heart text-red-500 text-xl opacity-80"></i>
+              {% elif notif.type == 'comment' %}
+                <i class="fas fa-comment text-blue-500 text-xl opacity-80"></i>
+              {% elif notif.type == 'follow' %}
+                <i class="fas fa-user-plus text-green-500 text-xl opacity-80"></i>
+              {% elif notif.type == 'friend_request' %}
+                <i class="fas fa-user-check text-purple-500 text-xl opacity-80"></i>
+              {% else %}
+                <i class="fas fa-bell text-gray-400 text-xl opacity-80"></i>
+              {% endif %}
+            </div>
+          </div>
         </a>
-    </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
 </div>
 
-<script>
-// Function để đánh dấu thông báo đã đọc
-async function markNotificationAsRead(notificationId) {
-    try {
-        const response = await fetch(`/api/notifications/${notificationId}/read`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        if (response.ok) {
-            // Cập nhật UI để xóa hiệu ứng chưa đọc
-            const notifElement = document.querySelector(`[onclick*="${notificationId}"]`);
-            if (notifElement) {
-                notifElement.classList.remove('bg-blue-50', 'border-blue-200');
-                notifElement.classList.add('bg-gray-50', 'border-gray-200');
-            }
-        }
-    } catch (error) {
-        console.error('Error marking notification as read:', error);
-    }
+<style>
+/* HIGHLIGHT & ANIMATION */
+.notification-card.highlight {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3), 0 0 0 3px rgba(245, 158, 11, 0.2) !important;
+  transform: scale(1.02);
+  animation: notificationPulse 0.6s ease-out;
 }
 
-// Ngăn sự kiện click bubbling nếu cần
-document.addEventListener('DOMContentLoaded', function() {
-    const notificationLinks = document.querySelectorAll('a[href="#"]');
-    notificationLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            if (this.getAttribute('href') === '#') {
-                e.preventDefault();
-            }
-        });
+@keyframes notificationPulse {
+  0% { transform: scale(1) rotateX(0deg); }
+  50% { transform: scale(1.05) rotateX(2deg); }
+  100% { transform: scale(1.02) rotateX(0deg); }
+}
+
+.notification-card.read-highlight {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%) !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Smooth scroll */
+#notifications-container {
+  scroll-behavior: smooth;
+}
+
+/* Hover effect */
+.notification-item:hover .notification-card {
+  transform: translateX(4px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+</style>
+
+<script>
+let currentHighlightedNotif = null;
+
+// XỬ LÝ CLICK THÔNG BÁO
+function handleNotificationClick(notifId) {
+  console.log('Clicked notification:', notifId);
+  
+  // Clear previous highlight
+  if (currentHighlightedNotif) {
+    const prevCard = document.getElementById(`notif-${currentHighlightedNotif}`);
+    if (prevCard) {
+      prevCard.classList.remove('highlight', 'read-highlight');
+    }
+  }
+  
+  // Highlight notification mới
+  const notifCard = document.getElementById(`notif-${notifId}`);
+  if (notifCard) {
+    notifCard.classList.add('highlight');
+    currentHighlightedNotif = notifId;
+    
+    // Auto remove highlight sau 3s
+    setTimeout(() => {
+      notifCard.classList.remove('highlight');
+      if (notifCard.querySelector('.bg-gradient-to-r')) {
+        notifCard.classList.add('read-highlight');
+      }
+    }, 3000);
+  }
+}
+
+// MARK AS READ
+async function markNotificationAsRead(id) {
+  try {
+    const response = await fetch(`/api/notifications/${id}/read`, { 
+      method: "POST",
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
     });
+    
+    if (response.ok) {
+      const notifCard = document.getElementById(`notif-${id}`);
+      if (notifCard) {
+        // Update UI ngay lập tức
+        notifCard.className = notifCard.className.replace(/bg-(blue|gradient-to-r).*?border-(blue|gradient-to-r)/g, '')
+                          .replace(/bg-blue-50.*?border-blue-200/g, 'bg-gray-50 border-gray-200')
+                          .replace(/shadow-sm/g, '');
+        
+        // Remove unread dot
+        const dot = notifCard.querySelector('.bg-blue-500');
+        if (dot) dot.remove();
+      }
+    }
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+  }
+}
+
+// AUTO SCROLL KHI TRUYỀN #notif-ID từ URL
+document.addEventListener("DOMContentLoaded", () => {
+  // Kiểm tra URL hash
+  function checkHashAndScroll() {
+    const hash = location.hash;
+    if (hash && hash.startsWith('#notif-')) {
+      const notifId = hash.replace('#notif-', '');
+      const targetEl = document.getElementById(`notif-${notifId}`);
+      
+      if (targetEl) {
+        // Scroll mượt mà vào giữa màn hình
+        targetEl.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "center",
+          inline: "nearest"
+        });
+        
+        // Highlight
+        targetEl.classList.add('highlight');
+        handleNotificationClick(notifId);
+        
+        // Update URL không reload
+        history.replaceState(null, null, `#notif-${notifId}`);
+        
+        // Auto remove highlight sau 4s
+        setTimeout(() => {
+          targetEl.classList.remove('highlight');
+        }, 4000);
+      }
+    }
+  }
+  
+  // Chạy ngay
+  checkHashAndScroll();
+  
+  // Watch hash change (khi click notification khác)
+  let lastHash = location.hash;
+  setInterval(() => {
+    if (location.hash !== lastHash) {
+      lastHash = location.hash;
+      checkHashAndScroll();
+    }
+  }, 100);
+  
+  // Smooth scroll cho container
+  const container = document.getElementById('notifications-container');
+  if (container) {
+    container.addEventListener('scroll', () => {
+      // Auto remove highlight khi scroll xa
+      if (currentHighlightedNotif) {
+        const highlightedEl = document.getElementById(`notif-${currentHighlightedNotif}`);
+        const rect = highlightedEl?.getBoundingClientRect();
+        if (rect && (rect.top < -100 || rect.bottom > window.innerHeight + 100)) {
+          highlightedEl?.classList.remove('highlight');
+        }
+      }
+    });
+  }
 });
+
+// BACK TO TOP khi scroll xa
+window.addEventListener('scroll', () => {
+  const container = document.getElementById('notifications-container');
+  if (container && container.scrollTop > 300) {
+    // Có thể thêm nút back to top ở đây
+  }
+});
+
+console.log('🎉 Notification system with auto-scroll & highlight loaded!');
 </script>
 {% endblock %}

@@ -5,6 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}MomConnect{% endblock %}</title>
+    
+    <!-- ✅ FAVICON - LOGO CHO TAB -->
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -18,15 +22,8 @@
         }
 
         @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1
-            }
-
-            50% {
-                opacity: 0.6
-            }
+            0%, 100% { opacity: 1 }
+            50% { opacity: 0.6 }
         }
 
         .dropdown {
@@ -56,6 +53,15 @@
             text-decoration: none;
             color: inherit;
         }
+
+        /* Logo Animation */
+        .logo-img {
+            transition: transform 0.3s ease;
+        }
+
+        .logo-img:hover {
+            transform: rotate(5deg) scale(1.05);
+        }
     </style>
 </head>
 
@@ -64,9 +70,14 @@
     <!-- THANH ĐIỀU HƯỚNG -->
     <nav class="bg-white shadow-lg p-4 sticky top-0 z-50 border-b border-pink-100">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <a href="{{ url_for('home') }}"
-                class="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                MomConnect
+            <!-- ✅ LOGO + TÊN TRONG HEADER -->
+            <a href="{{ url_for('home') }}" class="flex items-center gap-3 group">
+                <img src="{{ url_for('static', filename='logo.svg') }}" 
+                     alt="MomConnect Logo" 
+                     class="w-12 h-12 logo-img">
+                <span class="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                    MomConnect
+                </span>
             </a>
 
             <form action="{{ url_for('search') }}" method="get" class="flex-1 max-w-md mx-4">
@@ -79,7 +90,7 @@
 
             <div class="flex items-center space-x-6">
                 {% if current_user.is_authenticated %}
-                <!-- THÔNG BÁO - ĐÃ CÃ³ AVATAR + SỐ MỚI NHƯ FACEBOOK -->
+                <!-- THÔNG BÁO -->
                 <div class="relative">
                     <button onclick="toggleNotif()" class="relative p-2 hover:bg-gray-100 rounded-full transition">
                         <i class="fas fa-bell text-2xl text-pink-600"></i>
@@ -115,7 +126,6 @@
                 </a>
 
                 <!-- Vai trò -->
-                <!-- NÚT QUẢN TRỊ VIÊN - CHỈ HIỆN KHI LÀ ADMIN, VÀ LÀ NÚT BẤM ĐƯỢC -->
                 {% if current_user.role == 'admin' %}
                 <a href="{{ url_for('admin_dashboard') }}"
                     class="bg-gradient-to-r from-red-600 to-pink-600 text-white px-6 py-3 rounded-full font-bold hover:shadow-xl transition flex items-center gap-2 shadow-lg">
@@ -189,7 +199,6 @@
                     badge.classList.add('hidden');
                 }
 
-                // Load danh sách thông báo khi mở
                 if (!document.getElementById('notifDropdown').classList.contains('hidden')) {
                     const notifRes = await fetch('/api/notifications');
                     const notifs = await notifRes.json();
@@ -204,72 +213,48 @@
                     }
 
                     list.innerHTML = notifs.map(n => {
-                        // Xác định URL redirect dựa trên loại thông báo
-                        let redirectUrl = '#';
-                        if (n.type === 'comment' && n.post_id) {
-                            redirectUrl = `/post/${n.post_id}#comment-${n.comment_id || ''}`;
-                        } else if (n.type === 'like' && n.post_id) {
-                            redirectUrl = `/post/${n.post_id}`;
-                        } else if (n.type === 'follow' && n.related_user_id) {
-                            redirectUrl = `/profile/${n.related_user_id}`;
-                        }
+                        const redirectUrl = n.redirect_url || '/notifications';
 
                         return `
-                            <a href="${redirectUrl}" 
-                               class="notif-link block p-4 notif-item transition ${!n.is_read ? 'unread bg-blue-50' : 'hover:bg-gray-50'}"
-                               onclick="handleNotificationClick(event, ${n.id}, '${redirectUrl}')">
-                                <div class="flex gap-4">
-                                    <img src="${n.related_user_avatar || '/static/uploads/default.jpg'}"
-                                        class="w-12 h-12 rounded-full object-cover ring-2 ring-pink-300 flex-shrink-0">
-                                    <div class="flex-1 min-w-0">
-                                        <p class="font-bold text-gray-800 hover:text-pink-600 transition-colors">${n.title}</p>
-                                        <p class="text-sm text-gray-600 mt-1">${n.message}</p>
-                                        <p class="text-xs text-gray-400 mt-2">${n.created_at}</p>
-                                    </div>
-                                    <div class="flex-shrink-0">
-                                        ${n.type === 'like' ? '<i class="fas fa-heart text-red-500 text-xl"></i>' : 
-                                          n.type === 'comment' ? '<i class="fas fa-comment text-blue-500 text-xl"></i>' :
-                                          '<i class="fas fa-user-plus text-green-500 text-xl"></i>'}
-                                    </div>
+                        <a href="${redirectUrl}" 
+                        class="notif-link block p-4 notif-item transition ${!n.is_read ? 'unread bg-blue-50' : 'hover:bg-gray-50'}"
+                        onclick="handleNotificationClick(event, ${n.id}, '${redirectUrl}')">
+                            <div class="flex gap-4">
+                                <img src="${n.related_user_avatar || '/static/images/default-avatar.png'}"
+                                    class="w-12 h-12 rounded-full object-cover ring-2 ring-pink-300 flex-shrink-0">
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-bold text-gray-800 hover:text-pink-600 transition-colors">${n.title}</p>
+                                    <p class="text-sm text-gray-600 mt-1">${n.message}</p>
+                                    <p class="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                                        <i class="far fa-clock"></i> ${n.created_at}
+                                    </p>
                                 </div>
-                            </a>`;
+                                <div class="flex-shrink-0">
+                                    ${n.type === 'like' ? '<i class="fas fa-heart text-red-500 text-xl"></i>' :
+                                                n.type === 'comment' ? '<i class="fas fa-comment text-blue-500 text-xl"></i>' :
+                                                    n.type === 'friend_request' ? '<i class="fas fa-user-check text-purple-500 text-xl"></i>' :
+                                                        '<i class="fas fa-user-plus text-green-500 text-xl"></i>'}
+                                </div>
+                            </div>
+                        </a>`;
                     }).join('');
-
                 }
             } catch (e) {
                 console.error("Lỗi load thông báo:", e);
             }
         }
 
-        // Xử lý click vào thông báo
         async function handleNotificationClick(event, notifId, redirectUrl) {
             event.preventDefault();
-            
-            // Đánh dấu đã đọc
-            if (!event.currentTarget.classList.contains('read')) {
-                try {
-                    await fetch(`/api/notifications/${notifId}/read`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        }
-                    });
-                    
-                    // Cập nhật UI
-                    event.currentTarget.classList.remove('unread', 'bg-blue-50');
-                    event.currentTarget.classList.add('read');
-                    
-                    // Cập nhật số lượng thông báo chưa đọc
-                    updateNotificationBadge();
-                } catch (error) {
-                    console.error('Error marking notification as read:', error);
-                }
+
+            try {
+                await fetch(`/api/notifications/${notifId}/read`, { method: "POST" });
+            } catch (e) {
+                console.error('Error marking as read:', e);
             }
-            
-            // Chuyển hướng nếu có URL hợp lệ
-            if (redirectUrl && redirectUrl !== '#') {
-                window.location.href = redirectUrl;
-            }
+
+            document.getElementById('notifDropdown').classList.add('hidden');
+            window.location.href = redirectUrl;
         }
 
         function toggleNotif() {
@@ -280,7 +265,6 @@
             }
         }
 
-        // Click ngoài để đóng
         document.addEventListener('click', function (e) {
             const dropdown = document.getElementById('notifDropdown');
             const button = e.target.closest('button[onclick="toggleNotif()"]');
@@ -289,7 +273,6 @@
             }
         });
 
-        // Cập nhật badge mỗi 10s
         document.addEventListener('DOMContentLoaded', () => {
             updateNotificationBadge();
             setInterval(updateNotificationBadge, 10000);

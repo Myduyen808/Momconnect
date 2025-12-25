@@ -1,14 +1,15 @@
+# app.py
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, url_for
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, current_user, login_required
 from flask_socketio import SocketIO, join_room, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_migrate import Migrate
 from database import db, init_app
-from models import User, Post, Comment, Follow, FriendRequest, Notification, Report, ExpertRequest, Message, Friendship
+from models import User, Post, Comment, Follow, FriendRequest, Notification, Report, ExpertRequest, Message, Friendship, vietnam_now, PostLike, HiddenPost, PostRating
 from config import Config
 import os
 from datetime import datetime, timedelta
@@ -17,18 +18,16 @@ from markupsafe import Markup
 from sqlalchemy import func
 import base64   
 import time
+import pytz
+
 # Trong file app.py hoặc routes.py
 from notification_service import NotificationService
 from notifications_api import notifications_api
 
-app.register_blueprint(notifications_api)
-# # XÓA DÒNG NÀY:
-# from friendship_routes import *
-# from friendship_status_route import *
 # ========================
 # TẠO APP VÀ CẤU HÌNH
 # ========================
-app = Flask(__name__)
+app = Flask(__name__)   
 app.config.from_object(Config)
 
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -70,40 +69,35 @@ def load_user(id):
 # ========================
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-
-# === KHỞI TẠO DB ===
-def init_db():
-    with app.app_context():
-        db.create_all()
-        
-        # Tạo admin nếu chưa có
-        if not User.query.filter_by(email='admin@momconnect.com').first():
-            hashed = generate_password_hash('admin123')
-            admin = User(
-                name='Admin MomConnect',
-                email='admin@momconnect.com',
-                password=hashed,
-                role='admin',
-                points=9999,
-                is_verified_expert=True
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("ĐÃ TẠO TÀI KHOẢN ADMIN:")
-            print("Email: admin@momconnect.com")
-            print("Mật khẩu: admin123")
-
+# ===== THÊM ĐOẠN CODE NÀY =====
+@app.template_filter('vietnam_time')
+def vietnam_time_filter(dt):
+    """Filter để định dạng datetime object sang giờ Việt Nam."""
+    if dt is None:
+        return ""
+    
+    # ✅ NẾU DATETIME ĐÃ CÓ TIMEZONE → CONVERT SANG VN
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(pytz.timezone('Asia/Ho_Chi_Minh'))
+    # ✅ NẾU DATETIME NAIVE → COI NHƯ ĐÃ LÀ GIỜ VN (KHÔNG CONVERT)
+    
+    return dt.strftime('%H:%M %d/%m/%Y')
 
 # === HÀM HỖ TRỢ ===
 def get_friends(user):
-    """Lấy danh sách bạn bè (ưã follow 2 chiều)"""
-    # Người mình follow
-    following = {f.followed_id for f in Follow.query.filter_by(follower_id=user.id).all()}
-    # Người follow mình
-    followers = {f.follower_id for f in Follow.query.filter_by(followed_id=user.id).all()}
-    # Giao nhau = bạn bè thật sự
-    friend_ids = following.intersection(followers)
-    return User.query.filter(User.id.in_(friend_ids)).order_by(User.name).all()
+    """Lấy danh sách bạn bè (đã chấp nhận lời mời)"""
+    friendships = Friendship.query.filter(
+        (Friendship.user1_id == user.id) | (Friendship.user2_id == user.id)
+    ).all()
+    
+    friend_ids = []
+    for friendship in friendships:
+        if friendship.user1_id == user.id:
+            friend_ids.append(friendship.user2_id)
+        else:
+            friend_ids.append(friendship.user1_id)
+    
+    return User.query.filter(User.id.in_(friend_ids)).all()
 
 def get_suggested_users(user):
     follows = Follow.query.filter_by(follower_id=user.id).all()
@@ -119,10 +113,34 @@ def is_friend(user1_id, user2_id):
 @app.route('/')
 def home():
     category = request.args.get('category', 'all')
-    query = Post.query.order_by(Post.created_at.desc())
+    query = Post.query
+    
+    # Lọc bỏ các bài đã ẩn
+    if current_user.is_authenticated:
+        hidden_post_ids = [h.post_id for h in HiddenPost.query.filter_by(user_id=current_user.id).all()]
+        if hidden_post_ids:
+            query = query.filter(~Post.id.in_(hidden_post_ids))
+    
+    query = query.order_by(Post.created_at.desc())
+    
     if category != 'all':
         query = query.filter_by(category=category)
+    
     posts = query.limit(20).all()
+
+    # Thêm thông tin like cho mỗi bài
+    for post in posts:
+        if current_user.is_authenticated:
+            post.is_liked_by_user = PostLike.query.filter_by(
+                user_id=current_user.id, 
+                post_id=post.id
+            ).first() is not None
+            
+            # Lấy danh sách người thích (top 3)
+            post.likers = [like.user for like in PostLike.query.filter_by(post_id=post.id).limit(3).all()]
+        else:
+            post.is_liked_by_user = False
+            post.likers = []
 
     categories = ['all', 'health', 'nutrition', 'story', 'tips', 'other']
     category_names = {
@@ -130,15 +148,15 @@ def home():
         'story': 'Tâm sự', 'tips': 'Mẹo hay', 'other': 'Khác'
     }
 
+    # Sử dụng cùng hàm với trang bạn bè
     friends = get_friends(current_user) if current_user.is_authenticated else []
-    suggested_users = get_suggested_users(current_user) if current_user.is_authenticated else []
+    suggested_users = get_suggested_users(current_user, limit=5) if current_user.is_authenticated else []
 
     return render_template(
         'home.html', posts=posts, selected_category=category,
         categories=categories, category_names=category_names,
         friends=friends, suggested_users=suggested_users
     )
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -159,26 +177,55 @@ def logout():
     return redirect(url_for('home'))
 
 # LIKE
-@app.route('/like/<int:post_id>')
+@app.route('/like/<int:post_id>', methods=['POST'])
 @login_required
 def like(post_id):
     post = Post.query.get_or_404(post_id)
-    post.likes += 1
-    current_user.points += 1
-
-    if post.author.id != current_user.id:
-        notif = Notification(
-            user_id=post.author.id,
-            title="Có lượt thích mới!",
-            message=f"{current_user.name} ưã thích bài viết của bạn.",
-            type='like',
-            related_id=post.id,
-            related_user_id=current_user.id
-        )
-        db.session.add(notif)
-
+    
+    # Kiểm tra đã like chưa
+    existing_like = PostLike.query.filter_by(
+        user_id=current_user.id,
+        post_id=post_id
+    ).first()
+    
+    if existing_like:
+        # Unlike
+        db.session.delete(existing_like)
+        post.likes -= 1
+        current_user.points -= 1
+        liked = False
+    else:
+        # Like
+        new_like = PostLike(user_id=current_user.id, post_id=post_id)
+        db.session.add(new_like)
+        post.likes += 1
+        current_user.points += 1
+        liked = True
+        
+        # Tạo thông báo
+        if post.author.id != current_user.id:
+            notif = Notification(
+                user_id=post.author.id,
+                title="Có lượt thích mới!",
+                message=f"{current_user.name} đã thích bài viết của bạn.",
+                type='like',
+                related_id=post.id,
+                related_user_id=current_user.id
+            )
+            db.session.add(notif)
+    
     db.session.commit()
-    return jsonify({'likes': post.likes, 'points': current_user.points})
+    
+    # Lấy danh sách người thích (top 3)
+    likers = [like.user.name for like in PostLike.query.filter_by(post_id=post_id).limit(3).all()]
+    
+    return jsonify({
+        'likes': post.likes,
+        'points': current_user.points,
+        'liked': liked,
+        'likers': likers,
+        'total_likers': PostLike.query.filter_by(post_id=post_id).count()
+    })
 
 # COMMENT
 @app.route('/comment/<int:post_id>', methods=['POST'])
@@ -190,6 +237,10 @@ def comment(post_id):
         return jsonify({'error': 'Nội dung bình luận trống!'}), 400
 
     comment_obj = Comment(content=content, user_id=current_user.id, post_id=post_id)
+    
+    # ✅ GÁN THỜI GIAN MỘT CÁCH TƯỜNG MINH
+    comment_obj.created_at = vietnam_now()
+    
     db.session.add(comment_obj)
     post.comments_count += 1
 
@@ -197,11 +248,13 @@ def comment(post_id):
         notif = Notification(
             user_id=post.author.id,
             title="Bình luận mới!",
-            message=f"{current_user.name} ưã bình luận: \"{content[:50]}{'...' if len(content)>50 else ''}\"",
+            message=f"{current_user.name} đã bình luận: \"{content[:50]}{'...' if len(content)>50 else ''}\"",
             type='comment',
             related_id=post.id,
             related_user_id=current_user.id
         )
+        # ✅ Cả thông báo cũng nên có giờ đúng
+        notif.created_at = vietnam_now()
         db.session.add(notif)
 
     db.session.commit()
@@ -268,7 +321,6 @@ def create_post():
                     else:
                         images_list.append(filename)
 
-        # Lưu danh sách ảnh dưới dạng chuỗi
         post = Post(
             title=title,
             content=content,
@@ -277,6 +329,10 @@ def create_post():
             video=video_file,
             user_id=current_user.id
         )
+        
+        # ✅ BỎ COMMENT DÒNG NÀY
+        post.created_at = vietnam_now()
+        
         db.session.add(post)
         db.session.commit()
 
@@ -301,18 +357,17 @@ def register():
             flash('Mật khẩu xác nhận không khớp!', 'danger')
             return render_template('register.html')
         if User.query.filter_by(email=email).first():
-            flash('Email ưã ưược sử dụng!', 'danger')
+            flash('Email đã được sử dụng!', 'danger')
             return render_template('register.html')
 
         hashed = generate_password_hash(password)
         user = User(name=name, email=email, password=hashed, points=10)
         db.session.add(user)
         db.session.commit()
-        flash('Đăng ký thành công! Hãy ưăng nhập.', 'success')
+        flash('Đăng ký thành công! Hãy đăng nhập.', 'success')
         return redirect(url_for('login'))
     
     return render_template('register.html')
-
 
 @app.route('/follow/<int:user_id>', methods=['POST'])
 @login_required
@@ -322,7 +377,7 @@ def follow_user(user_id):
     if target_user.id == current_user.id:
         return jsonify({'error': 'Không thể theo dõi chính mình!'}), 400
     
-    # Kiểm tra ưã theo dõi chưa
+    # Kiểm tra đã theo dõi chưa
     is_following = current_user.following.filter_by(followed_id=target_user.id).first()
     
     if request.json.get('action') == 'unfollow' or is_following:
@@ -347,46 +402,41 @@ def follow_user(user_id):
         'message': message
     })
 
-
 from sqlalchemy import not_, and_, exists
 
 def get_pending_requests(user):
-    """Lấy danh sách lời mời ưang chờ (người follow mình nhưng mình chưa follow lại)"""
-    # Tất cả người ưã follow mình
-    incoming = Follow.query.filter_by(followed_id=user.id).all()
-    pending = []
+    """Lấy danh sách lời mời kết bạn đang chờ xử lý"""
+    return FriendRequest.query.filter_by(
+        receiver_id=user.id, 
+        status='pending'
+    ).order_by(FriendRequest.created_at.desc()).all()
+
+def get_sent_requests(user):
+    """Lấy danh sách lời mời đã gửi"""
+    return FriendRequest.query.filter_by(
+        sender_id=user.id, 
+        status='pending'
+    ).order_by(FriendRequest.created_at.desc()).all()
+
+def get_suggested_users(user, limit=5):
+    """Lấy danh sách gợi ý kết bạn"""
+    # Lấy ID của bạn bè và của chính user
+    friend_ids = [f.id for f in get_friends(user)] + [user.id]
     
-    for follow in incoming:
-        # Nếu mình chưa follow lại → vẫn là pending
-        if not Follow.query.filter_by(follower_id=user.id, followed_id=follow.follower_id).first():
-            pending.append(follow)
+    # Lấy ID của những người đã gửi hoặc nhận lời mời
+    pending_ids = []
+    for req in get_pending_requests(user):
+        pending_ids.append(req.sender_id)
+    for req in get_sent_requests(user):
+        pending_ids.append(req.receiver_id)
     
-    return pending
-
-# @app.route('/friends')
-# @login_required
-# def friends():
-#     friends_list = current_user.friends
-
-#     pending_requests = FriendRequest.query.filter_by(
-#         recipient_id=current_user.id
-#     ).all()
-
-#     friend_ids = [u.id for u in friends_list]
-
-#     suggested_users = User.query.filter(
-#         User.id != current_user.id,
-#         ~User.id.in_(friend_ids)
-#     ).order_by(func.random()).limit(10).all()
-
-#     return render_template(
-#         'friends.html',
-#         friends=friends_list,
-#         pending_requests=pending_requests,
-#         suggested_users=suggested_users
-#     )
-
-
+    # Loại trừ tất cả những người trên
+    excluded_ids = friend_ids + pending_ids
+    
+    # Lấy ngẫu nhiên những người còn lại
+    return User.query.filter(
+        ~User.id.in_(excluded_ids)
+    ).order_by(func.random()).limit(limit).all()    
 
 @app.route('/notifications')
 @login_required
@@ -403,36 +453,44 @@ def notifications():
 @app.route('/api/notifications')
 @login_required
 def api_notifications():
-    notifs = (
-        Notification.query
+    notifs = (Notification.query
         .filter_by(user_id=current_user.id)
         .options(joinedload(Notification.related_user))
         .order_by(Notification.created_at.desc())
-        .all()
-    )
-
+        .limit(10)
+        .all())
+    
     results = []
     for n in notifs:
-        if n.related_user and n.related_user.avatar:
-            # avatar ưã là 'uploads/xxx.jpg'
-            avatar_path = n.related_user.avatar.replace('\\', '/').lstrip('/')
+        avatar = n.related_user.avatar if n.related_user and n.related_user.avatar else 'images/default-avatar.png'
+        if not avatar.startswith('uploads/'):
+            avatar = f'uploads/{avatar}' if not avatar.startswith('static/') else avatar.replace('static/', '')
+        avatar_url = url_for('static', filename=avatar)
+        
+        # 🔥 TẠO redirect_url với hash để scroll
+        redirect_url = '/notifications'
+        
+        if n.type == 'comment' and n.related_id:
+            redirect_url = f'/post/{n.related_id}#comments-section-{n.related_id}'
+        elif n.type == 'like' and n.related_id:
+            redirect_url = f'/post/{n.related_id}'
+        elif n.type in ['friend_request', 'friend_accepted']:
+            redirect_url = f'/notifications#notif-{n.id}'  # 🔥 SCROLL TỚI THÔNG BÁO
         else:
-            avatar_path = 'static/default.jpg'
-
-        avatar_url = url_for('static', filename=avatar_path)
-
+            redirect_url = f'/notifications#notif-{n.id}'  # 🔥 MẶC ĐỊNH
+        
         results.append({
             "id": n.id,
             "title": n.title,
-            "message": n.message,
+            "message": n.message[:60] + '...' if len(n.message) > 60 else n.message,
+            "type": n.type,
             "is_read": n.is_read,
-            "created_at": n.created_at.strftime('%H:%M %d/%m/%Y'),
-            "related_user_avatar": avatar_url
+            "created_at": n.created_at.strftime('%H:%M %d/%m'),
+            "related_user_avatar": avatar_url,
+            "redirect_url": redirect_url  # 🔥 ĐÃ CÓ HASH
         })
-
+    
     return jsonify(results)
-
-
 
 
 @app.route('/notifications/count')
@@ -440,6 +498,21 @@ def api_notifications():
 def notification_count():
     count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
     return jsonify({'count': count})
+
+
+@app.route('/api/notifications/<int:notif_id>/read', methods=['POST'])
+@login_required
+def mark_notification_read(notif_id):
+    notif = Notification.query.get_or_404(notif_id)
+    
+    # Check quyền
+    if notif.user_id != current_user.id:
+        return jsonify({'error': 'Không có quyền'}), 403
+    
+    notif.is_read = True
+    db.session.commit()
+    
+    return jsonify({'success': True})
 
 # app.py – THÊM ROUTE NÀY
 @app.route('/post/<int:post_id>')
@@ -455,7 +528,7 @@ def search():
     if not query:
         return render_template('search.html', query='', posts=[], users=[])
 
-    # Tìm bài viết (tiêu ưề + nội dung)
+    # Tìm bài viết (tiêu đề + nội dung)
     posts = Post.query.filter(
         db.or_(
             Post.title.ilike(f'%{query}%'),
@@ -483,10 +556,10 @@ def report_post(post_id):
     if not reason:
         return jsonify({'error': 'Vui lòng chọn lý do!'}), 400
 
-    # Kiểm tra ưã báo cáo chưa
+    # Kiểm tra đã báo cáo chưa
     existing = Report.query.filter_by(post_id=post_id, user_id=current_user.id).first()
     if existing:
-        return jsonify({'error': 'Bạn ưã báo cáo bài viết này rồi!'}), 400
+        return jsonify({'error': 'Bạn đã báo cáo bài viết này rồi!'}), 400
 
     # Tạo báo cáo
     report = Report(post_id=post_id, user_id=current_user.id, reason=reason)
@@ -497,7 +570,6 @@ def report_post(post_id):
 
 # app.py
 from flask_login import current_user
-
 
 # app.py
 @app.route('/verify/<int:post_id>', methods=['POST'])
@@ -511,12 +583,11 @@ def verify_post(post_id):
     db.session.commit()
     return jsonify({'success': True})
 
-
 @app.route('/expert/post', methods=['GET', 'POST'])
 @login_required
 def expert_post():
     if not current_user.is_verified_expert:
-        flash('Chỉ chuyên gia mới ưăng ưược!', 'error')
+        flash('Chỉ chuyên gia mới được đăng!', 'error')
         return redirect(url_for('home'))
     
     if request.method == 'POST':
@@ -540,9 +611,9 @@ def expert_post():
 @app.route('/expert/request', methods=['GET', 'POST'])
 @login_required
 def expert_request():
-    # Nếu ưã là chuyên gia → chuyển về trang chủ
+    # Nếu đã là chuyên gia → chuyển về trang chủ
     if current_user.is_verified_expert:
-        flash('Bạn ưã là chuyên gia!', 'info')
+        flash('Bạn đã là chuyên gia!', 'info')
         return redirect(url_for('home'))
 
     if request.method == 'POST':
@@ -551,7 +622,7 @@ def expert_request():
         file = request.files.get('certificate')
 
         if not reason or not category:
-            flash('Vui lòng ưiền ưầy ưủ thông tin!', 'danger')
+            flash('Vui lòng điền đầy đủ thông tin!', 'danger')
             return render_template('expert_request.html')
 
         filename = None
@@ -576,7 +647,6 @@ def expert_request():
 
     return render_template('expert_request.html')
 
-
 @app.route('/admin/user/<int:user_id>/<action>', methods=['GET', 'POST'])
 @login_required
 def admin_user_action(user_id, action):
@@ -593,7 +663,7 @@ def admin_user_action(user_id, action):
         user.is_active = True
         flash(f'Đã mở khóa tài khoản {user.name}', 'success')
     else:
-        flash('Hành ưộng không hợp lệ!', 'error')
+        flash('Hành động không hợp lệ!', 'error')
         return redirect(url_for('admin_dashboard'))
 
     db.session.commit()
@@ -611,13 +681,13 @@ def admin_expert_action(req_id, action):
     if action == 'approve':
         req.user.is_verified_expert = True
         req.status = 'approved'
-        req.user.points += 100  # Thưởng ưiểm
+        req.user.points += 100  # Thưởng điểm
         flash(f'Đã duyệt chuyên gia: {req.user.name}', 'success')
     elif action == 'reject':
         req.status = 'rejected'
         flash(f'Đã từ chối yêu cầu của {req.user.name}', 'info')
     else:
-        flash('Hành ưộng không hợp lệ!', 'error')
+        flash('Hành động không hợp lệ!', 'error')
         return redirect(url_for('admin_dashboard'))
 
     db.session.commit()
@@ -707,7 +777,7 @@ def admin_delete_comment(comment_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# Sửa lại route admin_dashboard ưể truyền thêm posts
+# Sửa lại route admin_dashboard để truyền thêm posts
 @app.route('/admin')
 @login_required
 def admin_dashboard():
@@ -736,21 +806,68 @@ def admin_dashboard():
         posts=posts   # THÊM DÒNG NÀY
     )
 
+# XÓA BÀI VIẾT (CHỦ BÀI)
 @app.route('/post/<int:post_id>/delete', methods=['POST'])
 @login_required
-def delete_post(post_id):
-    if current_user.role != 'admin':
-        flash('Bạn không có quyền xóa bài!', 'error')
-        return redirect(url_for('home'))
-
+def delete_post_by_owner(post_id):
     post = Post.query.get_or_404(post_id)
-    db.session.delete(post)
+    
+    # Chỉ cho phép chủ bài hoặc admin xóa
+    if post.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'error': 'Không có quyền xóa bài này!'}), 403
+    
+    try:
+        # Xóa tất cả dữ liệu liên quan
+        PostLike.query.filter_by(post_id=post_id).delete()
+        PostRating.query.filter_by(post_id=post_id).delete()
+        HiddenPost.query.filter_by(post_id=post_id).delete()
+        Comment.query.filter_by(post_id=post_id).delete()
+        Report.query.filter_by(post_id=post_id).delete()
+        
+        db.session.delete(post)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Đã xóa bài viết thành công!'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# ẨN BÀI VIẾT
+@app.route('/post/<int:post_id>/hide', methods=['POST'])
+@login_required
+def hide_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    
+    # Kiểm tra đã ẩn chưa
+    existing = HiddenPost.query.filter_by(
+        user_id=current_user.id,
+        post_id=post_id
+    ).first()
+    
+    if existing:
+        return jsonify({'error': 'Bài viết đã được ẩn rồi!'}), 400
+    
+    hidden = HiddenPost(user_id=current_user.id, post_id=post_id)
+    db.session.add(hidden)
     db.session.commit()
-    flash('Đã xóa bài viết!', 'success')
-    return redirect(url_for('admin_dashboard'))
+    
+    return jsonify({'success': True, 'message': 'Đã ẩn bài viết khỏi bảng tin!'})
 
-from flask_login import login_required, current_user
-
+# BỎ ẨN BÀI VIẾT
+@app.route('/post/<int:post_id>/unhide', methods=['POST'])
+@login_required
+def unhide_post(post_id):
+    hidden = HiddenPost.query.filter_by(
+        user_id=current_user.id,
+        post_id=post_id
+    ).first()
+    
+    if not hidden:
+        return jsonify({'error': 'Bài viết chưa được ẩn!'}), 400
+    
+    db.session.delete(hidden)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Đã hiện lại bài viết!'})
 
 # === GỬI LỜI MỜI KẾT BẠN ===
 @app.route('/send_friend_request/<int:user_id>', methods=['POST'])
@@ -761,16 +878,16 @@ def send_friend_request(user_id):
     if recipient.id == current_user.id:
         return jsonify({'error': 'Không thể gửi lời mời cho chính mình!'}), 400
     
-    # Kiểm tra ưã là bạn bè chưa
+    # Kiểm tra đã là bạn bè chưa
     if current_user.is_friends_with(user_id):
         return jsonify({'error': 'Đã là bạn bè rồi!'}), 400
     
-    # Kiểm tra ưã có lời mời nào chưa
+    # Kiểm tra đã có lời mời nào chưa
     if current_user.has_pending_friend_request_to(user_id):
-        return jsonify({'error': 'Đã gửi lời mời trước ưó!'}), 400
+        return jsonify({'error': 'Đã gửi lời mời trước đó!'}), 400
     
     if current_user.has_pending_friend_request_from(user_id):
-        return jsonify({'error': 'Người này ưã gửi lời mời cho bạn!'}), 400
+        return jsonify({'error': 'Người này đã gửi lời mời cho bạn!'}), 400
     
     # Tạo lời mời kết bạn mới
     friend_request = FriendRequest(
@@ -784,7 +901,7 @@ def send_friend_request(user_id):
     notification = Notification(
         user_id=user_id,
         title="Lời mời kết bạn mới!",
-        message=f"{current_user.name} ưã gửi lời mời kết bạn cho bạn.",
+        message=f"{current_user.name} đã gửi lời mời kết bạn cho bạn.",
         type='friend_request',
         related_user_id=current_user.id
     )
@@ -798,7 +915,6 @@ def send_friend_request(user_id):
         'status': 'outgoing_request'
     })
 
-
 # === CHẤP NHẬN LỜI MỜI KẾT BẠN ===
 @app.route('/accept_friend_request/<int:request_id>', methods=['POST'])
 @login_required
@@ -810,11 +926,11 @@ def accept_friend_request(request_id):
         return jsonify({'error': 'Không có quyền xử lý lời mời này!'}), 403
     
     if friend_request.status != 'pending':
-        return jsonify({'error': 'Lời mời ưã ưược xử lý!'}), 400
+        return jsonify({'error': 'Lời mời đã được xử lý!'}), 400
     
     # Cập nhật trạng thái lời mời
     friend_request.status = 'accepted'
-    friend_request.updated_at = datetime.utcnow()
+    friend_request.updated_at = vietnam_now()
     
     # Tạo quan hệ bạn bè
     friendship = Friendship(
@@ -826,8 +942,8 @@ def accept_friend_request(request_id):
     # Tạo thông báo cho người gửi
     notification = Notification(
         user_id=friend_request.sender_id,
-        title="Lời mời ưược chấp nhận!",
-        message=f"{current_user.name} ưã chấp nhận lời mời kết bạn của bạn.",
+        title="Lời mời được chấp nhận!",
+        message=f"{current_user.name} đã chấp nhận lời mời kết bạn của bạn.",
         type='friend_accepted',
         related_user_id=current_user.id
     )
@@ -841,7 +957,6 @@ def accept_friend_request(request_id):
         'status': 'friends'
     })
 
-
 # === TỪ CHỐI LỜI MỜI KẾT BẠN ===
 @app.route('/reject_friend_request/<int:request_id>', methods=['POST'])
 @login_required
@@ -853,11 +968,11 @@ def reject_friend_request(request_id):
         return jsonify({'error': 'Không có quyền xử lý lời mời này!'}), 403
     
     if friend_request.status != 'pending':
-        return jsonify({'error': 'Lời mời ưã ưược xử lý!'}), 400
+        return jsonify({'error': 'Lời mời đã được xử lý!'}), 400
     
     # Cập nhật trạng thái lời mời
     friend_request.status = 'rejected'
-    friend_request.updated_at = datetime.utcnow()
+    friend_request.updated_at = vietnam_now()
     
     db.session.commit()
     
@@ -871,7 +986,7 @@ def reject_friend_request(request_id):
 @app.route('/cancel_friend_request/<int:user_id>', methods=['POST'])
 @login_required
 def cancel_friend_request(user_id):
-    # Tìm lời mời ưã gửi
+    # Tìm lời mời đã gửi
     friend_request = FriendRequest.query.filter_by(
         sender_id=current_user.id,
         receiver_id=user_id,
@@ -918,7 +1033,7 @@ def unfriend(user_id):
 def friendship_status(user_id):
     status = current_user.get_friendship_status(user_id)
     
-    # Nếu có lời mời ưến, trả về ID của nó
+    # Nếu có lời mời đến, trả về ID của nó
     pending_request_id = None
     if status == 'incoming_request':
         request = FriendRequest.query.filter_by(
@@ -939,26 +1054,11 @@ def friendship_status(user_id):
 @app.route('/friends')
 @login_required
 def friends():
-    # Lấy danh sách bạn bè
-    friends_list = current_user.friends
-    
-    # Lấy danh sách lời mời ưang chờ
-    pending_requests = current_user.get_pending_friend_requests()
-    
-    # Lấy danh sách lời mời ưã gửi
-    sent_requests = current_user.get_sent_friend_requests()
-    
-    # Gợi ý kết bạn - những người không phải bạn bè và chưa có lời mời
-    friend_ids = [f.id for f in friends_list] + [current_user.id]
-    
-    # Lấy ID của những người ưã có lời mời
-    pending_sender_ids = [req.sender_id for req in pending_requests]
-    pending_receiver_ids = [req.receiver_id for req in sent_requests]
-    excluded_ids = friend_ids + pending_sender_ids + pending_receiver_ids
-    
-    suggested_users = User.query.filter(
-        ~User.id.in_(excluded_ids)
-    ).order_by(func.random()).limit(10).all()
+    # Sử dụng cùng hàm với trang home
+    friends_list = get_friends(current_user)
+    pending_requests = get_pending_requests(current_user)
+    sent_requests = get_sent_requests(current_user)
+    suggested_users = get_suggested_users(current_user, limit=10)
 
     return render_template(
         'friends.html',
@@ -984,8 +1084,6 @@ def chat(user_id):
     other_user = User.query.get_or_404(user_id)
     return render_template('chat.html', other_user=other_user)
 
-
-
 @socketio.on('join_chat')
 def on_join_chat(data):
     user_id = data['user_id']
@@ -1008,7 +1106,7 @@ def handle_message(data):
     db.session.add(msg)
     db.session.commit()
 
-    timestamp = datetime.now().strftime('%H:%M %d/%m')
+    timestamp = vietnam_now().strftime('%H:%M %d/%m')
     sender = User.query.get(sender_id)
 
     message_data = {
@@ -1019,239 +1117,150 @@ def handle_message(data):
     }
 
     room = f"chat_{min(sender_id, receiver_id)}_{max(sender_id, receiver_id)}"
-    
-    # THAY ĐỔI QUAN TRỌNG: thêm include_self=True và broadcast=True
     emit('receive_message', message_data, room=room, include_self=True, broadcast=True)
     print(f"✅ Sent to room {room}: {content}")
 
-# @app.route('/chat/history/<int:friend_id>')
-# def chat_history(friend_id):
-#     from flask_login import current_user
-    
-#     print(f"🔍 Auth status: {current_user.is_authenticated}")
-#     print(f"🔍 Current user: {current_user if current_user.is_authenticated else 'Anonymous'}")
-    
-#     if not current_user.is_authenticated:
-#         return jsonify([])  # ← TRẢ ARRAY RỖNG THAY VÌ 401
-    
-#     messages = Message.query.filter(
-#         ((Message.sender_id == current_user.id) & (Message.receiver_id == friend_id)) |
-#         ((Message.sender_id == friend_id) & (Message.receiver_id == current_user.id))
-#     ).order_by(Message.timestamp.asc()).all()
+# THÊM VÀO app.py - THAY THẾ PHẦN VIDEO CALL SOCKET EVENTS
 
-#     return jsonify([{
-#         'sender_id': m.sender_id,
-#         'sender_name': m.sender.name,
-#         'content': m.content,
-#         'timestamp': m.timestamp.strftime('%H:%M %d/%m')
-#     } for m in messages])
+# Dictionary lưu socket_id của users đang online
+online_users = {}
 
-@app.template_filter('nl2br')
-def nl2br_filter(s):
-    """Chuyển line break (\n) thành <br> trong HTML"""
-    if not s:
-        return ''
-    return Markup(s.replace('\n', '<br>\n'))
+@socketio.on('connect')
+def handle_connect():
+    print(f'✅ User connected: {request.sid}')
 
-@app.route('/rate/<int:post_id>', methods=['POST'])
-@login_required
-def rate_post(post_id):
-    post = Post.query.get_or_404(post_id)
-    data = request.get_json()
-    stars = data.get('stars', 0)
-    if stars < 1 or stars > 5:
-        return jsonify({'error': 'Sao phải từ 1-5'}), 400
-    
-    # Giả sử bạn thêm field rating và rating_count vào model Post
-    if not hasattr(post, 'rating'):
-        post.rating = 0
-        post.rating_count = 0
-    
-    post.rating = ((post.rating * post.rating_count) + stars) / (post.rating_count + 1)
-    post.rating_count += 1
-    db.session.commit()
-    
-    return jsonify({'success': True})
+@socketio.on('disconnect')
+def handle_disconnect():
+    # Xóa user khỏi danh sách online
+    for user_id, sid in list(online_users.items()):
+        if sid == request.sid:
+            del online_users[user_id]
+            print(f'❌ User {user_id} disconnected')
+    print(f'Client disconnected: {request.sid}')
 
-# ============================================
-# SOCKET EVENTS CHO VIDEO CALL
-# ============================================
-
-@socketio.on('join_chat')
-def on_join_chat(data):
-    user_id = data['user_id']
-    friend_id = data['friend_id']
-    
-    # Join room chat
-    room = f"chat_{min(user_id, friend_id)}_{max(user_id, friend_id)}"
-    join_room(room)
-    
-    # Join room riêng cho user (ưể nhận video call)
-    join_room(f"user_{user_id}")
-    
-    print(f"✅ User {user_id} joined room {room} and user_{user_id}")
-
-@socketio.on('send_message')
-def handle_message(data):
-    sender_id = data['sender_id']
-    receiver_id = data['receiver_id']
-    content = data.get('content', '').strip()
-    msg_type = data.get('type', 'text')
-    filename = data.get('filename', None)
-    
-    if not content or sender_id == receiver_id:
-        return
-
-    # XỬ LÝ FILE (IMAGE, VIDEO, AUDIO)
-    if msg_type in ['image', 'video', 'audio']:
-        try:
-            # Decode base64
-            if ',' in content:
-                file_data = content.split(',')[1]
-            else:
-                file_data = content
-                
-            file_bytes = base64.b64decode(file_data)
-            
-            # Tạo tên file duy nhất
-            extension_map = {
-                'image': 'jpg',
-                'video': 'mp4',
-                'audio': 'webm'
-            }
-            ext = extension_map.get(msg_type, 'dat')
-            filename = f"{sender_id}_{int(time.time())}.{ext}"
-            
-            # Lưu file vào thư mục uploads
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            with open(filepath, 'wb') as f:
-                f.write(file_bytes)
-            
-            # Cập nhật content thành ưường dẫn file
-            content = f'/static/uploads/{filename}'
-            
-            print(f"✅ Saved {msg_type} file: {filename}")
-            
-        except Exception as e:
-            print(f"❌ Error saving file: {e}")
-            return
-
-    # Lưu vào DB
-    msg = Message(
-        sender_id=sender_id, 
-        receiver_id=receiver_id, 
-        content=content,
-        type=msg_type
-    )
-    db.session.add(msg)
-    db.session.commit()
-
-    timestamp = datetime.now().strftime('%H:%M %d/%m')
-    sender = User.query.get(sender_id)
-
-    message_data = {
-        'sender_id': sender_id,
-        'sender_name': sender.name,
-        'content': content,
-        'timestamp': timestamp,
-        'type': msg_type
-    }
-
-    room = f"chat_{min(sender_id, receiver_id)}_{max(sender_id, receiver_id)}"
-    emit('receive_message', message_data, room=room, include_self=True, broadcast=True)
-    print(f"✅ Sent {msg_type} to room {room}")
-
-
-# ============================================
-# VIDEO CALL SOCKET EVENTS
-# ============================================
+@socketio.on('register_user')
+def handle_register_user(data):
+    """Đăng ký user_id với socket_id"""
+    user_id = data.get('user_id')
+    if user_id:
+        online_users[user_id] = request.sid
+        print(f'📝 Registered user {user_id} with socket {request.sid}')
+        print(f'Online users: {online_users}')
 
 @socketio.on('video_call_request')
-def handle_call_request(data):
+def handle_video_call_request(data):
     """Xử lý yêu cầu gọi video"""
-    from_user = data['from']
-    to_user = data['to']
-    caller_name = data['caller_name']
+    from_user = data.get('from')
+    to_user = data.get('to')
+    caller_name = data.get('caller_name')
     
-    print(f"📞 Video call from {from_user} to {to_user}")
+    print(f'📞 Video call request: {from_user} -> {to_user}')
+    print(f'Online users: {online_users}')
     
-    # Gửi thông báo cuộc gọi ưến người nhận
-    emit('video_call_request', {
-        'from': from_user,
-        'caller_name': caller_name
-    }, room=f"user_{to_user}")
-
+    # Lấy socket_id của người nhận
+    to_socket = online_users.get(to_user)
+    
+    if to_socket:
+        print(f'✅ Sending call notification to socket {to_socket}')
+        # Gửi thông báo đến người nhận cụ thể
+        emit('video_call_request', {
+            'from': from_user,
+            'caller_name': caller_name
+        }, room=to_socket)
+    else:
+        print(f'❌ User {to_user} is not online')
+        # Thông báo cho người gọi rằng đối phương offline
+        emit('call_failed', {
+            'message': 'Người dùng không trực tuyến'
+        }, room=request.sid)
 
 @socketio.on('video_call_accepted')
 def handle_call_accepted(data):
     """Xử lý khi chấp nhận cuộc gọi"""
-    from_user = data['from']
-    to_user = data['to']
+    from_user = data.get('from')
+    to_user = data.get('to')
     
-    print(f"✅ Call accepted: {from_user} -> {to_user}")
+    print(f'✅ Call accepted: {from_user} -> {to_user}')
     
-    emit('video_call_accepted', data, room=f"user_{to_user}")
-
+    to_socket = online_users.get(to_user)
+    if to_socket:
+        emit('video_call_accepted', {
+            'from': from_user
+        }, room=to_socket)
 
 @socketio.on('video_call_rejected')
 def handle_call_rejected(data):
     """Xử lý khi từ chối cuộc gọi"""
-    from_user = data['from']
-    to_user = data['to']
+    from_user = data.get('from')
+    to_user = data.get('to')
     
-    print(f"❌ Call rejected: {from_user} -> {to_user}")
+    print(f'❌ Call rejected: {from_user} -> {to_user}')
     
-    emit('video_call_rejected', {}, room=f"user_{to_user}")
-
+    to_socket = online_users.get(to_user)
+    if to_socket:
+        emit('video_call_rejected', {
+            'from': from_user
+        }, room=to_socket)
 
 @socketio.on('video_call_offer')
 def handle_offer(data):
-    """Xử lý WebRTC offer"""
-    to_user = data['to']
-    offer = data['offer']
+    """Chuyển tiếp WebRTC offer"""
+    to_user = data.get('to')
+    offer = data.get('offer')
+    from_user = current_user.id if current_user.is_authenticated else None
     
-    print(f"📤 Sending offer to user {to_user}")
+    print(f'📤 Sending offer: {from_user} -> {to_user}')
     
-    emit('video_call_offer', {
-        'from': data.get('from'),
-        'offer': offer
-    }, room=f"user_{to_user}")
-
+    to_socket = online_users.get(to_user)
+    if to_socket:
+        emit('video_call_offer', {
+            'from': from_user,
+            'offer': offer
+        }, room=to_socket)
 
 @socketio.on('video_call_answer')
 def handle_answer(data):
-    """Xử lý WebRTC answer"""
-    to_user = data['to']
-    answer = data['answer']
+    """Chuyển tiếp WebRTC answer"""
+    to_user = data.get('to')
+    answer = data.get('answer')
+    from_user = current_user.id if current_user.is_authenticated else None
     
-    print(f"📥 Sending answer to user {to_user}")
+    print(f'📤 Sending answer: {from_user} -> {to_user}')
     
-    emit('video_call_answer', {
-        'from': data.get('from'),
-        'answer': answer
-    }, room=f"user_{to_user}")
-
+    to_socket = online_users.get(to_user)
+    if to_socket:
+        emit('video_call_answer', {
+            'from': from_user,
+            'answer': answer
+        }, room=to_socket)
 
 @socketio.on('ice_candidate')
 def handle_ice_candidate(data):
-    """Xử lý ICE candidate cho WebRTC"""
-    to_user = data['to']
-    candidate = data['candidate']
+    """Chuyển tiếp ICE candidate"""
+    to_user = data.get('to')
+    candidate = data.get('candidate')
+    from_user = current_user.id if current_user.is_authenticated else None
     
-    emit('ice_candidate', {
-        'candidate': candidate
-    }, room=f"user_{to_user}")
-
+    to_socket = online_users.get(to_user)
+    if to_socket:
+        emit('ice_candidate', {
+            'from': from_user,
+            'candidate': candidate
+        }, room=to_socket)
 
 @socketio.on('call_ended')
 def handle_call_ended(data):
     """Xử lý khi kết thúc cuộc gọi"""
-    to_user = data['to']
+    to_user = data.get('to')
+    from_user = current_user.id if current_user.is_authenticated else None
     
-    print(f"☎️ Call ended with user {to_user}")
+    print(f'📴 Call ended: {from_user} -> {to_user}')
     
-    emit('call_ended', {}, room=f"user_{to_user}")
-
+    to_socket = online_users.get(to_user)
+    if to_socket:
+        emit('call_ended', {
+            'from': from_user
+        }, room=to_socket)
 
 # ============================================
 # CẬP NHẬT CHAT HISTORY API
@@ -1277,20 +1286,95 @@ def chat_history(friend_id):
         'type': getattr(m, 'type', 'text')  # Thêm type
     } for m in messages])
 
+# SỬA LẠI ROUTE ĐÁNH GIÁ SAO
+@app.route('/rate/<int:post_id>', methods=['POST'])
+@login_required
+def rate_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    data = request.get_json()
+    stars = data.get('stars', 0)
+    
+    if stars < 1 or stars > 5:
+        return jsonify({'error': 'Số sao phải từ 1-5'}), 400
+    
+    # Kiểm tra đã đánh giá chưa
+    existing_rating = PostRating.query.filter_by(
+        user_id=current_user.id,
+        post_id=post_id
+    ).first()
+    
+    if existing_rating:
+        # Cập nhật đánh giá
+        old_stars = existing_rating.stars
+        existing_rating.stars = stars
+        existing_rating.created_at = vietnam_now()
+        
+        # Cập nhật rating trung bình
+        total = post.rating * post.rating_count
+        total = total - old_stars + stars
+        post.rating = total / post.rating_count
+    else:
+        # Thêm đánh giá mới
+        new_rating = PostRating(
+            user_id=current_user.id,
+            post_id=post_id,
+            stars=stars
+        )
+        db.session.add(new_rating)
+        
+        # Cập nhật rating trung bình
+        if not hasattr(post, 'rating') or post.rating is None:
+            post.rating = 0
+            post.rating_count = 0
+        
+        total = post.rating * post.rating_count + stars
+        post.rating_count += 1
+        post.rating = total / post.rating_count
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'rating': round(post.rating, 1),
+        'rating_count': post.rating_count,
+        'user_rating': stars
+    })
+
+# LẤY ĐÁNH GIÁ CỦA USER
+@app.route('/api/post/<int:post_id>/my-rating')
+@login_required
+def get_my_rating(post_id):
+    rating = PostRating.query.filter_by(
+        user_id=current_user.id,
+        post_id=post_id
+    ).first()
+    
+    if rating:
+        return jsonify({'stars': rating.stars})
+    return jsonify({'stars': 0})
 
 # === CHẠY APP ===
 if __name__ == '__main__':
-    init_db()  # Tự ưộng tạo admin khi chạy lần ưầu
     with app.app_context():
-        db.create_all()  # Đảm bảo bảng tồn tại
+        # Đảm bảo tất cả các bảng được tạo
+        db.create_all()
+        
+        # Tạo admin nếu chưa có
+        if not User.query.filter_by(email='admin@momconnect.com').first():
+            hashed = generate_password_hash('admin123')
+            admin = User(
+                name='Admin MomConnect',
+                email='admin@momconnect.com',
+                password=hashed,
+                role='admin',
+                points=9999,
+                is_verified_expert=True
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("ĐÃ TẠO TÀI KHOẢN ADMIN:")
+            print("Email: admin@momconnect.com")
+            print("Mật khẩu: admin123")
+
     socketio.run(app, debug=True, port=5000, use_reloader=False)
     # KHÔNG DÙNG app.run()!
-    
-
-# # app.py – CUỐI FILE
-# from database import db, init_app
-
-# app = Flask(__name__)
-# # ... config
-
-# init_app(app)  # Khởi tạo db với app

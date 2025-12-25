@@ -8,16 +8,16 @@
         <div class="p-8 border-b border-gray-100">
             <div class="flex items-start justify-between mb-6">
                 <div class="flex items-center gap-4">
-                    <!-- ✅ SỬA AVATAR TÁC GIẢ -->
                     <img src="{{ url_for('static', filename=post.author.avatar or 'images/default-avatar.png') }}"
                         class="w-16 h-16 rounded-full object-cover ring-4 ring-pink-200 shadow-lg">
                     <div>
                         <h3 class="text-2xl font-bold text-gray-900">{{ post.author.name }}</h3>
                         <p class="text-sm text-gray-500 flex items-center gap-2 mt-1">
                             <i class="far fa-clock"></i>
-                            {{ post.created_at.strftime('%H:%M • %d/%m/%Y') }}
+                            {{ post.created_at | vietnam_time }}
                             {% if post.is_expert_post %}
-                            <span class="ml-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                            <span
+                                class="ml-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
                                 <i class="fas fa-stethoscope mr-1"></i> Tư vấn chuyên gia
                             </span>
                             {% endif %}
@@ -25,21 +25,23 @@
                     </div>
                 </div>
 
-                <!-- Menu 3 chấm -->
                 <div class="relative">
                     <button onclick="toggleMenu({{ post.id }})" class="p-3 hover:bg-gray-100 rounded-full transition">
                         <i class="fas fa-ellipsis-h text-gray-600 text-xl"></i>
                     </button>
-                    <div id="menu-{{ post.id }}" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border z-30">
-                        <button onclick="reportPost({{ post.id }})" class="w-full text-left px-5 py-3 hover:bg-gray-50 flex items-center gap-3 text-red-600">
-                            <i class="fas fa-flag"></i> Báo cáo bài viết
-                        </button>
-                        {% if current_user.id == post.user_id or current_user.role == 'admin' %}
-                        <button onclick="deletePost({{ post.id }})" class="w-full text-left px-5 py-3 hover:bg-red-50 flex items-center gap-3 text-red-600">
-                            <i class="fas fa-trash"></i> Xóa bài viết
-                        </button>
-                        {% endif %}
-                    </div>
+                    <div id="menu-{{ post.id }}"
+                        class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border z-30">
+                        <button onclick="reportPost({{ post.id }})"
+                            class="w-full text-left px-5 py-3 hover:bg-gray-50 flex items-center gap-3 text-red-600">
+                                <i class="fas fa-flag"></i> Báo cáo bài viết
+                            </button>
+                            {% if current_user.id == post.user_id or current_user.role == 'admin' %}
+                            <button onclick="deletePost({{ post.id }})"
+                                class="w-full text-left px-5 py-3 hover:bg-red-50 flex items-center gap-3 text-red-600">
+                                <i class="fas fa-trash"></i> Xóa bài viết
+                            </button>
+                            {% endif %}
+                        </div>
                 </div>
             </div>
 
@@ -66,7 +68,6 @@
             <!-- Media: Nhiều ảnh + Video -->
             {% if post.get_images_list() or post.video %}
             <div class="mb-8 -mx-8">
-                <!-- Nhiều ảnh -->
                 {% if post.get_images_list() %}
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-8">
                     {% for img in post.get_images_list() %}
@@ -79,7 +80,6 @@
                 </div>
                 {% endif %}
 
-                <!-- Video -->
                 {% if post.video %}
                 <div class="px-8 mt-6">
                     <div class="relative rounded-2xl overflow-hidden shadow-2xl bg-black">
@@ -88,7 +88,8 @@
                             Trình duyệt của bạn không hỗ trợ video.
                         </video>
                         <div class="absolute top-4 left-4">
-                            <span class="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2">
+                            <span
+                                class="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2">
                                 <i class="fas fa-play-circle"></i> Video
                             </span>
                         </div>
@@ -98,31 +99,34 @@
             </div>
             {% endif %}
 
-            <!-- Hành động: Thích + Bình luận -->
+            <!-- ✅ TÁCH RIÊNG: THÍCH & BÌNH LUẬN -->
             <div class="flex items-center justify-between p-6 border-b border-gray-100">
                 <div class="flex items-center gap-8">
-                    <button onclick="likePost({{ post.id }})" class="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-pink-100 to-purple-100 rounded-full hover:shadow-lg transition group">
-                        <i class="fas fa-heart text-2xl text-pink-600 group-hover:scale-110 transition"></i>
-                        <span class="font-bold text-pink-700">Thích • {{ post.likes }}</span>
+                    <button onclick="likePost({{ post.id }})" id="like-btn-{{ post.id }}"
+                        class="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-pink-100 to-purple-100 rounded-full hover:shadow-lg transition group">
+                        <i class="fas fa-heart text-2xl text-pink-600 group-hover:scale-110 transition" id="like-icon-{{ post.id }}"></i>
+                        <span class="font-bold text-pink-700" id="like-count-{{ post.id }}">Thích • {{ post.likes }}</span>
                     </button>
 
-                    <button onclick="focusCommentInput()" class="flex items-center gap-3 px-6 py-3 bg-gray-100 rounded-full hover:bg-gray-200 transition">
+                    <button onclick="focusCommentInput()"
+                        class="flex items-center gap-3 px-6 py-3 bg-gray-100 rounded-full hover:bg-gray-200 transition">
                         <i class="fas fa-comment text-2xl text-blue-600"></i>
-                        <span class="font-bold text-gray-700">Bình luận • {{ post.comments_count }}</span>
+                        <span class="font-bold text-gray-700" id="comment-count-{{ post.id }}">Bình luận • {{ post.comments_count }}</span>
                     </button>
                 </div>
 
-                <!-- Đánh giá sao -->
+                <!-- ✅ ĐÁNH GIÁ SAO RIÊNG BIỆT -->
                 <div class="flex items-center gap-2">
                     <span class="text-lg font-medium text-gray-700">Đánh giá bài viết:</span>
-                    <div class="flex items-center gap-1">
+                    <div class="flex items-center gap-1" id="rating-stars-{{ post.id }}">
                         {% for i in range(1, 6) %}
-                        <button onclick="ratePost({{ post.id }}, {{ i }})" class="text-3xl hover:scale-125 transition {% if i <= (post.rating|default(0)) %}text-yellow-400{% else %}text-gray-300{% endif %}">
+                        <button onclick="ratePost({{ post.id }}, {{ i }})"
+                            class="text-3xl hover:scale-125 transition star-btn" data-star="{{ i }}">
                             ★
                         </button>
                         {% endfor %}
                     </div>
-                    <span class="text-sm text-gray-600">({{ post.rating_count|default(0) }} đánh giá)</span>
+                    <span class="text-sm text-gray-600" id="rating-count-{{ post.id }}">({{ post.rating_count|default(0) }} đánh giá)</span>
                 </div>
             </div>
         </div>
@@ -130,14 +134,14 @@
         <!-- Form bình luận -->
         <div class="p-6 bg-gray-50">
             <div class="flex gap-4">
-                <!-- ✅ SỬA AVATAR CURRENT_USER -->
                 <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
                     class="w-12 h-12 rounded-full ring-4 ring-white shadow">
                 <div class="flex-1">
                     <textarea id="comment-input" rows="3" placeholder="Viết bình luận của bạn..."
                         class="w-full px-5 py-4 border border-gray-300 rounded-2xl focus:ring-4 focus:ring-pink-300 focus:border-pink-500 outline-none resize-none"></textarea>
                     <div class="mt-3 flex justify-end">
-                        <button onclick="submitComment({{ post.id }})" class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold rounded-full hover:shadow-xl transition transform hover:scale-105">
+                        <button onclick="submitComment({{ post.id }})"
+                            class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold rounded-full hover:shadow-xl transition transform hover:scale-105">
                             <i class="fas fa-paper-plane mr-2"></i> Gửi bình luận
                         </button>
                     </div>
@@ -146,26 +150,24 @@
         </div>
 
         <!-- Danh sách bình luận -->
-        <div class="p-6">
-            <h3 class="text-2xl font-bold text-gray-800 mb-6">Bình luận ({{ comments|length }})</h3>
-            {% if comments %}
-            <div class="space-y-6">
+        <div class="p-6" id="comments-container">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6">Bình luận (<span id="total-comments">{{ comments|length }}</span>)</h3>
+            <div class="space-y-6" id="comments-list">
                 {% for comment in comments %}
-                <div class="flex gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition">
-                    <!-- ✅ SỬA AVATAR TÁC GIẢ BÌNH LUẬN -->
+                <div class="flex gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition comment-item" data-comment-id="{{ comment.id }}">
                     <img src="{{ url_for('static', filename=comment.author.avatar or 'images/default-avatar.png') }}"
                         class="w-12 h-12 rounded-full ring-4 ring-white shadow">
                     <div class="flex-1">
                         <div class="flex items-center justify-between mb-2">
                             <h4 class="font-bold text-gray-900">{{ comment.author.name }}</h4>
-                            <span class="text-sm text-gray-500">{{ comment.created_at.strftime('%H:%M %d/%m') }}</span>
+                            <span class="text-sm text-gray-500">{{ comment.created_at | vietnam_time }}</span>
                         </div>
                         <p class="text-gray-700 leading-relaxed">{{ comment.content | replace('\n', '<br>') | safe }}</p>
                     </div>
                 </div>
                 {% endfor %}
             </div>
-            {% else %}
+            {% if not comments %}
             <div class="text-center py-12 text-gray-400">
                 <i class="fas fa-comment-slash text-6xl mb-4"></i>
                 <p class="text-lg">Chưa có bình luận nào</p>
@@ -177,7 +179,8 @@
 
     <!-- Nút quay lại -->
     <div class="text-center mt-8">
-        <a href="{{ url_for('home') }}" class="inline-flex items-center gap-2 text-pink-600 hover:text-pink-700 font-bold text-lg">
+        <a href="{{ url_for('home') }}"
+            class="inline-flex items-center gap-2 text-pink-600 hover:text-pink-700 font-bold text-lg">
             <i class="fas fa-arrow-left"></i> Quay lại trang chủ
         </a>
     </div>
@@ -192,44 +195,150 @@
 </div>
 
 <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Khởi tạo trạng thái đánh giá sao
+        const currentRating = {{ post.rating|default(0) }};
+        updateStarDisplay({{ post.id }}, currentRating);
+    });
+
     function toggleMenu(postId) {
-        document.querySelectorAll('[id^="menu-"]').forEach(m => {
-            if (m.id !== `menu-${postId}`) m.classList.add('hidden');
-        });
         document.getElementById(`menu-${postId}`).classList.toggle('hidden');
     }
 
-    function likePost(postId) {
-        fetch(`/like/${postId}`, { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                location.reload();
-            });
+    async function likePost(postId) {
+        try {
+            const res = await fetch(`/like/${postId}`, { method: 'POST' });
+            const data = await res.json();
+            
+            const likeCount = document.getElementById(`like-count-${postId}`);
+            const likeIcon = document.getElementById(`like-icon-${postId}`);
+            
+            if (likeCount && data.likes !== undefined) {
+                likeCount.textContent = `Thích • ${data.likes}`;
+            }
+            if (likeIcon) {
+                likeIcon.classList.toggle('fas');
+                likeIcon.classList.toggle('far');
+            }
+            
+            showToast(data.liked ? 'Đã thích bài viết!' : 'Đã bỏ thích bài viết!', true);
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Lỗi kết nối', false);
+        }
     }
 
     function focusCommentInput() {
         document.getElementById('comment-input').focus();
     }
 
-    function submitComment(postId) {
+    async function submitComment(postId) {
         const content = document.getElementById('comment-input').value.trim();
-        if (!content) return alert('Vui lòng nhập nội dung bình luận!');
+        if (!content) {
+            showToast('Vui lòng nhập nội dung bình luận!', false);
+            return;
+        }
 
-        const formData = new FormData();
-        formData.append('content', content);
+        try {
+            const formData = new FormData();
+            formData.append('content', content);
 
-        fetch(`/comment/${postId}`, {
-            method: 'POST',
-            body: formData
-        })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Lỗi: ' + data.error);
-                }
+            const res = await fetch(`/comment/${postId}`, {
+                method: 'POST',
+                body: formData
             });
+
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('comment-input').value = '';
+                
+                // Cập nhật số lượng bình luận
+                const commentCount = document.getElementById(`comment-count-${postId}`);
+                const totalComments = document.getElementById('total-comments');
+                if(commentCount && totalComments) {
+                    const currentCount = parseInt(totalComments.textContent);
+                    commentCount.textContent = `Bình luận • ${currentCount + 1}`;
+                    totalComments.textContent = currentCount + 1;
+                }
+
+                // Thêm bình luận mới vào danh sách
+                addCommentToTop({
+                    author_name: '{{ current_user.name }}',
+                    author_avatar: '{{ current_user.avatar or "images/default-avatar.png" }}',
+                    content: content,
+                    created_at: 'Vừa xong'
+                });
+
+                showToast('Đã gửi bình luận thành công!', true);
+            } else {
+                showToast(data.error || 'Không thể gửi bình luận', false);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    function addCommentToTop(comment) {
+        const commentsList = document.getElementById('comments-list');
+        if (!commentsList) return;
+
+        const newCommentHtml = `
+            <div class="flex gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition comment-item">
+                <img src="{{ url_for('static', filename='') }}${comment.author_avatar}" class="w-12 h-12 rounded-full ring-4 ring-white shadow">
+                <div class="flex-1">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="font-bold text-gray-900">${comment.author_name}</h4>
+                        <span class="text-sm text-gray-500">${comment.created_at}</span>
+                    </div>
+                    <p class="text-gray-700 leading-relaxed">${comment.content}</p>
+                </div>
+            </div>
+        `;
+        commentsList.insertAdjacentHTML('afterbegin', newCommentHtml);
+    }
+
+    async function ratePost(postId, rating) {
+        try {
+            const res = await fetch(`/rate/${postId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stars: rating })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                // Cập nhật hiển thị sao
+                updateStarDisplay(postId, rating);
+                
+                // Cập nhật số lượng đánh giá
+                const ratingCountEl = document.getElementById(`rating-count-${postId}`);
+                if (ratingCountEl) {
+                    ratingCountEl.textContent = `(${data.rating_count || 1} đánh giá)`;
+                }
+                
+                showToast('Đã đánh giá bài viết!', true);
+            } else {
+                showToast(data.error || 'Lỗi khi đánh giá', false);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    function updateStarDisplay(postId, userRating) {
+        const stars = document.querySelectorAll(`#rating-stars-${postId} .star-btn`);
+        stars.forEach(star => {
+            const starValue = parseInt(star.dataset.star);
+            if (starValue <= userRating) {
+                star.classList.add('text-yellow-400');
+                star.classList.remove('text-gray-300');
+            } else {
+                star.classList.add('text-gray-300');
+                star.classList.remove('text-yellow-400');
+            }
+        });
     }
 
     function reportPost(postId) {
@@ -239,13 +348,10 @@
         const formData = new FormData();
         formData.append('reason', reason);
 
-        fetch(`/report/${postId}`, {
-            method: 'POST',
-            body: formData
-        })
+        fetch(`/report/${postId}`, { method: 'POST', body: formData })
             .then(r => r.json())
             .then(data => {
-                alert(data.success ? 'Đã gửi báo cáo!' : data.error);
+                showToast(data.success ? 'Đã gửi báo cáo!' : data.error, !!data.success);
             });
     }
 
@@ -253,22 +359,6 @@
         if (!confirm('Bạn chắc chắn muốn xóa bài viết này?')) return;
         fetch(`/post/${postId}/delete`, { method: 'POST' })
             .then(() => location.href = '/');
-    }
-
-    function ratePost(postId, rating) {
-        fetch(`/rate/${postId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ stars: rating })
-        })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Đã đánh giá bài viết!', true);
-                } else {
-                    showToast(data.error || 'Lỗi khi đánh giá', false);
-                }
-            });
     }
 
     function showToast(message, isSuccess = true) {

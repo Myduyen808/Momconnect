@@ -39,7 +39,7 @@
                             </div>
                             <p class="text-sm text-gray-500 flex items-center gap-2 mt-1">
                                 <i class="far fa-clock"></i>
-                                {{ post.created_at.strftime('%H:%M • %d/%m/%Y') }}
+                                {{ post.created_at | vietnam_time }}
                             </p>
                         </div>
                     </div>
@@ -48,25 +48,25 @@
                     {% if current_user.is_authenticated and post.author.id != current_user.id %}
                     <div id="friend-button-{{ post.author.id }}">
                         {% set friendship_status = current_user.get_friendship_status(post.author.id) %}
-                        
+
                         {% if friendship_status == 'friends' %}
                         <button onclick="handleFriendAction('{{ post.author.id }}', 'unfriend', this)"
                             class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300">
                             <i class="fas fa-user-minus mr-2"></i>Bạn bè
                         </button>
-                        
+
                         {% elif friendship_status == 'incoming_request' %}
                         <button onclick="handleFriendAction('{{ post.author.id }}', 'accept_request', this)"
                             class="px-5 py-2 rounded-full font-medium transition shadow-md bg-blue-600 text-white hover:bg-blue-700">
                             <i class="fas fa-user-check mr-2"></i>Chấp nhận
                         </button>
-                        
+
                         {% elif friendship_status == 'outgoing_request' %}
                         <button onclick="handleFriendAction('{{ post.author.id }}', 'cancel_request', this)"
                             class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300">
                             <i class="fas fa-clock mr-2"></i>Đã gửi
                         </button>
-                        
+
                         {% else %}
                         <button onclick="handleFriendAction('{{ post.author.id }}', 'add_friend', this)"
                             class="px-5 py-2 rounded-full font-medium transition shadow-md bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:shadow-lg">
@@ -337,7 +337,7 @@
     .animate-slide-in {
         animation: slide-in 0.3s ease-out;
     }
-    
+
     .line-clamp-3 {
         display: -webkit-box;
         -webkit-line-clamp: 3;
@@ -351,8 +351,8 @@
     async function handleFriendAction(userId, action, button) {
         try {
             let url, method, successMessage;
-            
-            switch(action) {
+
+            switch (action) {
                 case 'add_friend':
                     url = `/send_friend_request/${userId}`;
                     method = 'POST';
@@ -383,15 +383,15 @@
                     }
                     break;
             }
-            
+
             if (!url) return;
-            
+
             const res = await fetch(url, { method });
             const result = await res.json();
-            
+
             if (result.success) {
                 showToast(result.message || successMessage);
-                
+
                 // Cập nhật UI
                 setTimeout(() => {
                     updateFriendButton(userId, button, action);
@@ -404,15 +404,15 @@
             showToast('Lỗi kết nối', false);
         }
     }
-    
+
     // Cập nhật giao diện nút kết bạn
     function updateFriendButton(userId, button, currentAction) {
         const container = document.getElementById(`friend-button-${userId}`);
         if (!container) return;
-        
+
         let newButton, newAction;
-        
-        switch(currentAction) {
+
+        switch (currentAction) {
             case 'add_friend':
                 newButton = `
                     <button onclick="handleFriendAction('${userId}', 'cancel_request', this)"
@@ -446,10 +446,10 @@
                 newAction = 'add_friend';
                 break;
         }
-        
+
         container.innerHTML = newButton;
     }
-    
+
     // Hàm hiển thị toast
     function showToast(message, isSuccess = true) {
         const toast = document.getElementById('toast');

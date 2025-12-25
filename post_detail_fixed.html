@@ -15,9 +15,10 @@
                         <h3 class="text-2xl font-bold text-gray-900">{{ post.author.name }}</h3>
                         <p class="text-sm text-gray-500 flex items-center gap-2 mt-1">
                             <i class="far fa-clock"></i>
-                            {{ post.created_at.strftime('%H:%M • %d/%m/%Y') }}
+                            {{ post.created_at | vietnam_time }}
                             {% if post.is_expert_post %}
-                            <span class="ml-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                            <span
+                                class="ml-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
                                 <i class="fas fa-stethoscope mr-1"></i> Tư vấn chuyên gia
                             </span>
                             {% endif %}
@@ -30,12 +31,15 @@
                     <button onclick="toggleMenu({{ post.id }})" class="p-3 hover:bg-gray-100 rounded-full transition">
                         <i class="fas fa-ellipsis-h text-gray-600 text-xl"></i>
                     </button>
-                    <div id="menu-{{ post.id }}" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border z-30">
-                        <button onclick="reportPost({{ post.id }})" class="w-full text-left px-5 py-3 hover:bg-gray-50 flex items-center gap-3 text-red-600">
+                    <div id="menu-{{ post.id }}"
+                        class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border z-30">
+                        <button onclick="reportPost({{ post.id }})"
+                            class="w-full text-left px-5 py-3 hover:bg-gray-50 flex items-center gap-3 text-red-600">
                             <i class="fas fa-flag"></i> Báo cáo bài viết
                         </button>
                         {% if current_user.id == post.user_id or current_user.role == 'admin' %}
-                        <button onclick="deletePost({{ post.id }})" class="w-full text-left px-5 py-3 hover:bg-red-50 flex items-center gap-3 text-red-600">
+                        <button onclick="deletePost({{ post.id }})"
+                            class="w-full text-left px-5 py-3 hover:bg-red-50 flex items-center gap-3 text-red-600">
                             <i class="fas fa-trash"></i> Xóa bài viết
                         </button>
                         {% endif %}
@@ -54,7 +58,8 @@
                     {% elif post.category == 'story' %}bg-purple-100 text-purple-700
                     {% elif post.category == 'tips' %}bg-blue-100 text-blue-700
                     {% else %}bg-gray-100 text-gray-700{% endif %}">
-                    {{ {'health': 'Sức khỏe', 'nutrition': 'Dinh dưỡng', 'story': 'Tâm sự', 'tips': 'Mẹo hay', 'other': 'Khác'}[post.category] }}
+                    {{ {'health': 'Sức khỏe', 'nutrition': 'Dinh dưỡng', 'story': 'Tâm sự', 'tips': 'Mẹo hay', 'other':
+                    'Khác'}[post.category] }}
                 </span>
             </div>
 
@@ -88,7 +93,8 @@
                             Trình duyệt của bạn không hỗ trợ video.
                         </video>
                         <div class="absolute top-4 left-4">
-                            <span class="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2">
+                            <span
+                                class="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2">
                                 <i class="fas fa-play-circle"></i> Video
                             </span>
                         </div>
@@ -101,12 +107,14 @@
             <!-- Hành động: Thích + Bình luận -->
             <div class="flex items-center justify-between p-6 border-b border-gray-100">
                 <div class="flex items-center gap-8">
-                    <button onclick="likePost({{ post.id }})" class="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-pink-100 to-purple-100 rounded-full hover:shadow-lg transition group">
+                    <button onclick="likePost({{ post.id }})"
+                        class="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-pink-100 to-purple-100 rounded-full hover:shadow-lg transition group">
                         <i class="fas fa-heart text-2xl text-pink-600 group-hover:scale-110 transition"></i>
                         <span class="font-bold text-pink-700">Thích • {{ post.likes }}</span>
                     </button>
 
-                    <button onclick="focusCommentInput()" class="flex items-center gap-3 px-6 py-3 bg-gray-100 rounded-full hover:bg-gray-200 transition">
+                    <button onclick="focusCommentInput()"
+                        class="flex items-center gap-3 px-6 py-3 bg-gray-100 rounded-full hover:bg-gray-200 transition">
                         <i class="fas fa-comment text-2xl text-blue-600"></i>
                         <span class="font-bold text-gray-700">Bình luận • {{ post.comments_count }}</span>
                     </button>
@@ -117,7 +125,8 @@
                     <span class="text-lg font-medium text-gray-700">Đánh giá bài viết:</span>
                     <div class="flex items-center gap-1">
                         {% for i in range(1, 6) %}
-                        <button onclick="ratePost({{ post.id }}, {{ i }})" class="text-3xl hover:scale-125 transition {% if i <= (post.rating|default(0)) %}text-yellow-400{% else %}text-gray-300{% endif %}">
+                        <button onclick="ratePost({{ post.id }}, {{ i }})"
+                            class="text-3xl hover:scale-125 transition {% if i <= (post.rating|default(0)) %}text-yellow-400{% else %}text-gray-300{% endif %}">
                             ★
                         </button>
                         {% endfor %}
@@ -137,7 +146,8 @@
                     <textarea id="comment-input" rows="3" placeholder="Viết bình luận của bạn..."
                         class="w-full px-5 py-4 border border-gray-300 rounded-2xl focus:ring-4 focus:ring-pink-300 focus:border-pink-500 outline-none resize-none"></textarea>
                     <div class="mt-3 flex justify-end">
-                        <button onclick="submitComment({{ post.id }})" class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold rounded-full hover:shadow-xl transition transform hover:scale-105">
+                        <button onclick="submitComment({{ post.id }})"
+                            class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold rounded-full hover:shadow-xl transition transform hover:scale-105">
                             <i class="fas fa-paper-plane mr-2"></i> Gửi bình luận
                         </button>
                     </div>
@@ -160,7 +170,8 @@
                             <h4 class="font-bold text-gray-900">{{ comment.author.name }}</h4>
                             <span class="text-sm text-gray-500">{{ comment.created_at.strftime('%H:%M %d/%m') }}</span>
                         </div>
-                        <p class="text-gray-700 leading-relaxed">{{ comment.content | replace('\n', '<br>') | safe }}</p>
+                        <p class="text-gray-700 leading-relaxed">{{ comment.content | replace('\n', '<br>') | safe }}
+                        </p>
                     </div>
                 </div>
                 {% endfor %}
@@ -177,7 +188,8 @@
 
     <!-- Nút quay lại -->
     <div class="text-center mt-8">
-        <a href="{{ url_for('home') }}" class="inline-flex items-center gap-2 text-pink-600 hover:text-pink-700 font-bold text-lg">
+        <a href="{{ url_for('home') }}"
+            class="inline-flex items-center gap-2 text-pink-600 hover:text-pink-700 font-bold text-lg">
             <i class="fas fa-arrow-left"></i> Quay lại trang chủ
         </a>
     </div>

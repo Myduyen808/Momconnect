@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Background Circle with Gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#EC4899;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#9333EA;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FCA5A5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F87171;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main Circle Background -->
+  <circle cx="100" cy="100" r="95" fill="url(#bgGradient)"/>
+  
+  <!-- Mom Silhouette -->
+  <g transform="translate(60, 50)">
+    <!-- Head -->
+    <circle cx="20" cy="20" r="15" fill="#FFF" opacity="0.9"/>
+    <!-- Body -->
+    <path d="M 8 35 Q 20 30 32 35 L 32 60 Q 20 65 8 60 Z" fill="#FFF" opacity="0.9"/>
+    <!-- Arms -->
+    <path d="M 8 40 Q 0 45 2 55" stroke="#FFF" stroke-width="4" fill="none" opacity="0.9" stroke-linecap="round"/>
+    <path d="M 32 40 Q 40 45 38 55" stroke="#FFF" stroke-width="4" fill="none" opacity="0.9" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Baby Silhouette -->
+  <g transform="translate(110, 65)">
+    <!-- Head -->
+    <circle cx="12" cy="15" r="12" fill="#FFF" opacity="0.9"/>
+    <!-- Body -->
+    <path d="M 4 27 Q 12 25 20 27 L 20 42 Q 12 45 4 42 Z" fill="#FFF" opacity="0.9"/>
+  </g>
+  
+  <!-- Heart Connection -->
+  <g transform="translate(85, 75)">
+    <path d="M 15 10 C 15 5, 5 5, 5 10 C 5 15, 15 20, 15 25 C 15 20, 25 15, 25 10 C 25 5, 15 5, 15 10 Z" 
+          fill="url(#heartGradient)" opacity="0.8"/>
+  </g>
+  
+  <!-- Decorative Stars -->
+  <g fill="#FFF" opacity="0.6">
+    <path d="M 40 40 L 42 45 L 47 45 L 43 48 L 45 53 L 40 50 L 35 53 L 37 48 L 33 45 L 38 45 Z" transform="scale(0.6)"/>
+    <path d="M 150 35 L 152 40 L 157 40 L 153 43 L 155 48 L 150 45 L 145 48 L 147 43 L 143 40 L 148 40 Z" transform="scale(0.5)"/>
+    <path d="M 160 130 L 162 135 L 167 135 L 163 138 L 165 143 L 160 140 L 155 143 L 157 138 L 153 135 L 158 135 Z" transform="scale(0.5)"/>
+  </g>
+  
+  <!-- Text "M" -->
+  <text x="100" y="175" font-family="Arial, sans-serif" font-size="40" font-weight="bold" 
+        fill="#FFF" text-anchor="middle">M</text>
+</svg>

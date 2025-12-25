@@ -117,7 +117,7 @@ def create_fixed_home():
                             </div>
                             <p class="text-sm text-gray-500 flex items-center gap-2 mt-1">
                                 <i class="far fa-clock"></i>
-                                {{ post.created_at.strftime('%H:%M • %d/%m/%Y') }}
+                            {{ post.created_at | vietnam_time }}
                             </p>
                         </div>
                     </div>

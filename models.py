@@ -1,15 +1,23 @@
 # models.py - SỬA HOÀN CHỈNH
 from database import db
 from flask_login import UserMixin
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import url_for
+import pytz  # Import thư viện pyt
+from sqlalchemy import event
+
+# THAY VÀO ĐÓ, TẠO MỘT HÀM MỚI
+
+
+def vietnam_now():
+    return datetime.utcnow() + timedelta(hours=7)
 
 # ĐỊNH NGHĨA FOLLOW TRƯỚC USER
 class Follow(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     follower_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     followed_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
     
     # STRING REFERENCE - tránh circular import
     follower = db.relationship('User', foreign_keys=[follower_id], 
@@ -23,7 +31,7 @@ class Friendship(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user1_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     user2_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
     
     # Relationships
     user1 = db.relationship('User', foreign_keys=[user1_id], 
@@ -41,8 +49,8 @@ class FriendRequest(db.Model):
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     status = db.Column(db.String(20), default='pending')  # pending, accepted, rejected
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+    updated_at = db.Column(db.DateTime, default=vietnam_now, onupdate=vietnam_now)
     
     # Relationships
     sender = db.relationship('User', foreign_keys=[sender_id], 
@@ -69,7 +77,7 @@ class User(UserMixin, db.Model):
     is_verified_expert = db.Column(db.Boolean, default=False)
     expert_request = db.Column(db.Text)
     expert_category = db.Column(db.String(50))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
 
     # Relationships
     posts = db.relationship('Post', foreign_keys='Post.user_id', backref='author', lazy='dynamic')
@@ -162,8 +170,12 @@ class Post(db.Model):
     is_expert_post = db.Column(db.Boolean, default=False)
     likes = db.Column(db.Integer, default=0)
     comments_count = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    # THÊM 2 DÒNG NÀY
+    rating = db.Column(db.Float, default=0.0)  # Điểm trung bình
+    rating_count = db.Column(db.Integer, default=0) # Số lượt đánh giá
 
     def get_images_list(self):
         if not self.images:
@@ -178,6 +190,45 @@ class Post(db.Model):
         if self.video:
             files.append(self.video)
         return files
+    
+# MODEL POST LIKE
+class PostLike(db.Model):
+    __tablename__ = 'post_like'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+    
+    user = db.relationship('User', backref='post_likes')
+    post = db.relationship('Post', backref='post_likes')
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'post_id', name='unique_post_like'),)
+
+# MODEL HIDDEN POST
+class HiddenPost(db.Model):
+    __tablename__ = 'hidden_post'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'post_id', name='unique_hidden_post'),)
+
+# MODEL POST RATING
+class PostRating(db.Model):
+    __tablename__ = 'post_rating'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    stars = db.Column(db.Integer, nullable=False)  # 1-5
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+    
+    user = db.relationship('User', backref='post_ratings')
+    post = db.relationship('Post', backref='post_ratings')
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'post_id', name='unique_post_rating'),)
+
+    
 
 class ExpertRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -185,7 +236,7 @@ class ExpertRequest(db.Model):
     certificate = db.Column(db.String(200))
     reason = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), default='pending')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
     admin_note = db.Column(db.Text)
 
 class Comment(db.Model):
@@ -193,7 +244,7 @@ class Comment(db.Model):
     content = db.Column(db.Text)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
 
 class Notification(db.Model):
     __tablename__ = 'notification'
@@ -205,7 +256,7 @@ class Notification(db.Model):
     related_id = db.Column(db.Integer)
     related_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
 
     related_user = db.relationship('User', foreign_keys=[related_user_id])
 
@@ -214,7 +265,7 @@ class Report(db.Model):
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     reason = db.Column(db.String(200), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
 
     post = db.relationship('Post', backref='reports')
     user = db.relationship('User', backref='reports')
@@ -230,9 +281,28 @@ class Message(db.Model):
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     type = db.Column(db.String(20), default='text')
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=vietnam_now)
     is_read = db.Column(db.Boolean, default=False)
 
     sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
     receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_messages')
 
+# models.py - DÁN ĐOẠN NÀY VÀO CUỐI FILE
+
+@event.listens_for(db.session, 'before_flush')
+def set_timestamps_before_flush(session, context, instances):
+    """
+    Tự động đặt created_at và updated_at cho các model trước khi lưu vào DB.
+    Đây là cách đáng tin cậy nhất để đảm bảo timezone đúng.
+    """
+    for instance in session.new:
+        # Đối với các đối tượng MỚI
+        if hasattr(instance, 'created_at') and instance.created_at is None:
+            instance.created_at = vietnam_now()
+        if hasattr(instance, 'updated_at'):
+            instance.updated_at = vietnam_now()
+
+    for instance in session.dirty:
+        # Đối với các đối tượng ĐÃ CÓ NHƯNG BỊ SỬA
+        if hasattr(instance, 'updated_at'):
+            instance.updated_at = vietnam_now()

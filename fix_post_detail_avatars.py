@@ -87,7 +87,7 @@ def create_post_detail_fixed():
                         <h3 class="text-2xl font-bold text-gray-900">{{ post.author.name }}</h3>
                         <p class="text-sm text-gray-500 flex items-center gap-2 mt-1">
                             <i class="far fa-clock"></i>
-                            {{ post.created_at.strftime('%H:%M • %d/%m/%Y') }}
+                        {{ post.created_at | vietnam_time }}
                             {% if post.is_expert_post %}
                             <span class="ml-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
                                 <i class="fas fa-stethoscope mr-1"></i> Tư vấn chuyên gia

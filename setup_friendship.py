@@ -73,7 +73,7 @@ def accept_friend_request(request_id):
     
     # Cập nhật trạng thái lời mời
     friend_request.status = 'accepted'
-    friend_request.updated_at = datetime.utcnow()
+    friend_request.updated_at = vietnam_now()
     
     # Tạo quan hệ bạn bè
     friendship = Friendship(
@@ -113,7 +113,7 @@ def reject_friend_request(request_id):
     
     # Cập nhật trạng thái lời mời
     friend_request.status = 'rejected'
-    friend_request.updated_at = datetime.utcnow()
+    friend_request.updated_at = vietnam_now()
     
     db.session.commit()
     
