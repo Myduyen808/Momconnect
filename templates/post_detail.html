@@ -2,226 +2,568 @@
 {% block title %}{{ post.title }}{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto p-6">
+<div class="max-w-5xl mx-auto p-4 md:p-6">
     <div class="bg-white rounded-3xl shadow-2xl overflow-hidden">
-        <!-- Header bài viết -->
-        <div class="p-8 border-b border-gray-100">
+        <!-- ✨ HEADER BÀI VIẾT -->
+        <div class="p-6 md:p-8 bg-gradient-to-r from-pink-50 to-purple-50">
             <div class="flex items-start justify-between mb-6">
                 <div class="flex items-center gap-4">
                     <img src="{{ url_for('static', filename=post.author.avatar or 'images/default-avatar.png') }}"
-                        class="w-16 h-16 rounded-full object-cover ring-4 ring-pink-200 shadow-lg">
+                        class="w-16 h-16 rounded-full object-cover ring-4 ring-white shadow-lg hover:scale-110 transition">
                     <div>
-                        <h3 class="text-2xl font-bold text-gray-900">{{ post.author.name }}</h3>
-                        <p class="text-sm text-gray-500 flex items-center gap-2 mt-1">
-                            <i class="far fa-clock"></i>
-                            {{ post.created_at | vietnam_time }}
-                            {% if post.is_expert_post %}
+                        <div class="flex items-center gap-3">
+                            <h3 class="text-xl md:text-2xl font-bold text-gray-900">{{ post.author.name }}</h3>
+                            {% if post.author.is_verified_expert %}
                             <span
-                                class="ml-3 bg-gradient-to-r from-purple-500 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-                                <i class="fas fa-stethoscope mr-1"></i> Tư vấn chuyên gia
+                                class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                                <i class="fas fa-stethoscope"></i> Chuyên gia
                             </span>
                             {% endif %}
+                        </div>
+                        <p class="text-sm text-gray-600 flex items-center gap-2 mt-1">
+                            <i class="far fa-clock"></i>
+                            {{ post.created_at | vietnam_time }}
                         </p>
                     </div>
                 </div>
 
+                <!-- Menu ba chấm -->
                 <div class="relative">
-                    <button onclick="toggleMenu({{ post.id }})" class="p-3 hover:bg-gray-100 rounded-full transition">
+                    <button onclick="toggleMenu({{ post.id }})"
+                        class="p-3 hover:bg-white rounded-full transition shadow-sm">
                         <i class="fas fa-ellipsis-h text-gray-600 text-xl"></i>
                     </button>
                     <div id="menu-{{ post.id }}"
-                        class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border z-30">
+                        class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border-2 border-gray-200 z-30">
                         <button onclick="reportPost({{ post.id }})"
-                            class="w-full text-left px-5 py-3 hover:bg-gray-50 flex items-center gap-3 text-red-600">
-                                <i class="fas fa-flag"></i> Báo cáo bài viết
-                            </button>
-                            {% if current_user.id == post.user_id or current_user.role == 'admin' %}
-                            <button onclick="deletePost({{ post.id }})"
-                                class="w-full text-left px-5 py-3 hover:bg-red-50 flex items-center gap-3 text-red-600">
-                                <i class="fas fa-trash"></i> Xóa bài viết
-                            </button>
-                            {% endif %}
-                        </div>
+                            class="w-full text-left px-5 py-3 hover:bg-red-50 flex items-center gap-3 text-red-600 transition">
+                            <i class="fas fa-flag"></i> Báo cáo bài viết
+                        </button>
+                        {% if current_user.id == post.user_id or current_user.role == 'admin' %}
+                        <button onclick="deletePost({{ post.id }})"
+                            class="w-full text-left px-5 py-3 hover:bg-red-50 flex items-center gap-3 text-red-600 transition border-t">
+                            <i class="fas fa-trash"></i> Xóa bài viết
+                        </button>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
 
-            <!-- Tiêu đề -->
-            <h1 class="text-4xl font-bold text-gray-900 mb-4">{{ post.title }}</h1>
-
-            <!-- Chủ đề -->
-            <div class="flex items-center gap-3 mb-6">
-                <span class="px-4 py-2 rounded-full text-sm font-medium
-                    {% if post.category == 'health' %}bg-green-100 text-green-700
-                    {% elif post.category == 'nutrition' %}bg-yellow-100 text-yellow-700
-                    {% elif post.category == 'story' %}bg-purple-100 text-purple-700
-                    {% elif post.category == 'tips' %}bg-blue-100 text-blue-700
-                    {% else %}bg-gray-100 text-gray-700{% endif %}">
-                    {{ {'health': 'Sức khỏe', 'nutrition': 'Dinh dưỡng', 'story': 'Tâm sự', 'tips': 'Mẹo hay', 'other': 'Khác'}[post.category] }}
-                </span>
+            <!-- Tiêu đề & Chủ đề -->
+            <div class="mb-6">
+                <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4 leading-tight">{{ post.title }}</h1>
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="px-4 py-2 rounded-full text-sm font-semibold shadow-sm
+                        {% if post.category == 'health' %}bg-green-500 text-white
+                        {% elif post.category == 'nutrition' %}bg-yellow-500 text-white
+                        {% elif post.category == 'story' %}bg-purple-500 text-white
+                        {% elif post.category == 'tips' %}bg-blue-500 text-white
+                        {% else %}bg-gray-500 text-white{% endif %}">
+                        <i class="fas fa-tag mr-1"></i>
+                        {{ {'health': 'Sức khỏe', 'nutrition': 'Dinh dưỡng', 'story': 'Tâm sự', 'tips': 'Mẹo hay',
+                        'other': 'Khác'}[post.category] }}
+                    </span>
+                    {% if post.is_expert_post %}
+                    <span
+                        class="bg-gradient-to-r from-teal-500 to-blue-600 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg">
+                        <i class="fas fa-user-md mr-1"></i> Tư vấn chuyên gia
+                    </span>
+                    {% endif %}
+                </div>
             </div>
+        </div>
 
-            <!-- Nội dung -->
-            <div class="prose max-w-none text-gray-700 leading-relaxed text-lg mb-8">
+        <!-- ✨ NỘI DUNG BÀI VIẾT -->
+        <div class="p-6 md:p-8">
+            <div class="prose max-w-none text-gray-800 leading-relaxed text-base md:text-lg mb-8">
                 {{ post.content | replace('\n', '<br>') | safe }}
             </div>
 
-            <!-- Media: Nhiều ảnh + Video -->
+            <!-- ✨ MEDIA: ẢNH + VIDEO -->
             {% if post.get_images_list() or post.video %}
-            <div class="mb-8 -mx-8">
+            <div class="mb-8">
                 {% if post.get_images_list() %}
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-8">
-                    {% for img in post.get_images_list() %}
-                    <div class="relative group overflow-hidden rounded-2xl shadow-lg bg-gray-100">
-                        <img src="{{ url_for('static', filename='uploads/' ~ img) }}" alt="Ảnh bài viết"
-                            class="w-full h-80 object-cover hover:scale-110 transition duration-500 cursor-pointer">
-                        <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition"></div>
+                {% set images = post.get_images_list() %}
+                <div
+                    class="{% if images|length == 1 %}flex justify-center{% elif images|length == 2 %}grid grid-cols-2{% elif images|length == 3 %}grid grid-cols-3{% else %}grid grid-cols-2 md:grid-cols-3{% endif %} gap-3 mb-4">
+                    {% for img in images[:9] %}
+                    <div class="relative group overflow-hidden rounded-2xl shadow-lg bg-gray-100 
+                        {% if images|length == 1 %}max-w-2xl mx-auto w-full{% endif %}
+                        {% if loop.index == 9 and images|length > 9 %}opacity-75{% endif %}">
+                        <img src="{{ url_for('static', filename='uploads/' ~ img) }}" alt="Ảnh {{ loop.index }}"
+                            onclick="openImageModal('{{ url_for('static', filename='uploads/' ~ img) }}')"
+                            class="w-full {% if images|length == 1 %}h-auto max-h-[600px]{% else %}h-64 md:h-80{% endif %} object-cover cursor-pointer hover:scale-110 transition duration-500">
+
+                        {% if loop.index == 9 and images|length > 9 %}
+                        <div class="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center">
+                            <span class="text-white text-5xl font-bold">+{{ images|length - 9 }}</span>
+                        </div>
+                        {% endif %}
+
+                        <div
+                            class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 flex items-end p-4">
+                            <i class="fas fa-search-plus text-white text-2xl"></i>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
                 {% endif %}
 
                 {% if post.video %}
-                <div class="px-8 mt-6">
-                    <div class="relative rounded-2xl overflow-hidden shadow-2xl bg-black">
-                        <video controls class="w-full h-96 object-cover">
-                            <source src="{{ url_for('static', filename='uploads/' ~ post.video) }}" type="video/mp4">
-                            Trình duyệt của bạn không hỗ trợ video.
-                        </video>
-                        <div class="absolute top-4 left-4">
-                            <span
-                                class="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2">
-                                <i class="fas fa-play-circle"></i> Video
-                            </span>
-                        </div>
+                <div class="relative rounded-2xl overflow-hidden shadow-2xl bg-black">
+                    <video controls class="w-full max-h-[600px] object-contain">
+                        <source src="{{ url_for('static', filename='uploads/' ~ post.video) }}" type="video/mp4">
+                        Trình duyệt không hỗ trợ video.
+                    </video>
+                    <div class="absolute top-4 left-4">
+                        <span
+                            class="bg-gradient-to-r from-red-600 to-pink-600 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-lg">
+                            <i class="fas fa-video"></i> Video
+                        </span>
                     </div>
                 </div>
                 {% endif %}
             </div>
             {% endif %}
 
-            <!-- ✅ TÁCH RIÊNG: THÍCH & BÌNH LUẬN -->
-            <div class="flex items-center justify-between p-6 border-b border-gray-100">
-                <div class="flex items-center gap-8">
+            <!-- ✨ TƯƠNG TÁC -->
+            <div
+                class="flex flex-col md:flex-row items-center justify-between gap-4 p-6 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-200 mb-6">
+                <div class="flex items-center gap-4 w-full md:w-auto">
                     <button onclick="likePost({{ post.id }})" id="like-btn-{{ post.id }}"
-                        class="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-pink-100 to-purple-100 rounded-full hover:shadow-lg transition group">
-                        <i class="fas fa-heart text-2xl text-pink-600 group-hover:scale-110 transition" id="like-icon-{{ post.id }}"></i>
-                        <span class="font-bold text-pink-700" id="like-count-{{ post.id }}">Thích • {{ post.likes }}</span>
+                        class="flex items-center gap-2 px-6 py-3 bg-white rounded-full hover:shadow-lg transition group border-2 border-pink-200">
+                        <i class="fas fa-heart text-2xl text-pink-600 group-hover:scale-125 transition"
+                            id="like-icon-{{ post.id }}"></i>
+                        <span class="font-bold text-pink-700" id="like-count-{{ post.id }}">{{ post.likes }}</span>
                     </button>
 
                     <button onclick="focusCommentInput()"
-                        class="flex items-center gap-3 px-6 py-3 bg-gray-100 rounded-full hover:bg-gray-200 transition">
+                        class="flex items-center gap-2 px-6 py-3 bg-white rounded-full hover:shadow-lg transition border-2 border-blue-200">
                         <i class="fas fa-comment text-2xl text-blue-600"></i>
-                        <span class="font-bold text-gray-700" id="comment-count-{{ post.id }}">Bình luận • {{ post.comments_count }}</span>
+                        <span class="font-bold text-blue-700" id="comment-count-{{ post.id }}">{{ post.comments_count
+                            }}</span>
                     </button>
                 </div>
 
-                <!-- ✅ ĐÁNH GIÁ SAO RIÊNG BIỆT -->
-                <div class="flex items-center gap-2">
-                    <span class="text-lg font-medium text-gray-700">Đánh giá bài viết:</span>
+                <!-- ✨ ĐÁNH GIÁ SAO -->
+                <div class="flex items-center gap-3">
+                    <span class="text-sm font-semibold text-gray-700 hidden md:block">Đánh giá:</span>
                     <div class="flex items-center gap-1" id="rating-stars-{{ post.id }}">
                         {% for i in range(1, 6) %}
                         <button onclick="ratePost({{ post.id }}, {{ i }})"
-                            class="text-3xl hover:scale-125 transition star-btn" data-star="{{ i }}">
+                            class="text-3xl hover:scale-125 transition star-btn text-gray-300" data-star="{{ i }}">
                             ★
                         </button>
                         {% endfor %}
                     </div>
-                    <span class="text-sm text-gray-600" id="rating-count-{{ post.id }}">({{ post.rating_count|default(0) }} đánh giá)</span>
+                    <span class="text-sm text-gray-600 font-medium" id="rating-count-{{ post.id }}">({{
+                        post.rating_count|default(0) }})</span>
                 </div>
             </div>
-        </div>
 
-        <!-- Form bình luận -->
-        <div class="p-6 bg-gray-50">
-            <div class="flex gap-4">
-                <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
-                    class="w-12 h-12 rounded-full ring-4 ring-white shadow">
-                <div class="flex-1">
-                    <textarea id="comment-input" rows="3" placeholder="Viết bình luận của bạn..."
-                        class="w-full px-5 py-4 border border-gray-300 rounded-2xl focus:ring-4 focus:ring-pink-300 focus:border-pink-500 outline-none resize-none"></textarea>
-                    <div class="mt-3 flex justify-end">
-                        <button onclick="submitComment({{ post.id }})"
-                            class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold rounded-full hover:shadow-xl transition transform hover:scale-105">
-                            <i class="fas fa-paper-plane mr-2"></i> Gửi bình luận
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Danh sách bình luận -->
-        <div class="p-6" id="comments-container">
-            <h3 class="text-2xl font-bold text-gray-800 mb-6">Bình luận (<span id="total-comments">{{ comments|length }}</span>)</h3>
-            <div class="space-y-6" id="comments-list">
-                {% for comment in comments %}
-                <div class="flex gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition comment-item" data-comment-id="{{ comment.id }}">
-                    <img src="{{ url_for('static', filename=comment.author.avatar or 'images/default-avatar.png') }}"
-                        class="w-12 h-12 rounded-full ring-4 ring-white shadow">
+            <!-- 🔥 KHUNG BÌNH LUẬN MỚI - FACEBOOK STYLE -->
+            <div class="mb-8 bg-gray-50 p-6 rounded-2xl">
+                <div class="flex gap-4">
+                    <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
+                        class="w-12 h-12 rounded-full ring-4 ring-pink-200 shadow-lg object-cover">
                     <div class="flex-1">
-                        <div class="flex items-center justify-between mb-2">
-                            <h4 class="font-bold text-gray-900">{{ comment.author.name }}</h4>
-                            <span class="text-sm text-gray-500">{{ comment.created_at | vietnam_time }}</span>
+                        <div class="relative">
+                            <textarea id="comment-input-{{ post.id }}"
+                                placeholder="Viết bình luận... (hỗ trợ @mention, #hashtag)"
+                                class="w-full px-4 py-3 border-2 border-gray-300 rounded-2xl focus:ring-4 focus:ring-pink-300 outline-none resize-none"
+                                rows="1" onkeydown="handleCommentKeyDown(event, {{ post.id }})"
+                                oninput="autoResizeTextarea(this); handleMentions(this, {{ post.id }})"></textarea>
+
+                            <!-- MENTION SUGGESTIONS -->
+                            <div id="mention-suggestions-{{ post.id }}"
+                                class="hidden absolute bg-white rounded-lg shadow-xl border border-gray-200 z-10 max-h-40 overflow-y-auto w-64">
+                                <!-- Suggestions will be added here -->
+                            </div>
                         </div>
-                        <p class="text-gray-700 leading-relaxed">{{ comment.content | replace('\n', '<br>') | safe }}</p>
+
+                        <div class="flex items-center justify-between mt-3">
+                            <div class="flex gap-3">
+                                <label class="cursor-pointer text-gray-600 hover:text-pink-600 transition">
+                                    <i class="fas fa-image text-xl"></i>
+                                    <input type="file" id="comment-file-{{ post.id }}" accept="image/*,video/*"
+                                        class="hidden" onchange="previewCommentMedia(this, {{ post.id }})">
+                                </label>
+                                <button onclick="toggleStickerPicker({{ post.id }})"
+                                    class="text-gray-600 hover:text-yellow-600">
+                                    <i class="fas fa-smile text-xl"></i>
+                                </button>
+                            </div>
+                            <button onclick="submitComment({{ post.id }})"
+                                class="px-6 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full font-bold hover:shadow-xl transition flex items-center gap-2">
+                                <i class="fas fa-paper-plane"></i>
+                                Gửi
+                            </button>
+                        </div>
+
+                        <!-- MEDIA PREVIEW -->
+                        <div id="media-preview-{{ post.id }}" class="mt-3"></div>
                     </div>
                 </div>
-                {% endfor %}
             </div>
-            {% if not comments %}
-            <div class="text-center py-12 text-gray-400">
-                <i class="fas fa-comment-slash text-6xl mb-4"></i>
-                <p class="text-lg">Chưa có bình luận nào</p>
-                <p class="text-sm mt-2">Hãy là người đầu tiên bình luận nhé!</p>
+
+            <!-- ✨ DANH SÁCH BÌNH LUẬN -->
+            <div id="comments-container">
+                <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                    <i class="fas fa-comments text-blue-600"></i>
+                    Bình luận (<span id="total-comments">{{ comments|length }}</span>)
+                </h3>
+                <div class="space-y-4" id="comments-list">
+                    {% for comment in comments %}
+                    <div id="comment-{{ comment.id }}" class="comment-container" data-comment-id="{{ comment.id }}">
+                        <div
+                            class="flex gap-4 p-5 bg-gradient-to-r from-gray-50 to-blue-50 rounded-2xl border-2 border-gray-200 hover:shadow-lg transition comment-item">
+                            <img src="{{ url_for('static', filename=comment.author.avatar or 'images/default-avatar.png') }}"
+                                class="w-12 h-12 rounded-full ring-4 ring-white shadow-lg object-cover flex-shrink-0">
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="font-bold text-gray-900 text-lg">{{ comment.author.name }}</h4>
+                                    <span class="text-sm text-gray-500 flex items-center gap-1">
+                                        <i class="far fa-clock"></i>
+                                        {{ comment.created_at | vietnam_time }}
+                                    </span>
+                                </div>
+                                <p class="text-gray-700 leading-relaxed comment-content">{{ comment.content |
+                                    replace('\n', '<br>') | safe
+                                    }}</p>
+                                {% if comment.image %}
+                                <div class="mt-2">
+                                    <img src="{{ url_for('static', filename='uploads/' ~ comment.image) }}"
+                                        class="rounded-lg max-w-xs cursor-pointer hover:opacity-90"
+                                        onclick="openImageModal('{{ url_for('static', filename='uploads/' ~ comment.image) }}')">
+                                </div>
+                                {% endif %}
+                                {% if comment.video %}
+                                <div class="mt-2">
+                                    <video controls class="rounded-lg max-w-xs">
+                                        <source src="{{ url_for('static', filename='uploads/' ~ comment.video) }}"
+                                            type="video/mp4">
+                                    </video>
+                                </div>
+                                {% endif %}
+                                {% if comment.sticker %}
+                                <div class="text-6xl my-2">{{ comment.sticker }}</div>
+                                {% endif %}
+
+                                <!-- Actions -->
+                                <div class="flex items-center gap-4 mt-2 text-sm">
+                                    <button onclick="likeComment({{ comment.id }})"
+                                        class="comment-like-button {% if comment.is_liked_by(current_user.id) %}text-pink-600{% else %}text-gray-600{% endif %} hover:text-pink-600 font-medium">
+                                        <i class="fas fa-heart"></i> {% if comment.likes_count > 0 %}{{
+                                        comment.likes_count }}{% else %}Thích{% endif %}
+                                    </button>
+                                    <button onclick="showReplyForm({{ comment.id }})"
+                                        class="text-gray-600 hover:text-blue-600 font-medium">
+                                        <i class="fas fa-reply"></i> Trả lời
+                                    </button>
+                                    {% if comment.can_edit(current_user) %}
+                                    <button onclick="editComment({{ comment.id }})"
+                                        class="text-gray-600 hover:text-green-600 font-medium">
+                                        <i class="fas fa-edit"></i> Sửa
+                                    </button>
+                                    {% endif %}
+                                    {% if comment.can_delete(current_user) %}
+                                    <button onclick="deleteComment({{ comment.id }})"
+                                        class="text-gray-600 hover:text-red-600 font-medium">
+                                        <i class="fas fa-trash"></i> Xóa
+                                    </button>
+                                    {% endif %}
+                                    <button onclick="reportComment({{ comment.id }})"
+                                        class="text-gray-600 hover:text-orange-600 font-medium">
+                                        <i class="fas fa-flag"></i> Báo cáo
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Replies container -->
+                        <div class="replies-container ml-12 mt-2 space-y-2">
+                            {% for reply in comment.replies %}
+                            <div class="flex gap-2">
+                                <img src="{{ url_for('static', filename=reply.author.avatar or 'images/default-avatar.png') }}"
+                                    class="w-8 h-8 rounded-full object-cover">
+                                <div class="flex-1">
+                                    <div class="bg-gray-50 rounded-lg px-3 py-2">
+                                        <span class="font-semibold text-sm">{{ reply.author.name }}</span>
+                                        <p class="text-sm text-gray-700 mt-1">{{ reply.content }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Reply form -->
+                        <div id="reply-form-{{ comment.id }}" class="hidden ml-12 mt-2"></div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if not comments %}
+                <div class="text-center py-16 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-300">
+                    <i class="fas fa-comment-slash text-7xl mb-4 text-gray-300"></i>
+                    <p class="text-xl text-gray-500 font-semibold">Chưa có bình luận nào</p>
+                    <p class="text-sm text-gray-400 mt-2">Hãy là người đầu tiên chia sẻ suy nghĩ!</p>
+                </div>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
     </div>
 
-    <!-- Nút quay lại -->
+    <!-- ✨ NÚT QUAY LẠI -->
     <div class="text-center mt-8">
         <a href="{{ url_for('home') }}"
-            class="inline-flex items-center gap-2 text-pink-600 hover:text-pink-700 font-bold text-lg">
-            <i class="fas fa-arrow-left"></i> Quay lại trang chủ
+            class="inline-flex items-center gap-3 px-8 py-4 bg-white text-pink-600 hover:text-pink-700 font-bold text-lg rounded-full shadow-xl hover:shadow-2xl transition transform hover:scale-105">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại trang chủ
         </a>
     </div>
 </div>
 
+<!-- ✨ MODAL XEM ẢNH -->
+<div id="imageModal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+    onclick="closeImageModal()">
+    <button onclick="closeImageModal()"
+        class="absolute top-4 right-4 text-white text-4xl hover:text-gray-300 transition">
+        <i class="fas fa-times"></i>
+    </button>
+    <img id="modalImage" src="" class="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl">
+</div>
+
 <!-- Toast thông báo -->
-<div id="toast" class="hidden fixed top-20 right-4 bg-white border-l-4 border-green-500 shadow-xl rounded-lg p-4 z-50">
+<div id="toast"
+    class="hidden fixed top-20 right-4 bg-white border-l-4 border-green-500 shadow-2xl rounded-xl p-4 z-50 animate-slide-in">
     <div class="flex items-center gap-3">
         <i class="fas fa-check-circle text-green-500 text-2xl"></i>
         <span id="toast-message" class="font-medium text-gray-800"></span>
     </div>
 </div>
 
+<style>
+    @keyframes slide-in {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .animate-slide-in {
+        animation: slide-in 0.3s ease-out;
+    }
+
+    .star-btn.text-yellow-400 {
+        color: #fbbf24;
+        filter: drop-shadow(0 2px 4px rgba(251, 191, 36, 0.5));
+    }
+
+    /* 🔥 FACEBOOK-STYLE COMMENTS */
+    .comment-container {
+        position: relative;
+    }
+
+    .comment-item {
+        border-radius: 18px;
+        position: relative;
+        transition: all 0.2s ease;
+    }
+
+    .comment-item:hover {
+        background-color: #f0f2f5;
+    }
+
+    .comment-content {
+        word-wrap: break-word;
+    }
+
+    .comment-actions {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .comment-item:hover .comment-actions {
+        opacity: 1;
+    }
+
+    .comment-like-button {
+        color: #65676b;
+        font-weight: 500;
+        font-size: 14px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+
+    .comment-like-button:hover {
+        background-color: #f0f2f5;
+    }
+
+    .comment-like-button.liked {
+        color: #0b57d0;
+    }
+
+    .reply-container {
+        margin-left: 40px;
+        margin-top: 8px;
+        border-left: 2px solid #dddfe2;
+        padding-left: 12px;
+    }
+
+    .media-preview {
+        position: relative;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-top: 8px;
+        max-width: 200px;
+    }
+
+    .media-preview img,
+    .media-preview video {
+        width: 100%;
+        height: auto;
+        max-height: 200px;
+        object-fit: cover;
+    }
+
+    .media-preview .remove-media {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background-color: rgba(0, 0, 0, 0.6);
+        color: white;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    .sticker-item {
+        font-size: 24px;
+        padding: 8px;
+        text-align: center;
+        border-radius: 8px;
+    }
+
+    .sticker-item:hover {
+        background-color: #f0f2f5;
+    }
+
+    .mention-suggestion {
+        padding: 8px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .mention-suggestion:hover {
+        background-color: #f0f2f5;
+    }
+
+    .mention-avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+
+    .edit-comment-textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #dddfe2;
+        border-radius: 8px;
+        resize: none;
+        font-family: inherit;
+        font-size: 14px;
+    }
+
+    /* Hashtag and mention styles */
+    .hashtag {
+        color: #0b57d0;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .mention {
+        color: #0b57d0;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .link {
+        color: #0b57d0;
+        text-decoration: none;
+    }
+
+    .link:hover {
+        text-decoration: underline;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .reply-container {
+            margin-left: 20px;
+            padding-left: 8px;
+        }
+    }
+</style>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Khởi tạo trạng thái đánh giá sao
-        const currentRating = {{ post.rating|default(0) }};
-        updateStarDisplay({{ post.id }}, currentRating);
+    document.addEventListener('DOMContentLoaded', function () {
+        loadUserRating({{ post.id }});
+    loadComments({{ post.id }});
     });
 
     function toggleMenu(postId) {
-        document.getElementById(`menu-${postId}`).classList.toggle('hidden');
+        const menu = document.getElementById(`menu-${postId}`);
+        menu.classList.toggle('hidden');
+    }
+
+    function openImageModal(src) {
+        document.getElementById('modalImage').src = src;
+        document.getElementById('imageModal').classList.remove('hidden');
+    }
+
+    function closeImageModal() {
+        document.getElementById('imageModal').classList.add('hidden');
+    }
+
+    async function loadUserRating(postId) {
+        try {
+            const res = await fetch(`/api/post/${postId}/my-rating`);
+            const data = await res.json();
+            if (data.stars > 0) {
+                updateStarDisplay(postId, data.stars);
+            }
+        } catch (e) {
+            console.error('Error loading rating:', e);
+        }
     }
 
     async function likePost(postId) {
         try {
             const res = await fetch(`/like/${postId}`, { method: 'POST' });
             const data = await res.json();
-            
+
             const likeCount = document.getElementById(`like-count-${postId}`);
             const likeIcon = document.getElementById(`like-icon-${postId}`);
-            
+
             if (likeCount && data.likes !== undefined) {
-                likeCount.textContent = `Thích • ${data.likes}`;
+                likeCount.textContent = data.likes;
+                likeIcon.classList.add('animate-bounce');
+                setTimeout(() => likeIcon.classList.remove('animate-bounce'), 500);
             }
-            if (likeIcon) {
-                likeIcon.classList.toggle('fas');
-                likeIcon.classList.toggle('far');
-            }
-            
-            showToast(data.liked ? 'Đã thích bài viết!' : 'Đã bỏ thích bài viết!', true);
+
+            showToast(data.liked ? 'Đã thích bài viết!' : 'Đã bỏ thích!', true);
         } catch (error) {
             console.error('Error:', error);
             showToast('Lỗi kết nối', false);
@@ -229,13 +571,369 @@
     }
 
     function focusCommentInput() {
-        document.getElementById('comment-input').focus();
+        const input = document.getElementById('comment-input');
+        input.focus();
+        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    async function submitComment(postId) {
-        const content = document.getElementById('comment-input').value.trim();
-        if (!content) {
-            showToast('Vui lòng nhập nội dung bình luận!', false);
+    // 🔥 FACEBOOK-STYLE COMMENTS SYSTEM
+    let commentMedia = {};
+    let editingCommentId = null;
+
+    // Load comments for a post
+    async function loadComments(postId) {
+        const commentsList = document.getElementById('comments-list');
+        if (commentsList.children.length > 0) return; // Đã tải rồi
+
+        try {
+            const res = await fetch(`/comments/${postId}`);
+            const comments = await res.json();
+
+            commentsList.innerHTML = ''; // Clear existing comments
+            comments.forEach(comment => {
+                addCommentToList(postId, comment);
+            });
+        } catch (error) {
+            console.error('Error loading comments:', error);
+        }
+    }
+
+    // Add comment to the list
+    function addCommentToList(postId, comment, isReply = false, parentCommentId = null) {
+        const commentsList = document.getElementById('comments-list');
+        if (!commentsList) return;
+
+        const commentHtml = createCommentHtml(comment, isReply, parentCommentId);
+
+        if (isReply && parentCommentId) {
+            // Add as reply to parent comment
+            const parentComment = document.querySelector(`#comment-${parentCommentId} .replies-container`);
+            if (parentComment) {
+                parentComment.insertAdjacentHTML('beforeend', commentHtml);
+            }
+        } else {
+            // Add as top-level comment
+            commentsList.insertAdjacentHTML('afterbegin', commentHtml);
+        }
+    }
+
+    // 🔥 CẬP NHẬT FUNCTION TẠO HTML BÌNH LUẬN
+    function createCommentHtml(comment, isReply = false, parentCommentId = null) {
+        const commentId = comment.id || `temp-${Date.now()}`;
+        const authorAvatar = comment.author.avatar || 'images/default-avatar.png';
+        const authorName = comment.author.name;
+        const content = comment.content ? processCommentContent(comment.content) : '';
+        const timestamp = comment.created_at || 'Vừa xong';
+        const likes = comment.likes || 0;
+        const isLiked = comment.is_liked || false;
+        const canEdit = comment.can_edit || false;
+        const canDelete = comment.can_delete || false;
+
+        // Media HTML
+        let mediaHtml = '';
+        if (comment.image) {
+            mediaHtml = `
+        <div class="media-preview mt-2">
+            <img src="{{ url_for('static', filename='') }}${comment.image}" 
+                 alt="Comment image"
+                 class="rounded-lg max-w-xs cursor-pointer hover:opacity-90"
+                 onclick="openImageModal('{{ url_for('static', filename='') }}${comment.image}')">
+        </div>
+    `;
+        } else if (comment.video) {
+            mediaHtml = `
+        <div class="media-preview mt-2">
+            <video controls class="rounded-lg max-w-xs">
+                <source src="{{ url_for('static', filename='') }}${comment.video}" type="video/mp4">
+            </video>
+        </div>
+    `;
+        } else if (comment.sticker) {
+            mediaHtml = `<div class="text-6xl my-2">${comment.sticker}</div>`;
+        }
+
+        // Replies HTML
+        const repliesHtml = comment.replies ?
+            comment.replies.map(reply => createCommentHtml(reply, true, commentId)).join('') : '';
+
+        return `
+    <div id="comment-${commentId}" class="comment-container ${isReply ? 'reply-container' : ''}" data-comment-id="${commentId}">
+        <div class="flex gap-3 p-4 bg-gray-50 rounded-2xl comment-item hover:bg-gray-100 transition">
+            <img src="{{ url_for('static', filename='') }}${authorAvatar}" 
+                 class="w-10 h-10 rounded-full object-cover flex-shrink-0">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                    <h4 class="font-bold text-gray-900">${authorName}</h4>
+                    <span class="text-xs text-gray-500">${timestamp}</span>
+                </div>
+                <div class="comment-content text-gray-800">${content}</div>
+                ${mediaHtml}
+                
+                <!-- Actions -->
+                <div class="flex items-center gap-4 mt-2 text-sm">
+                    <button onclick="likeComment(${commentId})" 
+                            class="comment-like-button ${isLiked ? 'liked text-pink-600' : 'text-gray-600'} hover:text-pink-600 font-medium">
+                        <i class="fas fa-heart"></i> ${likes > 0 ? likes : 'Thích'}
+                    </button>
+                    <button onclick="showReplyForm(${commentId})" 
+                            class="text-gray-600 hover:text-blue-600 font-medium">
+                        <i class="fas fa-reply"></i> Trả lời
+                    </button>
+                    ${canEdit ? `
+                        <button onclick="editComment(${commentId})" 
+                                class="text-gray-600 hover:text-green-600 font-medium">
+                            <i class="fas fa-edit"></i> Sửa
+                        </button>
+                    ` : ''}
+                    ${canDelete ? `
+                        <button onclick="deleteComment(${commentId})" 
+                                class="text-gray-600 hover:text-red-600 font-medium">
+                            <i class="fas fa-trash"></i> Xóa
+                        </button>
+                    ` : ''}
+                    <button onclick="reportComment(${commentId})" 
+                            class="text-gray-600 hover:text-orange-600 font-medium">
+                        <i class="fas fa-flag"></i> Báo cáo
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Replies container -->
+        <div class="replies-container ml-12 mt-2 space-y-2">
+            ${repliesHtml}
+        </div>
+        
+        <!-- Reply form -->
+        <div id="reply-form-${commentId}" class="hidden ml-12 mt-2"></div>
+    </div>
+    `;
+    }
+
+    // Process comment content to handle hashtags, mentions, and links
+    function processCommentContent(content) {
+        // Convert URLs to links
+        content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="link">$1</a>');
+
+        // Convert hashtags to clickable elements
+        content = content.replace(/#(\w+)/g, '<span class="hashtag">#$1</span>');
+
+        // Convert mentions to clickable elements
+        content = content.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+
+        // Convert line breaks to <br>
+        content = content.replace(/\n/g, '<br>');
+
+        return content;
+    }
+
+    // Create HTML for media in comment
+    function createMediaHtml(media, commentId) {
+        if (!media || !media.type) return '';
+
+        if (media.type === 'image') {
+            return `
+                <div class="media-preview">
+                    <img src="{{ url_for('static', filename='') }}${media.url}" alt="Comment image">
+                    <button onclick="removeCommentMedia('${commentId}')" class="remove-media">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        } else if (media.type === 'video') {
+            return `
+                <div class="media-preview">
+                    <video controls>
+                        <source src="{{ url_for('static', filename='') }}${media.url}" type="video/mp4">
+                    </video>
+                    <button onclick="removeCommentMedia('${commentId}')" class="remove-media">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        return '';
+    }
+
+    // Handle comment input key down
+    function handleCommentKeyDown(event, postId) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            submitComment(postId);
+        }
+    }
+
+    // Auto-resize textarea
+    function autoResizeTextarea(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    }
+
+    // Handle mentions in comment input
+    function handleMentions(textarea, postId) {
+        const text = textarea.value;
+        const cursorPos = textarea.selectionStart;
+        const textBeforeCursor = text.substring(0, cursorPos);
+
+        // Check if user is typing a mention
+        const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+        if (mentionMatch) {
+            const query = mentionMatch[1];
+            if (query.length >= 2) {
+                // Show mention suggestions
+                showMentionSuggestions(postId, query, textarea);
+            } else {
+                // Hide mention suggestions
+                hideMentionSuggestions(postId);
+            }
+        } else {
+            // Hide mention suggestions
+            hideMentionSuggestions(postId);
+        }
+    }
+
+    // Show mention suggestions
+    async function showMentionSuggestions(postId, query, textarea) {
+        try {
+            const res = await fetch(`/api/users/search?q=${query}`);
+            const users = await res.json();
+
+            const suggestionsContainer = document.getElementById(`mention-suggestions-${postId}`);
+            suggestionsContainer.innerHTML = '';
+
+            if (users.length > 0) {
+                users.forEach(user => {
+                    const suggestion = document.createElement('div');
+                    suggestion.className = 'mention-suggestion';
+                    suggestion.innerHTML = `
+                        <img src="{{ url_for('static', filename='') }}${user.avatar || 'images/default-avatar.png'}" class="mention-avatar">
+                        <span>${user.name}</span>
+                    `;
+                    suggestion.onclick = () => selectMention(user.name, textarea, postId);
+                    suggestionsContainer.appendChild(suggestion);
+                });
+
+                // Position suggestions below textarea
+                const rect = textarea.getBoundingClientRect();
+                suggestionsContainer.style.top = (rect.bottom + window.scrollY) + 'px';
+                suggestionsContainer.style.left = rect.left + 'px';
+                suggestionsContainer.classList.remove('hidden');
+            } else {
+                hideMentionSuggestions(postId);
+            }
+        } catch (error) {
+            console.error('Error fetching user suggestions:', error);
+            hideMentionSuggestions(postId);
+        }
+    }
+
+    // Hide mention suggestions
+    function hideMentionSuggestions(postId) {
+        const suggestionsContainer = document.getElementById(`mention-suggestions-${postId}`);
+        suggestionsContainer.classList.add('hidden');
+    }
+
+    // Select a mention
+    function selectMention(username, textarea, postId) {
+        const text = textarea.value;
+        const cursorPos = textarea.selectionStart;
+        const textBeforeCursor = text.substring(0, cursorPos);
+
+        // Replace the @query with @username
+        const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+        if (mentionMatch) {
+            const newText = text.substring(0, cursorPos - mentionMatch[0].length) + '@' + username + ' ' + text.substring(cursorPos);
+            textarea.value = newText;
+
+            // Set cursor position after the mention
+            const newCursorPos = cursorPos - mentionMatch[0].length + username.length + 2;
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+            textarea.focus();
+        }
+
+        hideMentionSuggestions(postId);
+    }
+
+    // Preview comment media
+    function previewCommentMedia(input, postId) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const previewContainer = document.getElementById(`media-preview-${postId}`);
+
+        // Create object URL for preview
+        const objectUrl = URL.createObjectURL(file);
+
+        // Store file for later upload
+        commentMedia[postId] = file;
+
+        // Create preview HTML based on file type
+        let previewHtml = '';
+        if (file.type.startsWith('image/')) {
+            previewHtml = `
+                <div class="media-preview">
+                    <img src="${objectUrl}" alt="Preview">
+                    <button onclick="removeCommentMedia('${postId}')" class="remove-media">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        } else if (file.type.startsWith('video/')) {
+            previewHtml = `
+                <div class="media-preview">
+                    <video controls>
+                        <source src="${objectUrl}" type="${file.type}">
+                    </video>
+                    <button onclick="removeCommentMedia('${postId}')" class="remove-media">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        previewContainer.innerHTML = previewHtml;
+    }
+
+    // Remove comment media
+    function removeCommentMedia(postId) {
+        delete commentMedia[postId];
+        document.getElementById(`media-preview-${postId}`).innerHTML = '';
+    }
+
+    // Toggle sticker picker
+    function toggleStickerPicker(postId) {
+        const stickerPicker = document.getElementById(`sticker-picker-${postId}`);
+        if (stickerPicker) {
+            stickerPicker.classList.toggle('hidden');
+        }
+    }
+
+    // Insert sticker into comment
+    function insertSticker(postId, sticker) {
+        const textarea = document.getElementById(`comment-input-${postId}`);
+        const cursorPos = textarea.selectionStart;
+        const text = textarea.value;
+        const newText = text.substring(0, cursorPos) + sticker + ' ' + text.substring(cursorPos);
+
+        textarea.value = newText;
+        textarea.focus();
+
+        // Set cursor position after the sticker
+        const newCursorPos = cursorPos + sticker.length + 1;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+
+        // Hide sticker picker
+        toggleStickerPicker(postId);
+    }
+
+    // Submit comment
+    async function submitComment(postId, parentCommentId = null) {
+        const textarea = document.getElementById(`comment-input-${postId}`);
+        const content = textarea.value.trim();
+
+        if (!content && !commentMedia[postId]) {
+            showToast('Vui lòng nhập nội dung bình luận', false);
             return;
         }
 
@@ -243,35 +941,102 @@
             const formData = new FormData();
             formData.append('content', content);
 
+            if (commentMedia[postId]) {
+                formData.append('media', commentMedia[postId]);
+            }
+
+            if (parentCommentId) {
+                formData.append('parent_id', parentCommentId);
+            }
+
             const res = await fetch(`/comment/${postId}`, {
                 method: 'POST',
                 body: formData
             });
 
             const data = await res.json();
+
             if (data.success) {
-                document.getElementById('comment-input').value = '';
-                
-                // Cập nhật số lượng bình luận
+                // Clear input
+                textarea.value = '';
+                textarea.style.height = 'auto';
+                removeCommentMedia(postId);
+
+                // Update comment count
                 const commentCount = document.getElementById(`comment-count-${postId}`);
                 const totalComments = document.getElementById('total-comments');
-                if(commentCount && totalComments) {
+                if (commentCount && totalComments) {
                     const currentCount = parseInt(totalComments.textContent);
-                    commentCount.textContent = `Bình luận • ${currentCount + 1}`;
+                    commentCount.textContent = currentCount + 1;
                     totalComments.textContent = currentCount + 1;
                 }
 
-                // Thêm bình luận mới vào danh sách
-                addCommentToTop({
-                    author_name: '{{ current_user.name }}',
-                    author_avatar: '{{ current_user.avatar or "images/default-avatar.png" }}',
-                    content: content,
-                    created_at: 'Vừa xong'
-                });
+                // Add comment to list
+                addCommentToList(postId, data.comment, parentCommentId !== null, parentCommentId);
 
-                showToast('Đã gửi bình luận thành công!', true);
+                // Hide reply form if it's a reply
+                if (parentCommentId) {
+                    hideReplyForm(parentCommentId);
+                }
+
+                showToast('Đã gửi bình luận thành công!');
             } else {
                 showToast(data.error || 'Không thể gửi bình luận', false);
+            }
+        } catch (error) {
+            console.error('Error submitting comment:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+
+    // 🔥 FIX: Like comment function - Hoạt động cho cả 2 trang
+    async function likeComment(commentId) {
+        console.log('Liking comment:', commentId);
+        try {
+            const res = await fetch(`/api/comment/${commentId}/like`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log('Response status:', res.status);
+
+            const data = await res.json();
+            console.log('Response data:', data);
+
+            if (data.success) {
+                // 🔥 FIX CHÍNH: Tìm tất cả buttons với comment ID này
+                const commentElements = document.querySelectorAll(`[data-comment-id="${commentId}"]`);
+
+                commentElements.forEach(commentElement => {
+                    // Tìm button like trong comment element này
+                    const buttons = commentElement.querySelectorAll('button');
+                    buttons.forEach(button => {
+                        // Kiểm tra xem có phải button like không
+                        if (button.onclick && button.onclick.toString().includes(`likeComment(${commentId})`)) {
+                            const icon = button.querySelector('i');
+
+                            // Cập nhật màu sắc
+                            if (data.liked) {
+                                button.classList.add('text-pink-600');
+                                if (icon) icon.classList.add('text-pink-600');
+                            } else {
+                                button.classList.remove('text-pink-600');
+                                if (icon) icon.classList.remove('text-pink-600');
+                            }
+
+                            // Cập nhật text
+                            button.innerHTML = `<i class="fas fa-heart ${data.liked ? 'text-pink-600' : ''}"></i> ${data.likes > 0 ? data.likes : 'Thích'}`;
+                        }
+                    });
+                });
+
+                showToast(data.liked ? 'Đã thích!' : 'Đã bỏ thích!');
+            } else {
+                console.error('Error:', data.error);
+                showToast('Không thể thích bình luận', false);
             }
         } catch (error) {
             console.error('Error:', error);
@@ -279,23 +1044,403 @@
         }
     }
 
-    function addCommentToTop(comment) {
-        const commentsList = document.getElementById('comments-list');
-        if (!commentsList) return;
+    // 🔥 BONUS: Hàm debug để kiểm tra cấu trúc DOM
+    function debugCommentStructure(commentId) {
+        console.log('=== DEBUG COMMENT STRUCTURE ===');
+        console.log('Looking for comment ID:', commentId);
 
-        const newCommentHtml = `
-            <div class="flex gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition comment-item">
-                <img src="{{ url_for('static', filename='') }}${comment.author_avatar}" class="w-12 h-12 rounded-full ring-4 ring-white shadow">
-                <div class="flex-1">
-                    <div class="flex items-center justify-between mb-2">
-                        <h4 class="font-bold text-gray-900">${comment.author_name}</h4>
-                        <span class="text-sm text-gray-500">${comment.created_at}</span>
+        // Tìm tất cả elements có data-comment-id
+        const elements = document.querySelectorAll(`[data-comment-id="${commentId}"]`);
+        console.log('Found elements:', elements.length);
+
+        elements.forEach((el, index) => {
+            console.log(`Element ${index + 1}:`, el);
+            console.log('All buttons in this element:', el.querySelectorAll('button'));
+
+            // Tìm button có onclick chứa likeComment
+            const buttons = el.querySelectorAll('button');
+            buttons.forEach((btn, btnIndex) => {
+                if (btn.onclick) {
+                    console.log(`Button ${btnIndex + 1} onclick:`, btn.onclick.toString());
+                }
+            });
+        });
+
+        console.log('=== END DEBUG ===');
+    }
+
+    // 🔥 ALTERNATIVE FIX: Nếu cách trên không work, dùng cách này
+    async function likeCommentAlternative(commentId) {
+        try {
+            const res = await fetch(`/api/comment/${commentId}/like`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                // Tìm comment container
+                const commentContainer = document.getElementById(`comment-${commentId}`);
+                if (!commentContainer) {
+                    console.error('Comment container not found');
+                    return;
+                }
+
+                // Tìm button like bằng class và content
+                const buttons = commentContainer.querySelectorAll('.comment-like-button');
+                buttons.forEach(button => {
+                    const icon = button.querySelector('i');
+
+                    if (data.liked) {
+                        button.classList.add('text-pink-600', 'liked');
+                        if (icon) icon.classList.add('text-pink-600');
+                    } else {
+                        button.classList.remove('text-pink-600', 'liked');
+                        if (icon) icon.classList.remove('text-pink-600');
+                    }
+
+                    // Update text
+                    const textContent = data.likes > 0 ? data.likes : 'Thích';
+                    button.innerHTML = `<i class="fas fa-heart ${data.liked ? 'text-pink-600' : ''}"></i> ${textContent}`;
+                });
+
+                showToast(data.liked ? 'Đã thích!' : 'Đã bỏ thích!');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    // Hàm kiểm tra debug
+    function debugCommentElements(commentId) {
+        console.log('=== DEBUG COMMENT ELEMENTS ===');
+        console.log('Comment ID:', commentId);
+
+        const commentElement = document.getElementById(`comment-${commentId}`);
+        console.log('Comment element:', commentElement);
+
+        if (commentElement) {
+            const button = commentElement.querySelector('button[onclick*="likeComment"]');
+            console.log('Like button:', button);
+
+            const allButtons = commentElement.querySelectorAll('button');
+            console.log('All buttons in comment:', allButtons);
+
+            const likeButtons = commentElement.querySelectorAll('button[onclick*="likeComment"]');
+            console.log('Like buttons found:', likeButtons);
+        } else {
+            console.log('Comment element NOT FOUND!');
+        }
+        console.log('=== END DEBUG ===');
+    }
+
+    // Show reply form
+    function showReplyForm(commentId) {
+        const replyForm = document.getElementById(`reply-form-${commentId}`);
+
+        // Hide all other reply forms
+        document.querySelectorAll('[id^="reply-form-"]').forEach(form => {
+            if (form.id !== `reply-form-${commentId}`) {
+                form.classList.add('hidden');
+            }
+        });
+
+        // Create reply form if it doesn't exist
+        if (replyForm.innerHTML === '') {
+            replyForm.innerHTML = `
+                <div class="flex gap-3 mt-2">
+                    <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
+                        class="w-8 h-8 rounded-full object-cover">
+                    <div class="flex-1">
+                        <textarea id="reply-input-${commentId}" 
+                            placeholder="Viết trả lời..."
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 outline-none resize-none"
+                            rows="2"
+                            data-post-id="{{ post.id }}"
+                            onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitReply(${commentId}); }"></textarea>
+                        <div class="flex justify-between mt-2">
+                            <div class="flex gap-2">
+                                <label class="cursor-pointer text-gray-600 hover:text-pink-600">
+                                    <i class="fas fa-image"></i>
+                                    <input type="file" id="reply-file-${commentId}" accept="image/*,video/*"
+                                        class="hidden" onchange="previewReplyMedia(this, ${commentId})">
+                                </label>
+                                <button onclick="toggleReplyStickerPicker(${commentId})"
+                                    class="text-gray-600 hover:text-yellow-600">
+                                    <i class="fas fa-smile"></i>
+                                </button>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="hideReplyForm(${commentId})" 
+                                    class="px-3 py-1 text-gray-600 hover:text-gray-800">
+                                    Hủy
+                                </button>
+                                <button onclick="submitReply(${commentId})"
+                                    class="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                    Trả lời
+                                </button>
+                            </div>
+                        </div>
+                        <div id="reply-media-preview-${commentId}"></div>
+                        <div id="reply-sticker-picker-${commentId}" class="hidden mt-2 p-2 bg-white rounded-lg shadow border">
+                            <div class="grid grid-cols-6 gap-1">
+                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '😀')">😀</div>
+                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '😂')">😂</div>
+                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '❤️')">❤️</div>
+                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '👍')">👍</div>
+                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '🎉')">🎉</div>
+                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '😢')">😢</div>
+                            </div>
+                        </div>
                     </div>
-                    <p class="text-gray-700 leading-relaxed">${comment.content}</p>
                 </div>
+            `;
+        }
+
+        replyForm.classList.toggle('hidden');
+
+        // Focus on the reply input
+        if (!replyForm.classList.contains('hidden')) {
+            document.getElementById(`reply-input-${commentId}`).focus();
+        }
+    }
+
+    // Hide reply form
+    function hideReplyForm(commentId) {
+        document.getElementById(`reply-form-${commentId}`).classList.add('hidden');
+    }
+
+    // Preview reply media
+    function previewReplyMedia(input, commentId) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const previewContainer = document.getElementById(`reply-media-preview-${commentId}`);
+
+        // Create object URL for preview
+        const objectUrl = URL.createObjectURL(file);
+
+        // Store file for later upload
+        if (!commentMedia[commentId]) {
+            commentMedia[commentId] = {};
+        }
+        commentMedia[commentId].reply = file;
+
+        // Create preview HTML based on file type
+        let previewHtml = '';
+        if (file.type.startsWith('image/')) {
+            previewHtml = `
+                <div class="media-preview" style="max-width: 150px;">
+                    <img src="${objectUrl}" alt="Preview">
+                    <button onclick="removeReplyMedia('${commentId}')" class="remove-media">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        } else if (file.type.startsWith('video/')) {
+            previewHtml = `
+                <div class="media-preview" style="max-width: 150px;">
+                    <video controls style="max-height: 150px;">
+                        <source src="${objectUrl}" type="${file.type}">
+                    </video>
+                    <button onclick="removeReplyMedia('${commentId}')" class="remove-media">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        previewContainer.innerHTML = previewHtml;
+    }
+
+    // Remove reply media
+    function removeReplyMedia(commentId) {
+        if (commentMedia[commentId]) {
+            delete commentMedia[commentId].reply;
+        }
+        document.getElementById(`reply-media-preview-${commentId}`).innerHTML = '';
+    }
+
+    // Toggle reply sticker picker
+    function toggleReplyStickerPicker(commentId) {
+        const stickerPicker = document.getElementById(`reply-sticker-picker-${commentId}`);
+        stickerPicker.classList.toggle('hidden');
+    }
+
+    // Insert sticker into reply
+    function insertReplySticker(commentId, sticker) {
+        const textarea = document.getElementById(`reply-input-${commentId}`);
+        const cursorPos = textarea.selectionStart;
+        const text = textarea.value;
+        const newText = text.substring(0, cursorPos) + sticker + ' ' + text.substring(cursorPos);
+
+        textarea.value = newText;
+        textarea.focus();
+
+        // Set cursor position after the sticker
+        const newCursorPos = cursorPos + sticker.length + 1;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+
+        // Hide sticker picker
+        toggleReplyStickerPicker(commentId);
+    }
+
+    // Submit reply
+    async function submitReply(commentId) {
+        const textarea = document.getElementById(`reply-input-${commentId}`);
+        const content = textarea.value.trim();
+        const postId = textarea.getAttribute('data-post-id');
+
+        if (!content && !commentMedia[commentId]?.reply) {
+            showToast('Vui lòng nhập nội dung trả lời', false);
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('content', content);
+            formData.append('parent_id', commentId);
+
+            if (commentMedia[commentId]?.reply) {
+                formData.append('media', commentMedia[commentId].reply);
+            }
+
+            const res = await fetch(`/comment/${postId}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                // Clear input
+                textarea.value = '';
+                removeReplyMedia(commentId);
+                hideReplyForm(commentId);
+
+                // Update comment count
+                const commentCount = document.getElementById(`comment-count-${postId}`);
+                const totalComments = document.getElementById('total-comments');
+                if (commentCount && totalComments) {
+                    const currentCount = parseInt(totalComments.textContent);
+                    commentCount.textContent = currentCount + 1;
+                    totalComments.textContent = currentCount + 1;
+                }
+
+                // Add reply to list
+                addCommentToList(postId, data.comment, true, commentId);
+
+                showToast('Đã gửi trả lời thành công!');
+            } else {
+                showToast(data.error || 'Không thể gửi trả lời', false);
+            }
+        } catch (error) {
+            console.error('Error submitting reply:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    // Edit comment
+    function editComment(commentId) {
+        const commentContent = document.querySelector(`#comment-${commentId} .comment-content`);
+        const currentContent = commentContent.textContent;
+
+        // Create edit form
+        const editForm = document.createElement('div');
+        editForm.className = 'mt-2';
+        editForm.innerHTML = `
+            <textarea id="edit-comment-${commentId}" class="edit-comment-textarea">${currentContent}</textarea>
+            <div class="flex justify-end gap-2 mt-2">
+                <button onclick="cancelEditComment(${commentId})" class="px-3 py-1 text-gray-600 hover:text-gray-800">
+                    Hủy
+                </button>
+                <button onclick="saveEditComment(${commentId})" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    Lưu
+                </button>
             </div>
         `;
-        commentsList.insertAdjacentHTML('afterbegin', newCommentHtml);
+
+        // Replace content with edit form
+        commentContent.innerHTML = '';
+        commentContent.appendChild(editForm);
+
+        // Focus on textarea
+        document.getElementById(`edit-comment-${commentId}`).focus();
+
+        // Store original content for cancel
+        editingCommentId = commentId;
+    }
+
+    // Cancel edit comment
+    function cancelEditComment(commentId) {
+        location.reload(); // Simple reload to restore original comment
+    }
+
+    // Save edit comment
+    async function saveEditComment(commentId) {
+        const textarea = document.getElementById(`edit-comment-${commentId}`);
+        const content = textarea.value.trim();
+
+        if (!content) {
+            showToast('Nội dung không được để trống', false);
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/comment/${commentId}/edit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ content })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                showToast('Đã cập nhật bình luận!');
+                location.reload(); // Simple reload to show updated comment
+            } else {
+                showToast(data.error || 'Không thể cập nhật bình luận', false);
+            }
+        } catch (error) {
+            console.error('Error editing comment:', error);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    // Delete comment
+    async function deleteComment(commentId) {
+        if (!confirm('Bạn có chắc muốn xóa bình luận này?')) return;
+
+        try {
+            const res = await fetch(`/api/comment/${commentId}/delete`, { method: 'POST' });
+            const data = await res.json();
+
+            if (data.success) {
+                // Remove comment from DOM
+                const commentElement = document.getElementById(`comment-${commentId}`);
+                commentElement.remove();
+
+                // Update comment count
+                const commentCount = document.getElementById(`comment-count-{{ post.id }}`);
+                const totalComments = document.getElementById('total-comments');
+                if (commentCount && totalComments) {
+                    const currentCount = parseInt(totalComments.textContent);
+                    commentCount.textContent = currentCount - 1;
+                    totalComments.textContent = currentCount - 1;
+                }
+
+                showToast('Đã xóa bình luận!');
+            } else {
+                showToast(data.error || 'Không thể xóa bình luận', false);
+            }
+        } catch (error) {
+            console.error('Error deleting comment:', error);
+            showToast('Lỗi kết nối', false);
+        }
     }
 
     async function ratePost(postId, rating) {
@@ -306,20 +1451,16 @@
                 body: JSON.stringify({ stars: rating })
             });
             const data = await res.json();
-            
+
             if (data.success) {
-                // Cập nhật hiển thị sao
                 updateStarDisplay(postId, rating);
-                
-                // Cập nhật số lượng đánh giá
                 const ratingCountEl = document.getElementById(`rating-count-${postId}`);
                 if (ratingCountEl) {
-                    ratingCountEl.textContent = `(${data.rating_count || 1} đánh giá)`;
+                    ratingCountEl.textContent = `(${data.rating_count || 1})`;
                 }
-                
-                showToast('Đã đánh giá bài viết!', true);
+                showToast(`Đã đánh giá ${rating} sao!`, true);
             } else {
-                showToast(data.error || 'Lỗi khi đánh giá', false);
+                showToast(data.error || 'Lỗi đánh giá', false);
             }
         } catch (error) {
             console.error('Error:', error);
@@ -341,24 +1482,56 @@
         });
     }
 
-    function reportPost(postId) {
-        const reason = prompt('Lý do báo cáo bài viết:');
+    async function reportPost(postId) {
+        const reason = prompt('Lý do báo cáo:');
         if (!reason) return;
 
         const formData = new FormData();
         formData.append('reason', reason);
 
-        fetch(`/report/${postId}`, { method: 'POST', body: formData })
-            .then(r => r.json())
-            .then(data => {
-                showToast(data.success ? 'Đã gửi báo cáo!' : data.error, !!data.success);
-            });
+        try {
+            const res = await fetch(`/report/${postId}`, { method: 'POST', body: formData });
+            const data = await res.json();
+            showToast(data.success ? 'Đã gửi báo cáo!' : data.error, !!data.success);
+        } catch (e) {
+            showToast('Lỗi kết nối', false);
+        }
     }
 
-    function deletePost(postId) {
+    async function deletePost(postId) {
         if (!confirm('Bạn chắc chắn muốn xóa bài viết này?')) return;
-        fetch(`/post/${postId}/delete`, { method: 'POST' })
-            .then(() => location.href = '/');
+        try {
+            await fetch(`/post/${postId}/delete`, { method: 'POST' });
+            showToast('Đã xóa bài viết!', true);
+            setTimeout(() => location.href = '/', 1000);
+        } catch (e) {
+            showToast('Lỗi xóa bài', false);
+        }
+    }
+
+    // 🔥 BÁO CÁO BÌNH LUẬN
+    async function reportComment(commentId) {
+        const reason = prompt('Lý do báo cáo bình luận này:');
+        if (!reason || !reason.trim()) return;
+
+        try {
+            const res = await fetch(`/api/comment/${commentId}/report`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason.trim() })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                showToast('Đã gửi báo cáo thành công!');
+            } else {
+                showToast(data.error || 'Lỗi khi báo cáo', false);
+            }
+        } catch (error) {
+            console.error('Error reporting comment:', error);
+            showToast('Lỗi kết nối', false);
+        }
     }
 
     function showToast(message, isSuccess = true) {
@@ -369,22 +1542,24 @@
         toastMessage.textContent = message;
 
         if (isSuccess) {
-            toast.classList.remove('border-red-500');
-            toast.classList.add('border-green-500');
-            icon.classList.remove('fa-exclamation-circle', 'text-red-500');
-            icon.classList.add('fa-check-circle', 'text-green-500');
+            toast.className = 'fixed top-20 right-4 bg-white border-l-4 border-green-500 shadow-2xl rounded-xl p-4 z-50 animate-slide-in';
+            icon.className = 'fas fa-check-circle text-green-500 text-2xl';
         } else {
-            toast.classList.remove('border-green-500');
-            toast.classList.add('border-red-500');
-            icon.classList.remove('fa-check-circle', 'text-green-500');
-            icon.classList.add('fa-exclamation-circle', 'text-red-500');
+            toast.className = 'fixed top-20 right-4 bg-white border-l-4 border-red-500 shadow-2xl rounded-xl p-4 z-50 animate-slide-in';
+            icon.className = 'fas fa-exclamation-circle text-red-500 text-2xl';
         }
 
         toast.classList.remove('hidden');
-
-        setTimeout(() => {
-            toast.classList.add('hidden');
-        }, 3000);
+        setTimeout(() => toast.classList.add('hidden'), 3000);
     }
+
+    // Đóng menu khi click ngoài
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('[onclick^="toggleMenu"]') && !e.target.closest('[id^="menu-"]')) {
+            document.querySelectorAll('[id^="menu-"]').forEach(menu => menu.classList.add('hidden'));
+        }
+    });
+
+    console.log('🎉 Post detail page with Facebook-style comment system loaded!');
 </script>
 {% endblock %}

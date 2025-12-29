@@ -20,6 +20,27 @@ import base64
 import time
 import pytz
 
+# ✅ THÊM DÒNG NÀY - Import model CommentLike
+from models import (
+    db, 
+    User, 
+    Post, 
+    Comment, 
+    PostLike,           # ← Đổi từ 'Like' thành 'PostLike'
+    PostRating,         # ← Đổi từ 'Rating' thành 'PostRating'
+    Notification, 
+    Message, 
+    Friendship,         # ← Model bạn bè
+    FriendRequest,      # ← Model lời mời kết bạn
+    Report, 
+    CommentLike,        # ← Model like comment
+    CommentReport,      # ← Model báo cáo comment
+    ExpertRequest,      # ← Thêm cái này nếu dùng
+    Follow,             # ← Thêm cái này nếu dùng
+    HiddenPost          # ← Thêm cái này nếu dùng
+)
+
+
 # Trong file app.py hoặc routes.py
 from notification_service import NotificationService
 from notifications_api import notifications_api
@@ -228,53 +249,285 @@ def like(post_id):
     })
 
 # COMMENT
+# Thêm vào app.py
+
+# 🔥 GỬI BÌNH LUẬN VỚI MEDIA
 @app.route('/comment/<int:post_id>', methods=['POST'])
 @login_required
 def comment(post_id):
     post = Post.query.get_or_404(post_id)
     content = request.form.get('content', '').strip()
-    if not content:
-        return jsonify({'error': 'Nội dung bình luận trống!'}), 400
-
-    comment_obj = Comment(content=content, user_id=current_user.id, post_id=post_id)
+    parent_id = request.form.get('parent_id')
     
-    # ✅ GÁN THỜI GIAN MỘT CÁCH TƯỜNG MINH
-    comment_obj.created_at = vietnam_now()
+    # Xử lý media
+    image_file = None
+    video_file = None
+    sticker = request.form.get('sticker')
+    
+    if 'media' in request.files:
+        file = request.files['media']
+        if file and file.filename:
+            filename = secure_filename(f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}")
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            
+            if file.mimetype.startswith('video'):
+                video_file = filename
+            else:
+                image_file = filename
+    
+    if not content and not image_file and not video_file and not sticker:
+        return jsonify({'error': 'Nội dung trống!'}), 400
+    
+    comment_obj = Comment(
+        content=content,
+        user_id=current_user.id,
+        post_id=post_id,
+        parent_id=parent_id,
+        image=image_file,
+        video=video_file,
+        sticker=sticker
+    )
     
     db.session.add(comment_obj)
     post.comments_count += 1
-
+    
+    # Thông báo cho chủ bài viết
     if post.author.id != current_user.id:
         notif = Notification(
             user_id=post.author.id,
-            title="Bình luận mới!",
-            message=f"{current_user.name} đã bình luận: \"{content[:50]}{'...' if len(content)>50 else ''}\"",
+            title="Bình luận mới",
+            message=f"{current_user.name} đã bình luận: {content[:50] if content else '[Media]'}",
             type='comment',
             related_id=post.id,
             related_user_id=current_user.id
         )
-        # ✅ Cả thông báo cũng nên có giờ đúng
-        notif.created_at = vietnam_now()
         db.session.add(notif)
-
+    
+    # Thông báo nếu là reply
+    if parent_id:
+        parent_comment = Comment.query.get(parent_id)
+        if parent_comment and parent_comment.user_id != current_user.id:
+            notif = Notification(
+                user_id=parent_comment.user_id,
+                title="Phản hồi bình luận",
+                message=f"{current_user.name} đã trả lời bình luận của bạn",
+                type='comment_reply',
+                related_id=post.id,
+                related_user_id=current_user.id
+            )
+            db.session.add(notif)
+    
     db.session.commit()
-    return jsonify({'success': True, 'comments_count': post.comments_count})
+    
+    # Trả về comment với đầy đủ thông tin
+    return jsonify({
+        'success': True,
+        'comment': {
+            'id': comment_obj.id,
+            'content': comment_obj.content,
+            'author': {
+                'id': current_user.id,
+                'name': current_user.name,
+                'avatar': current_user.avatar or 'images/default-avatar.png'
+            },
+            'image': f'uploads/{image_file}' if image_file else None,
+            'video': f'uploads/{video_file}' if video_file else None,
+            'sticker': sticker,
+            'created_at': 'Vừa xong',
+            'likes_count': 0,
+            'is_liked': False,
+            'can_edit': True,
+            'can_delete': True,
+            'replies': []
+        }
+    })
 
-# LẤY BÌNH LUẬN (CHO MODAL)
+# 🔥 SỬA BÌNH LUẬN
+@app.route('/api/comment/<int:comment_id>/edit', methods=['POST'])
+@login_required
+def edit_comment(comment_id):
+    comment = Comment.query.get_or_404(comment_id)
+    
+    if not comment.can_edit(current_user):
+        return jsonify({'error': 'Không có quyền chỉnh sửa!'}), 403
+    
+    data = request.get_json()
+    new_content = data.get('content', '').strip()
+    
+    if not new_content:
+        return jsonify({'error': 'Nội dung không được để trống!'}), 400
+    
+    comment.content = new_content
+    comment.is_edited = True
+    comment.updated_at = vietnam_now()
+    
+    db.session.commit()
+    return jsonify({'success': True, 'content': new_content})
+
+# 🔥 XÓA BÌNH LUẬN
+@app.route('/api/comment/<int:comment_id>/delete', methods=['POST'])
+@login_required
+def delete_comment(comment_id):
+    comment = Comment.query.get_or_404(comment_id)
+    
+    if not comment.can_delete(current_user):
+        return jsonify({'error': 'Không có quyền xóa!'}), 403
+    
+    post = comment.post
+    
+    # Đếm tổng số replies để trừ đúng
+    def count_all_replies(c):
+        count = c.replies.count()
+        for reply in c.replies:
+            count += count_all_replies(reply)
+        return count
+    
+    total_deleted = 1 + count_all_replies(comment)
+    post.comments_count = max(0, post.comments_count - total_deleted)
+    
+    db.session.delete(comment)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+# 🔥 LIKE COMMENT
+@app.route('/api/comment/<int:comment_id>/like', methods=['POST'])
+@login_required
+def like_comment(comment_id):
+    try:
+        comment = Comment.query.get_or_404(comment_id)
+        
+        existing = CommentLike.query.filter_by(
+            user_id=current_user.id,
+            comment_id=comment_id
+        ).first()
+        
+        if existing:
+            db.session.delete(existing)
+            db.session.commit()
+            liked = False
+        else:
+            like = CommentLike(user_id=current_user.id, comment_id=comment_id)
+            db.session.add(like)
+            db.session.commit()
+            liked = True
+            
+            # Thông báo (optional)
+            if comment.user_id != current_user.id:
+                notif = Notification(
+                    user_id=comment.user_id,
+                    title="Thích bình luận",
+                    message=f"{current_user.name} đã thích bình luận của bạn",
+                    type='comment_like',
+                    related_id=comment.post_id,
+                    related_user_id=current_user.id
+                )
+                db.session.add(notif)
+                db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'liked': liked,
+            'likes': comment.likes_count
+        })
+    except Exception as e:
+        print(f"Error in like_comment: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 🔥 BÁO CÁO BÌNH LUẬN SPAM
+@app.route('/api/comment/<int:comment_id>/report', methods=['POST'])
+@login_required
+def report_comment(comment_id):
+    comment = Comment.query.get_or_404(comment_id)
+    
+    data = request.get_json()
+    reason = data.get('reason', '').strip()
+    
+    if not reason:
+        return jsonify({'error': 'Vui lòng nhập lý do báo cáo!'}), 400
+    
+    # Kiểm tra đã báo cáo chưa
+    existing = CommentReport.query.filter_by(
+        comment_id=comment_id,
+        reporter_id=current_user.id
+    ).first()
+    
+    if existing:
+        return jsonify({'error': 'Bạn đã báo cáo bình luận này rồi!'}), 400
+    
+    report = CommentReport(
+        comment_id=comment_id,
+        reporter_id=current_user.id,
+        reason=reason
+    )
+    
+    db.session.add(report)
+    
+    # Nếu có >= 3 báo cáo, đánh dấu spam tự động
+    if comment.reports.count() + 1 >= 3:
+        comment.is_spam = True
+    
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Đã gửi báo cáo thành công!'})
+
+# 🔥 API LẤY COMMENTS (nested)
 @app.route('/comments/<int:post_id>')
 def get_comments(post_id):
-    post = Post.query.get_or_404(post_id)
-    comments = Comment.query.filter_by(post_id=post_id).order_by(Comment.created_at).all()
-    return jsonify([{
-        'id': c.id,
-        'content': c.content,
-        'created_at': c.created_at.strftime('%H:%M %d/%m'),
-        'author': {
-            'name': c.author.name,
-            'avatar': c.author.avatar or 'default.jpg'
+    comments = Comment.query.filter_by(
+        post_id=post_id, 
+        parent_id=None,
+        is_spam=False
+    ).order_by(Comment.created_at.desc()).all()
+    
+    def serialize_comment(c):
+        replies_data = []
+        for reply in c.replies.filter_by(is_spam=False).order_by(Comment.created_at.asc()):
+            replies_data.append(serialize_comment(reply))
+        
+        return {
+            'id': c.id,
+            'content': c.content,
+            'author': {
+                'id': c.author.id,
+                'name': c.author.name,
+                'avatar': c.author.avatar or 'images/default-avatar.png'
+            },
+            'image': f'uploads/{c.image}' if c.image else None,
+            'video': f'uploads/{c.video}' if c.video else None,
+            'sticker': c.sticker,
+            'is_edited': c.is_edited,
+            'created_at': c.created_at.strftime('%H:%M %d/%m/%Y'),
+            'likes': c.likes_count,
+            'is_liked': c.is_liked_by(current_user.id) if current_user.is_authenticated else False,
+            'can_edit': c.can_edit(current_user) if current_user.is_authenticated else False,
+            'can_delete': c.can_delete(current_user) if current_user.is_authenticated else False,
+            'replies': replies_data
         }
-    } for c in comments])
+    
+    return jsonify([serialize_comment(c) for c in comments])
 
+# 🔥 TÌM KIẾM USER CHO MENTION
+@app.route('/api/users/search')
+@login_required
+def search_users():
+    query = request.args.get('q', '').strip()
+    if len(query) < 2:
+        return jsonify([])
+    
+    users = User.query.filter(
+        User.name.ilike(f'%{query}%')
+    ).limit(10).all()
+    
+    return jsonify([{
+        'id': u.id,
+        'name': u.name,
+        'avatar': u.avatar or 'images/default-avatar.png'
+    } for u in users])
+
+    
 # PROFILE
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required

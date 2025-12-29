@@ -15,8 +15,8 @@ def vietnam_now():
 # ĐỊNH NGHĨA FOLLOW TRƯỚC USER
 class Follow(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    follower_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    followed_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    follower_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    followed_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=vietnam_now)
     
     # STRING REFERENCE - tránh circular import
@@ -29,8 +29,8 @@ class Follow(db.Model):
 class Friendship(db.Model):
     __tablename__ = 'friendship'
     id = db.Column(db.Integer, primary_key=True)
-    user1_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    user2_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user1_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user2_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=vietnam_now)
     
     # Relationships
@@ -46,8 +46,8 @@ class Friendship(db.Model):
 class FriendRequest(db.Model):
     __tablename__ = 'friend_request'
     id = db.Column(db.Integer, primary_key=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     status = db.Column(db.String(20), default='pending')  # pending, accepted, rejected
     created_at = db.Column(db.DateTime, default=vietnam_now)
     updated_at = db.Column(db.DateTime, default=vietnam_now, onupdate=vietnam_now)
@@ -63,6 +63,7 @@ class FriendRequest(db.Model):
 
 # SAU ĐÓ MỚI USER
 class User(UserMixin, db.Model):
+    __tablename__ = 'users'   # ← THÊM DÒNG NÀY
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
@@ -81,7 +82,6 @@ class User(UserMixin, db.Model):
 
     # Relationships
     posts = db.relationship('Post', foreign_keys='Post.user_id', backref='author', lazy='dynamic')
-    comments = db.relationship('Comment', backref='author', lazy='dynamic')
     expert_requests = db.relationship('ExpertRequest', backref='user', lazy='dynamic')
 
     @property
@@ -161,6 +161,7 @@ class User(UserMixin, db.Model):
 
 
 class Post(db.Model):
+    __tablename__ = 'posts' 
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
@@ -171,7 +172,7 @@ class Post(db.Model):
     likes = db.Column(db.Integer, default=0)
     comments_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=vietnam_now)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
     # THÊM 2 DÒNG NÀY
     rating = db.Column(db.Float, default=0.0)  # Điểm trung bình
@@ -195,8 +196,8 @@ class Post(db.Model):
 class PostLike(db.Model):
     __tablename__ = 'post_like'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=vietnam_now)
     
     user = db.relationship('User', backref='post_likes')
@@ -208,8 +209,8 @@ class PostLike(db.Model):
 class HiddenPost(db.Model):
     __tablename__ = 'hidden_post'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=vietnam_now)
     
     __table_args__ = (db.UniqueConstraint('user_id', 'post_id', name='unique_hidden_post'),)
@@ -218,8 +219,8 @@ class HiddenPost(db.Model):
 class PostRating(db.Model):
     __tablename__ = 'post_rating'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
     stars = db.Column(db.Integer, nullable=False)  # 1-5
     created_at = db.Column(db.DateTime, default=vietnam_now)
     
@@ -232,29 +233,92 @@ class PostRating(db.Model):
 
 class ExpertRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     certificate = db.Column(db.String(200))
     reason = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=vietnam_now)
     admin_note = db.Column(db.Text)
 
+# Thêm vào models.py
+
 class Comment(db.Model):
+    __tablename__ = 'comments'
     id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.Text)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'))
+    content = db.Column(db.Text, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('comments.id'), nullable=True)
+    
+    # Media
+    image = db.Column(db.String(500), nullable=True)
+    video = db.Column(db.String(500), nullable=True)
+    sticker = db.Column(db.String(200), nullable=True)
+    
+    # Metadata
     created_at = db.Column(db.DateTime, default=vietnam_now)
+    updated_at = db.Column(db.DateTime, default=vietnam_now, onupdate=vietnam_now)
+    is_edited = db.Column(db.Boolean, default=False)
+    is_spam = db.Column(db.Boolean, default=False)
+    
+    # Relationships
+    author = db.relationship('User', backref='comments')
+    post = db.relationship('Post', backref='all_comments')
+    replies = db.relationship('Comment', 
+                             backref=db.backref('parent', remote_side=[id]),
+                             lazy='dynamic',
+                             cascade='all, delete-orphan')
+    likes = db.relationship('CommentLike', backref='comment', lazy='dynamic', cascade='all, delete-orphan')
+    reports = db.relationship('CommentReport', backref='comment', lazy='dynamic', cascade='all, delete-orphan')
+    
+    @property
+    def likes_count(self):
+        return self.likes.count()
+    
+    @property
+    def replies_count(self):
+        return self.replies.filter_by(is_spam=False).count()
+    
+    def is_liked_by(self, user_id):
+        return self.likes.filter_by(user_id=user_id).first() is not None
+    
+    def can_edit(self, user):
+        return self.user_id == user.id
+    
+    def can_delete(self, user):
+        return self.user_id == user.id or user.role == 'admin' or self.post.user_id == user.id
+
+# ✅ MODEL COMMENT LIKE (THÊM MỚI)
+class CommentLike(db.Model):
+    __tablename__ = 'comment_likes'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    comment_id = db.Column(db.Integer, db.ForeignKey('comments.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'comment_id', name='unique_comment_like'),)
+
+
+# ✅ MODEL COMMENT REPORT (THÊM MỚI)
+class CommentReport(db.Model):
+    __tablename__ = 'comment_reports'
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('comments.id'), nullable=False)
+    reporter_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    reason = db.Column(db.String(500), nullable=False)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+    
+    reporter = db.relationship('User', backref='comment_reports')
 
 class Notification(db.Model):
     __tablename__ = 'notification'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     title = db.Column(db.String(100), nullable=False)
     message = db.Column(db.Text, nullable=False)
     type = db.Column(db.String(20))
     related_id = db.Column(db.Integer)
-    related_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    related_user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=vietnam_now)
 
@@ -262,8 +326,8 @@ class Notification(db.Model):
 
 class Report(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     reason = db.Column(db.String(200), nullable=False)
     created_at = db.Column(db.DateTime, default=vietnam_now)
 
@@ -277,8 +341,8 @@ class Message(db.Model):
     __tablename__ = 'messages'
 
     id = db.Column(db.Integer, primary_key=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     type = db.Column(db.String(20), default='text')
     timestamp = db.Column(db.DateTime, default=vietnam_now)
