@@ -26,20 +26,22 @@ with app.app_context():
         print("Admin: admin@momconnect.com / admin123")
 
     # 2. CHUYÊN GIA (đã duyệt)
+# 2. CHUYÊN GIA (đã duyệt)
     if not User.query.filter_by(email='expert@momconnect.com').first():
         expert = User(
             name='BS. Lan Anh',
             email='expert@momconnect.com',
             password=generate_password_hash('expert123'),
-            role='user',
-            is_verified_expert=True,
+            role='expert',                      # ← SỬA THÀNH 'expert'
+            is_verified_expert=True,            # ← Vẫn giữ để tương thích code cũ
             expert_category='dinh_duong',
-            bio='Bác sĩ nhi khoa 10 năm kinh nghiệm',
+            bio='Bác sĩ nhi khoa với 10 năm kinh nghiệm chuyên về dinh dưỡng trẻ em',
+            points=5000,                        # ← Đưa điểm cao để test badge
             children_count=2
         )
         db.session.add(expert)
         db.session.commit()
-        print("Chuyên gia: expert@momconnect.com / expert123")
+        print("Chuyên gia: expert@momconnect.com / expert123 (role=expert + verified)")
 
     # 3. USER TEST (để test Postman)
     if not User.query.filter_by(email='test@example.com').first():

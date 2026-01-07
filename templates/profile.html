@@ -4,80 +4,127 @@
 {% block content %}
 <div class="max-w-2xl mx-auto">
     <div class="bg-white rounded-2xl shadow-xl p-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-8 text-center">Hồ sơ cá nhân</h1>
-        <a href="{{ url_for('home') }}" class="text-pink-600 hover:text-pink-700 font-medium">Quay lại</a>
 
+        <h1 class="text-3xl font-bold text-gray-900 mb-8 text-center">Hồ sơ cá nhân</h1>
+
+        <a href="{{ url_for('home') }}"
+            class="text-pink-600 hover:text-pink-700 font-medium mb-6 inline-block">
+            ← Quay lại trang chủ
+        </a>
+
+        <!-- AVATAR -->
         <div class="text-center mb-8">
             <div class="relative inline-block group">
-                <!-- ✅ SỬA ĐƯỜNG DẪN AVATAR - ĐỒNG BỘ VỚI HEADER -->
                 <img src="{{ url_for('static', filename=user.avatar or 'images/default-avatar.png') }}"
-                    class="w-32 h-32 rounded-full object-cover ring-4 ring-pink-100 shadow-lg mx-auto">
+                    class="w-32 h-32 rounded-full object-cover ring-8 ring-pink-100 shadow-2xl mx-auto">
                 <label
-                    class="absolute -bottom-2 -right-2 bg-white p-3 rounded-full shadow-lg cursor-pointer hover:shadow-xl transition border-2 border-pink-200 group-hover:border-pink-300">
-                    <i class="fas fa-camera text-pink-500"></i>
+                    class="absolute -bottom-2 -right-2 bg-white p-3 rounded-full shadow-lg cursor-pointer hover:shadow-xl transition border-4 border-pink-200 group-hover:border-pink-400">
+                    <i class="fas fa-camera text-pink-600 text-xl"></i>
                     <input type="file" name="avatar" accept="image/*" form="profileForm" class="hidden">
                 </label>
             </div>
             <p class="mt-4 text-sm text-gray-500">Click biểu tượng máy ảnh để thay avatar</p>
         </div>
 
+        <!-- CẤP BẬC -->
+        <div class="text-center mb-10">
+            <div class="inline-flex flex-col items-center gap-3 px-10 py-6 rounded-3xl shadow-2xl
+                bg-gradient-to-br from-green-400 to-teal-500 text-white">
+                <i class="fas fa-medal text-6xl mb-2"></i>
+                <p class="text-4xl font-bold">{{ user.badge }}</p>
+                <p class="text-xl opacity-80">{{ user.name }}</p>
+                <p class="text-lg opacity-90">{{ user.points }} điểm</p>
+            </div>
+        </div>
+
+        <!-- NỘP ĐƠN CHUYÊN GIA (KHÔNG ĐIỀU KIỆN) -->
+        {% if not user.is_verified_expert %}
+        <div
+            class="bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl p-6 text-center mb-10">
+            <i class="fas fa-crown text-4xl text-purple-600 mb-3"></i>
+            <h3 class="text-xl font-bold text-purple-800 mb-2">
+                Bạn muốn trở thành Chuyên gia?
+            </h3>
+            <p class="text-gray-700 mb-4">
+                Gửi bằng cấp / chứng chỉ để Admin xác thực
+            </p>
+            <a href="{{ url_for('expert_request') }}"
+                class="inline-block bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-3 rounded-full font-bold hover:shadow-xl">
+                <i class="fas fa-paper-plane mr-2"></i> Nộp đơn ngay
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- FORM -->
         <form id="profileForm" method="POST" enctype="multipart/form-data" class="space-y-6">
+
+            <!-- TÊN -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Tên hiển thị</label>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Tên hiển thị
+                </label>
                 <input type="text" name="name" value="{{ user.name }}" required
                     class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500">
             </div>
 
+            <!-- SỐ CON + ĐỘ TUỔI -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-child mr-1"></i> Số con
+                    </label>
+                    <input type="number" name="children_count"
+                        value="{{ user.children_count or 0 }}"
+                        min="0" max="10"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-birthday-cake mr-1"></i> Độ tuổi con
+                    </label>
+                    <input type="text" name="children_ages"
+                        value="{{ user.children_ages or '' }}"
+                        placeholder="VD: 3 tuổi, 5 tuổi"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500">
+                </div>
+            </div>
+
+            <!-- BIO -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Giới thiệu bản thân</label>
-                <textarea name="bio" rows="4"
-                    class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500"
-                    placeholder="Kể về hành trình làm mẹ của bạn...">{{ user.bio or '' }}</textarea>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-pen mr-1"></i> Giới thiệu bản thân
+                </label>
+                <textarea name="bio" rows="5"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 resize-none"
+                    placeholder="Chia sẻ hành trình làm mẹ, kinh nghiệm nuôi con, sở thích...">{{ user.bio or '' }}</textarea>
+                <p class="text-xs text-gray-500 mt-1">
+                    Miêu tả ngắn giúp bạn bè hiểu thêm về bạn
+                </p>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 text-sm">
-                <div class="bg-green-50 p-4 rounded-xl text-center">
-                    <p class="text-green-600 font-semibold">{{ user.points }}</p>
-                    <p class="text-gray-600">Điểm tích lũy</p>
-                </div>
-                <div class="bg-blue-50 p-4 rounded-xl text-center">
-                    <p class="text-blue-600 font-semibold">{{ user.posts.count() }}</p>
-                    <p class="text-gray-600">Bài viết</p>
-                </div>
-            </div>
-
+            <!-- SAVE -->
             <button type="submit"
-                class="w-full py-3 px-6 bg-gradient-to-r from-pink-500 to-blue-500 text-white font-semibold rounded-xl hover:shadow-xl transition-all">
-                Lưu thay đổi
+                class="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold rounded-xl text-xl hover:shadow-2xl">
+                <i class="fas fa-save mr-2"></i> Lưu thay đổi
             </button>
+
         </form>
     </div>
 </div>
 
-<!-- ✅ THÊM SCRIPT CHỐNG CACHE -->
+<!-- CHỐNG CACHE AVATAR -->
 <script>
-document.getElementById('profileForm').addEventListener('submit', function() {
+document.getElementById('profileForm').addEventListener('submit', function () {
     setTimeout(() => {
-        // Cập nhật tất cả avatar trên trang
-        const avatarImages = document.querySelectorAll('img[src*="avatar"], img[src*="default-avatar"]');
-        avatarImages.forEach(img => {
-            const src = img.src.split('?')[0];
-            img.src = src + '?t=' + new Date().getTime();
+        const imgs = document.querySelectorAll('img');
+        imgs.forEach(img => {
+            if (img.src.includes('avatar') || img.src.includes('default-avatar')) {
+                img.src = img.src.split('?')[0] + '?t=' + new Date().getTime();
+            }
         });
-        
-        // Reload trang sau 1.5 giây để đảm bảo ảnh mới được load
-        setTimeout(() => {
-            window.location.reload();
-        }, 1500);
-    }, 1000);
-});
-
-// Cập nhật avatar ngay khi load trang để chống cache
-document.addEventListener('DOMContentLoaded', function() {
-    const avatarImg = document.querySelector('img[src*="avatar"], img[src*="default-avatar"]');
-    if (avatarImg && !avatarImg.src.includes('?t=')) {
-        avatarImg.src = avatarImg.src + '?t=' + new Date().getTime();
-    }
+        setTimeout(() => location.reload(), 1200);
+    }, 800);
 });
 </script>
 {% endblock %}

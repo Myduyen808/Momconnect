@@ -63,7 +63,8 @@ class FriendRequest(db.Model):
 
 # SAU ĐÓ MỚI USER
 class User(UserMixin, db.Model):
-    __tablename__ = 'users'   # ← THÊM DÒNG NÀY
+    __tablename__ = 'users'
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
@@ -76,13 +77,13 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), default='user')
     is_active = db.Column(db.Boolean, default=True)
     is_verified_expert = db.Column(db.Boolean, default=False)
-    expert_request = db.Column(db.Text)
     expert_category = db.Column(db.String(50))
     created_at = db.Column(db.DateTime, default=vietnam_now)
 
     # Relationships
-    posts = db.relationship('Post', foreign_keys='Post.user_id', backref='author', lazy='dynamic')
-    expert_requests = db.relationship('ExpertRequest', backref='user', lazy='dynamic')
+    posts = db.relationship('Post', backref='author', lazy='dynamic')
+    # comments = db.relationship('Comment', backref='author', lazy='dynamic')
+
 
     @property
     def avatar_url(self):
@@ -159,7 +160,38 @@ class User(UserMixin, db.Model):
             status='pending'
         ).order_by(FriendRequest.created_at.desc()).all()
 
+    # Thêm vào class User
+    @property
+    def can_request_expert(self):
+        """ ĐIỂM CHỈ LÀ HOẠT ĐỘNG - AI CŨNG CÓ THỂ NỘP ĐƠN"""
+        # Chỉ kiểm tra: chưa phải chuyên gia + chưa có yêu cầu pending
+        if self.is_verified_expert:
+            return False
+        
+        pending = ExpertRequest.query.filter_by(
+            user_id=self.id,
+            status='pending'
+        ).first()
+        
+        return pending is None  # ← CHỈ CẦN CHƯA CÓ YÊU CẦU PENDING
 
+    def get_expert_progress(self):
+        """✅ BỎ HẲN PHẦN TÍNH PHẦN TRĂM - CHỈ TRẢ VỀ ĐIỂM HOẠT ĐỘNG"""
+        total_posts = self.posts.count()
+        total_comments = Comment.query.filter_by(user_id=self.id).count()
+        
+        return {
+            'points': self.points,
+            'total_posts': total_posts,
+            'total_comments': total_comments,
+            'activity_level': (
+                'Rất tích cực' if self.points > 2000 else
+                'Tích cực' if self.points > 1000 else
+                'Hoạt động' if self.points > 200 else
+                'Mới tham gia'
+            )
+        }
+    
 class Post(db.Model):
     __tablename__ = 'posts' 
     id = db.Column(db.Integer, primary_key=True)
@@ -168,11 +200,14 @@ class Post(db.Model):
     images = db.Column(db.Text)  # "img1.jpg,img2.jpg"
     video = db.Column(db.String(200))
     category = db.Column(db.String(50), default='other')
+    post_type = db.Column(db.String(20), default='question')  # 'question' hoặc 'sharing'
     is_expert_post = db.Column(db.Boolean, default=False)
     likes = db.Column(db.Integer, default=0)
     comments_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=vietnam_now)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    is_helpful = db.Column(db.Boolean, default=False)  # THÊM DÒNG NÀY
+    views = db.Column(db.Integer, default=0)
 
     # THÊM 2 DÒNG NÀY
     rating = db.Column(db.Float, default=0.0)  # Điểm trung bình
@@ -231,14 +266,24 @@ class PostRating(db.Model):
 
     
 
+# Thêm vào models.py
+
 class ExpertRequest(db.Model):
+    __tablename__ = 'expert_requests'
+    
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    certificate = db.Column(db.String(200))
-    reason = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(20), default='pending')
+    certificate = db.Column(db.String(200))  # Đường dẫn đến ảnh bằng cấp
+    reason = db.Column(db.Text, nullable=False)  # Lý do muốn trở thành chuyên gia
+    category = db.Column(db.String(50))  # Lĩnh vực chuyên môn
+    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
+    admin_note = db.Column(db.Text)  # Ghi chú của admin
     created_at = db.Column(db.DateTime, default=vietnam_now)
-    admin_note = db.Column(db.Text)
+    updated_at = db.Column(db.DateTime, default=vietnam_now, onupdate=vietnam_now)
+    
+    # Relationships
+    user = db.relationship('User', backref='expert_requests')
+
 
 # Thêm vào models.py
 
@@ -310,19 +355,25 @@ class CommentReport(db.Model):
     
     reporter = db.relationship('User', backref='comment_reports')
 
+# Thêm vào models.py
+
 class Notification(db.Model):
-    __tablename__ = 'notification'
+    __tablename__ = 'notifications'
+    
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     title = db.Column(db.String(100), nullable=False)
     message = db.Column(db.Text, nullable=False)
-    type = db.Column(db.String(20))
-    related_id = db.Column(db.Integer)
-    related_user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    type = db.Column(db.String(20))  # point, expert_request, system, like, comment
+    related_id = db.Column(db.Integer)  # ID của đối tượng liên quan (bài viết, bình luận...)
+    related_user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # ID của người dùng liên quan
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=vietnam_now)
-
+    
+    # Relationships
+    user = db.relationship('User', foreign_keys=[user_id], backref='notifications')
     related_user = db.relationship('User', foreign_keys=[related_user_id])
+
 
 class Report(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -353,6 +404,21 @@ class Message(db.Model):
 
 # models.py - DÁN ĐOẠN NÀY VÀO CUỐI FILE
 
+# Thêm model PointHistory để theo dõi thay đổi điểm
+
+class PointHistory(db.Model):
+    __tablename__ = 'point_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    points_change = db.Column(db.Integer, nullable=False)
+    reason = db.Column(db.String(255), nullable=False)
+    related_id = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+    
+    # Relationships
+    user = db.relationship('User', backref='point_history')
+
 @event.listens_for(db.session, 'before_flush')
 def set_timestamps_before_flush(session, context, instances):
     """
@@ -370,3 +436,4 @@ def set_timestamps_before_flush(session, context, instances):
         # Đối với các đối tượng ĐÃ CÓ NHƯNG BỊ SỬA
         if hasattr(instance, 'updated_at'):
             instance.updated_at = vietnam_now()
+

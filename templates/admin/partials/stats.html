@@ -1,18 +1,143 @@
-<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-    <div class="bg-gradient-to-r from-blue-500 to-cyan-500 text-white p-6 rounded-xl shadow">
-        <p class="text-sm opacity-90">Tổng người dùng</p>
-        <p class="text-3xl font-bold">{{ stats.total_users }}</p>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+    <div class="stat-card bg-gradient-to-br from-pink-400 to-purple-600">
+        <i class="fas fa-users text-4xl text-white opacity-80"></i>
+        <p class="text-4xl font-bold text-white">{{ stats.total_users }}</p>
+        <p class="text-white opacity-90">Tổng người dùng</p>
     </div>
-    <div class="bg-gradient-to-r from-green-500 to-teal-500 text-white p-6 rounded-xl shadow">
-        <p class="text-sm opacity-90">Tổng bài viết</p>
-        <p class="text-3xl font-bold">{{ stats.total_posts }}</p>
+
+    <div class="stat-card bg-gradient-to-br from-blue-400 to-cyan-600">
+        <i class="fas fa-newspaper text-4xl text-white opacity-80"></i>
+        <p class="text-4xl font-bold text-white">{{ stats.total_posts }}</p>
+        <p class="text-white opacity-90">Tổng bài viết</p>
     </div>
-    <div class="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-6 rounded-xl shadow">
-        <p class="text-sm opacity-90">Chuyên gia</p>
-        <p class="text-3xl font-bold">{{ stats.total_experts }}</p>
+
+    <div class="stat-card bg-gradient-to-br from-green-400 to-teal-600">
+        <i class="fas fa-user-md text-4xl text-white opacity-80"></i>
+        <p class="text-4xl font-bold text-white">{{ stats.total_experts }}</p>
+        <p class="text-white opacity-90">Chuyên gia</p>
     </div>
-    <div class="bg-gradient-to-r from-yellow-500 to-orange-500 text-white p-6 rounded-xl shadow">
-        <p class="text-sm opacity-90">Tổng điểm</p>
-        <p class="text-3xl font-bold">{{ stats.total_points }}</p>
+
+    <div class="stat-card bg-gradient-to-br from-yellow-400 to-orange-600">
+        <i class="fas fa-coins text-4xl text-white opacity-80"></i>
+        <p class="text-4xl font-bold text-white">{{ stats.total_points }}</p>
+        <p class="text-white opacity-90">Tổng điểm tích lũy</p>
+    </div>
+
+    <!-- 🔥 THỐNG KÊ TƯƠNG TÁC -->
+    <div class="stat-card bg-gradient-to-br from-indigo-400 to-purple-600">
+        <i class="fas fa-eye text-4xl text-white opacity-80"></i>
+        <p class="text-4xl font-bold text-white">{{ stats.total_views }}</p>
+        <p class="text-white opacity-90">Tổng lượt xem</p>
+    </div>
+
+    <div class="stat-card bg-gradient-to-br from-pink-400 to-red-600">
+        <i class="fas fa-heart text-4xl text-white opacity-80"></i>
+        <p class="text-4xl font-bold text-white">{{ stats.total_likes }}</p>
+        <p class="text-white opacity-90">Tổng lượt thích</p>
+    </div>
+
+    <div class="stat-card bg-gradient-to-br from-blue-400 to-indigo-600">
+        <i class="fas fa-comments text-4xl text-white opacity-80"></i>
+        <p class="text-4xl font-bold text-white">{{ stats.total_comments }}</p>
+        <p class="text-white opacity-90">Tổng bình luận</p>
+    </div>
+</div>
+
+<!-- 🔥 THỐNG KÊ THEO NGƯỜI DÙNG (THÊM MỚI) -->
+<div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+    <h3 class="text-2xl font-bold text-gray-800 mb-6">Thống kê theo người dùng</h3>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Người dùng
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Vai trò
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Điểm
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Bài viết
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Lượt xem
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Lượt thích
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Bình luận
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Hành động
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for user_stat in user_stats %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 h-10 w-10">
+                                <img class="h-10 w-10 rounded-full" src="{{ url_for('static', filename=user_stat.avatar or 'images/default-avatar.png') }}" alt="">
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-medium text-gray-900">{{ user_stat.name }}</div>
+                                <div class="text-sm text-gray-500">{{ user_stat.email }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            {% if user_stat.role == 'admin' %}bg-red-100 text-red-800
+                            {% elif user_stat.is_verified_expert %}bg-green-100 text-green-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {% if user_stat.role == 'admin' %}Admin
+                            {% elif user_stat.is_verified_expert %}Chuyên gia
+                            {% else %}Người dùng{% endif %}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ user_stat.points }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ user_stat.post_count }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ user_stat.total_views }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ user_stat.total_likes }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ user_stat.total_comments }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button onclick="viewUserStats({{ user_stat.id }})" class="text-indigo-600 hover:text-indigo-900">
+                            Xem chi tiết
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 🔥 THỐNG KÊ THEO CHỦ ĐỀ -->
+<div class="bg-white rounded-xl shadow-lg p-6">
+    <h3 class="text-2xl font-bold text-gray-800 mb-6">Thống kê theo chủ đề</h3>
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {% set topics = {'health': 'Sức khỏe', 'nutrition': 'Dinh dưỡng', 'story': 'Tâm sự', 'tips': 'Mẹo hay', 'other': 'Khác'} %}
+        {% for code, name in topics.items() %}
+        <div class="bg-gray-50 rounded-lg p-4 text-center hover:shadow-md transition">
+            <p class="font-medium text-gray-700">{{ name }}</p>
+            <p class="text-3xl font-bold text-pink-600 mt-2">{{ topic_stats.get(code, 0) }}</p>
+            <p class="text-sm text-gray-500">bài viết</p>
+        </div>
+        {% endfor %}
     </div>
 </div>

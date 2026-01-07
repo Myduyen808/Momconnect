@@ -1,19 +1,37 @@
-<!-- templates/expert_request.html -->
 {% extends "base.html" %}
 {% block title %}Yêu cầu trở thành chuyên gia{% endblock %}
 
 {% block content %}
 <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg p-8">
+
     <h2 class="text-2xl font-bold text-pink-600 mb-6 text-center">
-        Trở thành Chuyên gia MomConnect
+        <i class="fas fa-crown mr-2"></i> Trở thành Chuyên gia MomConnect
     </h2>
 
+    <!-- THÔNG TIN HƯỚNG DẪN -->
+    <div class="bg-blue-50 border-2 border-blue-300 rounded-xl p-4 mb-6">
+        <p class="text-blue-700 font-medium flex items-center">
+            <i class="fas fa-info-circle mr-2"></i>
+            Bạn có thể nộp đơn trở thành chuyên gia bằng cách cung cấp bằng cấp / chứng chỉ hợp lệ.
+        </p>
+        <!-- <p class="text-sm text-blue-600 mt-2">
+            📊 Điểm hoạt động hiện tại của bạn: 
+            <strong>{{ current_user.points }}</strong> (chỉ để tham khảo)
+        </p> -->
+    </div>
+
+    <!-- FORM NỘP ĐƠN -->
     <form method="POST" enctype="multipart/form-data" class="space-y-6">
+
+        <!-- CHUYÊN MÔN -->
         <div>
-            <label class="block text-gray-700 font-medium mb-2">Chuyên môn của bạn</label>
+            <label class="block text-gray-700 font-medium mb-2">
+                <i class="fas fa-briefcase mr-1"></i>
+                Chuyên môn của bạn <span class="text-red-500">*</span>
+            </label>
             <select name="category" required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent">
-                <option value="">-- Chọn chuyên môn --</option>
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500">
+                <option value="">-- Chọn lĩnh vực --</option>
                 <option value="dinh_duong">Dinh dưỡng</option>
                 <option value="suc_khoe">Sức khỏe</option>
                 <option value="tam_ly">Tâm lý trẻ em</option>
@@ -22,30 +40,62 @@
             </select>
         </div>
 
+        <!-- KINH NGHIỆM -->
         <div>
-            <label class="block text-gray-700 font-medium mb-2">Lý do / Kinh nghiệm</label>
-            <textarea name="reason" required rows="5"
-                placeholder="Chia sẻ kinh nghiệm, chứng chỉ, lý do bạn phù hợp làm chuyên gia..."
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"></textarea>
+            <label class="block text-gray-700 font-medium mb-2">
+                <i class="fas fa-pen mr-1"></i>
+                Kinh nghiệm & Lý do <span class="text-red-500">*</span>
+            </label>
+            <textarea name="reason" required rows="6"
+                placeholder="VD: Tôi có 5 năm kinh nghiệm làm dinh dưỡng viên tại bệnh viện ABC..."
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500"></textarea>
+            <p class="text-sm text-gray-500 mt-1">
+                Viết càng chi tiết, admin càng dễ xét duyệt
+            </p>
         </div>
 
+        <!-- CHỨNG CHỈ -->
         <div>
-            <label class="block text-gray-700 font-medium mb-2">Chứng chỉ / Bằng cấp (nếu có)</label>
-            <input type="file" name="certificate" accept=".pdf,.jpg,.png"
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100">
-            <p class="text-sm text-gray-500 mt-1">PDF, JPG, PNG - Tối đa 5MB</p>
+            <label class="block text-gray-700 font-medium mb-2">
+                <i class="fas fa-certificate mr-1"></i>
+                Chứng chỉ / Bằng cấp <span class="text-red-500">*</span>
+            </label>
+            <input type="file" name="certificate" required
+                accept=".pdf,.jpg,.jpeg,.png"
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg
+                       file:mr-4 file:py-2 file:px-4
+                       file:rounded-full file:border-0
+                       file:bg-pink-50 file:text-pink-700
+                       hover:file:bg-pink-100">
+            <p class="text-sm text-gray-500 mt-1">
+                File rõ ràng, có dấu mộc (PDF, JPG, PNG – tối đa 5MB)
+            </p>
         </div>
 
+        <!-- LƯU Ý -->
+        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+            <p class="text-sm text-yellow-700">
+                <i class="fas fa-info-circle mr-1"></i>
+                Admin sẽ kiểm tra tính xác thực của bằng cấp. 
+                Thời gian xét duyệt: <strong>3–5 ngày làm việc</strong>.
+            </p>
+        </div>
+
+        <!-- ACTION -->
         <div class="flex gap-4">
             <a href="{{ url_for('profile') }}"
-                class="flex-1 text-center py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium">
-                Hủy
+                class="flex-1 text-center py-3 border border-gray-300 rounded-lg
+                       text-gray-700 hover:bg-gray-50 transition font-medium">
+                <i class="fas fa-arrow-left mr-2"></i> Hủy
             </a>
+
             <button type="submit"
-                class="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-lg hover:shadow-lg transition font-medium">
-                Gửi yêu cầu
+                class="flex-1 bg-gradient-to-r from-purple-500 to-pink-500
+                       text-white py-3 rounded-lg hover:shadow-xl transition font-medium">
+                <i class="fas fa-paper-plane mr-2"></i> Gửi yêu cầu
             </button>
         </div>
+
     </form>
 </div>
 {% endblock %}

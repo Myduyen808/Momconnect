@@ -12,7 +12,26 @@
             <img src="{{ url_for('static', filename=other_user.avatar or 'default.jpg') }}"
                 class="w-12 h-12 rounded-full object-cover mr-3">
             <div>
-                <h3 class="font-bold text-lg">{{ other_user.name }}</h3>
+                <div>
+                    <h3 class="font-bold text-lg">{{ other_user.name }}</h3>
+
+                    {% if other_user.role != 'admin' %}
+                    <div class="flex items-center gap-2 mt-1">
+                        <i class="fas fa-medal text-sm
+                                    {% if 'Ứng viên Chuyên gia' in other_user.badge %}text-purple-600
+                                    {% elif 'Thành Viên Bạc' in other_user.badge %}text-gray-500
+                                    {% elif 'Thành Viên Đồng' in other_user.badge %}text-orange-500
+                                    {% else %}text-green-600{% endif %}"></i>
+                                                <span class="text-sm font-medium
+                                    {% if 'Ứng viên Chuyên gia' in other_user.badge %}text-purple-600
+                                    {% elif 'Thành Viên Bạc' in other_user.badge %}text-gray-600
+                                    {% elif 'Thành Viên Đồng' in other_user.badge %}text-orange-600
+                                    {% else %}text-green-700{% endif %}">
+                            {{ other_user.badge }}
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
                 <p class="text-sm text-green-600">Đang hoạt động</p>
             </div>
         </div>

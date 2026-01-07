@@ -2,7 +2,7 @@
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, make_response
 from flask_login import LoginManager, login_user, logout_user, current_user, login_required
 from flask_socketio import SocketIO, join_room, emit
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -130,6 +130,54 @@ def is_friend(user1_id, user2_id):
     f2 = Follow.query.filter_by(follower_id=user2_id, followed_id=user1_id).first()
     return bool(f1 and f2)
 
+# === HÀM CẬP NHẬT CẤP BẬC (BADGE) THEO ĐIỂM ===
+def update_user_badge(user):
+    old_badge = getattr(user, 'badge', None)
+    points = user.points
+    
+    if points > 2000:
+        badge = "Ứng viên Chuyên gia 🌟"
+        can_request_expert = True
+    elif points >= 1001:
+        badge = "Thành Viên Bạc 🥈"
+        can_request_expert = False
+    elif points >= 201:
+        badge = "Thành Viên Đồng 🥉"
+        can_request_expert = False
+    else:
+        badge = "Mầm Non 👶"
+        can_request_expert = False
+
+    # Cập nhật badge
+    if old_badge != badge:
+        user.badge = badge
+        db.session.commit()
+        
+        # Gửi thông báo khi lên cấp
+        notif = Notification(
+            user_id=user.id,
+            title="Chúc mừng bạn đã lên cấp!",
+            message=f"Bạn đã đạt cấp bậc {badge}. Tiếp tục phát huy nhé!",
+            type='level_up'
+        )
+        db.session.add(notif)
+        # db.session.commit()
+    
+def notify_all_admins(title, message, type='system', related_user_id=None, related_id=None):
+    """Gửi thông báo đến tất cả Admin"""
+    admins = User.query.filter_by(role='admin').all()
+    for admin in admins:
+        notif = Notification(
+            user_id=admin.id,
+            title=title,
+            message=message,
+            type=type,
+            related_user_id=related_user_id,
+            related_id=related_id
+        )
+        db.session.add(notif)
+    db.session.commit()
+
 # === TRANG CHỦ ===
 @app.route('/')
 def home():
@@ -162,6 +210,10 @@ def home():
         else:
             post.is_liked_by_user = False
             post.likers = []
+        
+        # Đảm bảo có giá trị views
+        if not hasattr(post, 'views') or post.views is None:
+            post.views = 0
 
     categories = ['all', 'health', 'nutrition', 'story', 'tips', 'other']
     category_names = {
@@ -213,15 +265,21 @@ def like(post_id):
         # Unlike
         db.session.delete(existing_like)
         post.likes -= 1
-        current_user.points -= 1
+        
+        # Giảm 10 điểm của chủ bài
+        post.author.points = max(0, post.author.points - 10)
+        update_user_badge(post.author)
         liked = False
     else:
         # Like
         new_like = PostLike(user_id=current_user.id, post_id=post_id)
         db.session.add(new_like)
         post.likes += 1
-        current_user.points += 1
         liked = True
+
+        # === CỘNG 10 ĐIỂM CHO CHỦ BÀI KHI NHẬN LIKE ===
+        post.author.points += 10
+        update_user_badge(post.author)
         
         # Tạo thông báo
         if post.author.id != current_user.id:
@@ -233,8 +291,8 @@ def like(post_id):
                 related_id=post.id,
                 related_user_id=current_user.id
             )
-            db.session.add(notif)
-    
+            db.session.add(notif)   
+
     db.session.commit()
     
     # Lấy danh sách người thích (top 3)
@@ -291,6 +349,10 @@ def comment(post_id):
     
     db.session.add(comment_obj)
     post.comments_count += 1
+
+    # === CỘNG 5 ĐIỂM KHI BÌNH LUẬN ===
+    current_user.points += 5
+    update_user_badge(current_user)
     
     # Thông báo cho chủ bài viết
     if post.author.id != current_user.id:
@@ -441,41 +503,39 @@ def like_comment(comment_id):
 @login_required
 def report_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
-    
     data = request.get_json()
     reason = data.get('reason', '').strip()
     
     if not reason:
-        return jsonify({'error': 'Vui lòng nhập lý do báo cáo!'}), 400
-    
-    # Kiểm tra đã báo cáo chưa
-    existing = CommentReport.query.filter_by(
-        comment_id=comment_id,
-        reporter_id=current_user.id
-    ).first()
-    
+        return jsonify({'error': 'Vui lòng nhập lý do!'}), 400
+
+    existing = CommentReport.query.filter_by(comment_id=comment_id, reporter_id=current_user.id).first()
     if existing:
-        return jsonify({'error': 'Bạn đã báo cáo bình luận này rồi!'}), 400
-    
-    report = CommentReport(
-        comment_id=comment_id,
-        reporter_id=current_user.id,
-        reason=reason
-    )
-    
+        return jsonify({'error': 'Bạn đã báo cáo rồi!'}), 400
+
+    report = CommentReport(comment_id=comment_id, reporter_id=current_user.id, reason=reason)
     db.session.add(report)
     
-    # Nếu có >= 3 báo cáo, đánh dấu spam tự động
     if comment.reports.count() + 1 >= 3:
         comment.is_spam = True
     
     db.session.commit()
-    
-    return jsonify({'success': True, 'message': 'Đã gửi báo cáo thành công!'})
 
-# 🔥 API LẤY COMMENTS (nested)
+    # THÔNG BÁO CHO ADMIN
+    notify_all_admins(
+        title="Báo cáo bình luận mới!",
+        message=f"{current_user.name} báo cáo bình luận của {comment.author.name} trong bài '{comment.post.title[:40]}...' - Lý do: {reason}",
+        type='report_comment',
+        related_user_id=current_user.id,
+        related_id=comment.post.id
+    )
+
+    return jsonify({'success': True})
+
+# 🔥 API LẤY COMMENTS (nested) - SỬA LẠI
 @app.route('/comments/<int:post_id>')
 def get_comments(post_id):
+    # Lấy tất cả bình luận không bị đánh dấu spam
     comments = Comment.query.filter_by(
         post_id=post_id, 
         parent_id=None,
@@ -483,9 +543,23 @@ def get_comments(post_id):
     ).order_by(Comment.created_at.desc()).all()
     
     def serialize_comment(c):
+        # Lấy danh sách replies
         replies_data = []
         for reply in c.replies.filter_by(is_spam=False).order_by(Comment.created_at.asc()):
             replies_data.append(serialize_comment(reply))
+        
+        # Lấy thông tin author
+        author_avatar = c.author.avatar or 'images/default-avatar.png'
+        if not author_avatar.startswith('uploads/'):
+            author_avatar = f'uploads/{author_avatar}' if not author_avatar.startswith('static/') else author_avatar.replace('static/', '')
+        
+        # Lấy thông tin media
+        image = None
+        video = None
+        if c.image:
+            image = f'uploads/{c.image}'
+        elif c.video:
+            video = f'uploads/{c.video}'
         
         return {
             'id': c.id,
@@ -493,10 +567,10 @@ def get_comments(post_id):
             'author': {
                 'id': c.author.id,
                 'name': c.author.name,
-                'avatar': c.author.avatar or 'images/default-avatar.png'
+                'avatar': author_avatar
             },
-            'image': f'uploads/{c.image}' if c.image else None,
-            'video': f'uploads/{c.video}' if c.video else None,
+            'image': image,
+            'video': video,
             'sticker': c.sticker,
             'is_edited': c.is_edited,
             'created_at': c.created_at.strftime('%H:%M %d/%m/%Y'),
@@ -508,6 +582,7 @@ def get_comments(post_id):
         }
     
     return jsonify([serialize_comment(c) for c in comments])
+
 
 # 🔥 TÌM KIẾM USER CHO MENTION
 @app.route('/api/users/search')
@@ -527,14 +602,18 @@ def search_users():
         'avatar': u.avatar or 'images/default-avatar.png'
     } for u in users])
 
-    
-# PROFILE
+from sqlalchemy import func  # ← Đảm bảo có dòng này ở đầu file
+
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
     if request.method == 'POST':
         current_user.name = request.form['name'].strip()
         current_user.bio = request.form.get('bio', '').strip()
+        
+        # ✅ THÊM 2 DÒNG NÀY
+        current_user.children_count = int(request.form.get('children_count', 0))
+        current_user.children_ages = request.form.get('children_ages', '').strip()
         
         if 'avatar' in request.files:
             file = request.files['avatar']
@@ -546,8 +625,19 @@ def profile():
         
         db.session.commit()
         flash('Cập nhật hồ sơ thành công!', 'success')
+        return redirect(url_for('profile'))
     
-    return render_template('profile.html', user=current_user)
+    # Tính toán thống kê
+    total_posts = current_user.posts.count()
+    total_comments = Comment.query.filter_by(user_id=current_user.id).count()
+
+    return render_template(
+        'profile.html',
+        user=current_user,
+        Comment=Comment,
+        total_posts=total_posts,
+        total_comments=total_comments
+    )
 
 # ĐĂNG BÀI
 @app.route('/post', methods=['GET', 'POST'])
@@ -557,6 +647,7 @@ def create_post():
         title = request.form['title'].strip()
         content = request.form['content'].strip()
         category = request.form.get('category', 'other')
+        post_type = request.form.get('post_type', 'question')  # Lấy loại bài
 
         images_list = []
         video_file = None
@@ -568,7 +659,6 @@ def create_post():
                     filename = secure_filename(file.filename)
                     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                     file.save(filepath)
-
                     if file.mimetype.startswith('video/'):
                         video_file = filename
                     else:
@@ -580,18 +670,26 @@ def create_post():
             category=category,
             images=','.join(images_list) if images_list else None,
             video=video_file,
-            user_id=current_user.id
+            user_id=current_user.id,
+            post_type=post_type  # ← Gán loại bài
         )
         
-        # ✅ BỎ COMMENT DÒNG NÀY
         post.created_at = vietnam_now()
-        
         db.session.add(post)
         db.session.commit()
 
-        flash('Đăng bài thành công!', 'success')
+        # Chỉ cộng điểm nếu là bài chia sẻ
+        if post_type == 'sharing':
+            current_user.points += 20
+            update_user_badge(current_user)
+            db.session.commit()
+            flash('Đăng bài chia sẻ kinh nghiệm thành công! Bạn nhận +20 điểm tích lũy!', 'success')
+        else:
+            flash('Đăng câu hỏi thành công!', 'success')
+
         return redirect(url_for('home'))
 
+    # 🔥 THÊM DÒNG NÀY: XỬ LÝ KHI MỞ TRANG ĐĂNG BÀI (GET)
     return render_template('post.html')
 
 # ĐĂNG KÝ
@@ -617,6 +715,15 @@ def register():
         user = User(name=name, email=email, password=hashed, points=10)
         db.session.add(user)
         db.session.commit()
+
+        # THÔNG BÁO CHO ADMIN
+        notify_all_admins(
+            title="Thành viên mới đăng ký!",
+            message=f"Người dùng mới: {name} ({email}) vừa đăng ký tài khoản.",
+            type='new_user',
+            related_user_id=user.id
+        )
+        
         flash('Đăng ký thành công! Hãy đăng nhập.', 'success')
         return redirect(url_for('login'))
     
@@ -771,6 +878,36 @@ def mark_notification_read(notif_id):
 @app.route('/post/<int:post_id>')
 def post_detail(post_id):
     post = Post.query.get_or_404(post_id)
+    
+    # Tăng thêm 1 lượt xem khi người dùng xem chi tiết
+    # Kiểm tra xem người dùng đã xem bài viết này trong phiên hiện tại chưa
+    if current_user.is_authenticated:
+        # Lấy danh sách các bài viết đã xem chi tiết trong phiên của người dùng
+        detail_viewed_posts = session.get('detail_viewed_posts', [])
+        
+        # Chỉ tăng lượt xem nếu người dùng không phải là tác giả và chưa xem bài viết này trong phiên hiện tại
+        if current_user.id != post.user_id and post_id not in detail_viewed_posts:
+            post.views += 1  # Tăng thêm 1 lượt xem
+            db.session.commit()
+            
+            # Thêm bài viết vào danh sách đã xem chi tiết
+            detail_viewed_posts.append(post_id)
+            session['detail_viewed_posts'] = detail_viewed_posts
+    else:
+        # Đối với người dùng chưa đăng nhập, sử dụng cookie để theo dõi
+        detail_viewed_posts = request.cookies.get('detail_viewed_posts', '').split(',')
+        detail_viewed_posts = [int(p) for p in detail_viewed_posts if p.isdigit()]
+        
+        if post_id not in detail_viewed_posts:
+            post.views += 1  # Tăng thêm 1 lượt xem
+            db.session.commit()
+            
+            # Thêm bài viết vào cookie
+            detail_viewed_posts.append(post_id)
+            response = make_response(render_template('post_detail.html', post=post, comments=comments))
+            response.set_cookie('detail_viewed_posts', ','.join(map(str, detail_viewed_posts)), max_age=3600) # 1 giờ
+            return response
+    
     comments = Comment.query.filter_by(post_id=post_id).order_by(Comment.created_at.desc()).all()
     return render_template('post_detail.html', post=post, comments=comments)
 
@@ -809,15 +946,22 @@ def report_post(post_id):
     if not reason:
         return jsonify({'error': 'Vui lòng chọn lý do!'}), 400
 
-    # Kiểm tra đã báo cáo chưa
     existing = Report.query.filter_by(post_id=post_id, user_id=current_user.id).first()
     if existing:
         return jsonify({'error': 'Bạn đã báo cáo bài viết này rồi!'}), 400
 
-    # Tạo báo cáo
     report = Report(post_id=post_id, user_id=current_user.id, reason=reason)
     db.session.add(report)
     db.session.commit()
+
+    # THÊM THÔNG BÁO CHO ADMIN
+    notify_all_admins(
+        title="Báo cáo bài viết mới!",
+        message=f"Người dùng {current_user.name} báo cáo bài viết: '{post.title[:50]}...' - Lý do: {reason}",
+        type='report_post',
+        related_user_id=current_user.id,
+        related_id=post.id
+    )
 
     return jsonify({'success': True, 'message': 'Đã gửi báo cáo thành công!'})
 
@@ -864,11 +1008,22 @@ def expert_post():
 @app.route('/expert/request', methods=['GET', 'POST'])
 @login_required
 def expert_request():
-    # Nếu đã là chuyên gia → chuyển về trang chủ
+    # ✅ ĐÃ LÀ CHUYÊN GIA
     if current_user.is_verified_expert:
         flash('Bạn đã là chuyên gia!', 'info')
         return redirect(url_for('home'))
-
+    
+    # ✅ KIỂM TRA ĐÃ CÓ YÊU CẦU PENDING
+    pending_request = ExpertRequest.query.filter_by(
+        user_id=current_user.id,
+        status='pending'
+    ).first()
+    
+    if pending_request:
+        flash('Bạn đã gửi yêu cầu trước đó. Vui lòng chờ admin duyệt!', 'warning')
+        return redirect(url_for('profile'))
+    
+    # ✅ BỎ KIỂM TRA ĐIỀU KIỆN ĐIỂM - AI CŨNG ĐƯỢC GỬI
     if request.method == 'POST':
         reason = request.form.get('reason', '').strip()
         category = request.form.get('category')
@@ -878,24 +1033,37 @@ def expert_request():
             flash('Vui lòng điền đầy đủ thông tin!', 'danger')
             return render_template('expert_request.html')
 
+        # Xử lý upload ảnh chứng chỉ
         filename = None
         if file and file.filename:
-            filename = secure_filename(file.filename)
+            filename = secure_filename(f"{current_user.id}_{int(time.time())}_{file.filename}")
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             filename = f'uploads/{filename}'
+        else:
+            flash('Vui lòng tải lên ảnh chứng chỉ!', 'danger')
+            return render_template('expert_request.html')
 
         # Tạo yêu cầu
         req = ExpertRequest(
             user_id=current_user.id,
             reason=reason,
+            category=category,
             certificate=filename,
             status='pending'
         )
         db.session.add(req)
+        
+        # Thông báo cho admin
+        notify_all_admins(
+            title="Yêu cầu chuyên gia mới!",
+            message=f"{current_user.name} đã nộp đơn trở thành chuyên gia",
+            type='expert_request',
+            related_user_id=current_user.id
+        )
+        
         db.session.commit()
-
-        flash('Đã gửi yêu cầu trở thành chuyên gia! Chờ duyệt.', 'success')
+        flash('Đã gửi yêu cầu! Admin sẽ xem xét trong 3-5 ngày.', 'success')
         return redirect(url_for('profile'))
 
     return render_template('expert_request.html')
@@ -926,23 +1094,43 @@ def admin_user_action(user_id, action):
 @login_required
 def admin_expert_action(req_id, action):
     if current_user.role != 'admin':
-        flash('Bạn không có quyền!', 'error')
-        return redirect(url_for('home'))
+        return jsonify({'error': 'Không có quyền!'}), 403
 
     req = ExpertRequest.query.get_or_404(req_id)
-
+    
     if action == 'approve':
+        # LỚP 2: Admin đã kiểm tra thủ công
         req.user.is_verified_expert = True
+        req.user.expert_category = req.category
+        req.user.points += 500  # Thưởng lớn
         req.status = 'approved'
-        req.user.points += 100  # Thưởng điểm
+        req.admin_note = request.form.get('note', 'Đã phê duyệt')
+        
+        # Thông báo cho user
+        notif = Notification(
+            user_id=req.user_id,
+            title="🎉 Chúc mừng! Bạn đã trở thành Chuyên gia",
+            message=f"Tài khoản của bạn đã được nâng cấp thành Chuyên gia lĩnh vực {req.category}. Bạn nhận được 500 điểm thưởng!",
+            type='expert_approved',
+            related_user_id=current_user.id
+        )
+        db.session.add(notif)
         flash(f'Đã duyệt chuyên gia: {req.user.name}', 'success')
+        
     elif action == 'reject':
         req.status = 'rejected'
-        flash(f'Đã từ chối yêu cầu của {req.user.name}', 'info')
-    else:
-        flash('Hành động không hợp lệ!', 'error')
-        return redirect(url_for('admin_dashboard'))
-
+        req.admin_note = request.form.get('note', 'Không đạt yêu cầu')
+        
+        # Thông báo từ chối
+        notif = Notification(
+            user_id=req.user_id,
+            title="Yêu cầu chuyên gia không được chấp nhận",
+            message=f"Lý do: {req.admin_note}. Bạn có thể nộp lại sau khi cải thiện hồ sơ.",
+            type='expert_rejected'
+        )
+        db.session.add(notif)
+        flash(f'Đã từ chối: {req.user.name}', 'info')
+    
     db.session.commit()
     return redirect(url_for('admin_dashboard'))
 
@@ -952,28 +1140,33 @@ def admin_edit_user():
     if current_user.role != 'admin':
         return jsonify({'error': 'Không có quyền!'}), 403
 
-    user_id = request.form.get('user_id')
-    user = User.query.get_or_404(user_id)
+    try:
+        user_id = request.form.get('user_id')
+        user = User.query.get_or_404(user_id)
 
-    if user.id == current_user.id:
-        return jsonify({'error': 'Không thể chỉnh sửa tài khoản admin hiện tại!'}), 400
+        if user.id == current_user.id:
+            return jsonify({'error': 'Không thể chỉnh sửa tài khoản admin hiện tại!'}), 400
 
-    user.name = request.form.get('name', user.name).strip()
-    user.email = request.form.get('email', user.email).strip().lower()
-    user.role = request.form.get('role', user.role)
-    user.points = int(request.form.get('points', user.points))
+        user.name = request.form.get('name', user.name).strip()
+        user.email = request.form.get('email', user.email).strip().lower()
+        user.role = request.form.get('role', user.role)
+        user.points = int(request.form.get('points', user.points))
 
-    # Xử lý avatar mới
-    if 'avatar' in request.files:
-        file = request.files['avatar']
-        if file and file.filename:
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
-            user.avatar = f"uploads/{filename}"  # ← SỬA DÒNG NÀY: THÊM "uploads/"
+        # Xử lý avatar mới
+        if 'avatar' in request.files:
+            file = request.files['avatar']
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                user.avatar = f"uploads/{filename}"
 
-    db.session.commit()
-    return jsonify({'success': True})
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"Error editing user: {e}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 # ---------- QUẢN LÝ BÀI VIẾT ----------
 @app.route('/admin/post/<int:post_id>/comments')
@@ -981,14 +1174,60 @@ def admin_edit_user():
 def admin_post_comments(post_id):
     if current_user.role != 'admin':
         return jsonify({'error': 'Không có quyền'}), 403
+    
     post = Post.query.get_or_404(post_id)
-    comments = [{
-        'id': c.id,
-        'author': c.author.name,
-        'content': c.content,
-        'created_at': c.created_at.strftime('%d/%m %H:%M')
-    } for c in post.comments]
-    return jsonify({'comments': comments})
+    
+    # Sử dụng lại hàm serialize_comment từ trên để đảm bảo dữ liệu đồng bộ
+    def serialize_comment(c):
+        # Lấy danh sách replies
+        replies_data = []
+        for reply in c.replies.filter_by(is_spam=False).order_by(Comment.created_at.asc()):
+            replies_data.append(serialize_comment(reply))
+        
+        # Lấy thông tin author
+        author_avatar = c.author.avatar or 'images/default-avatar.png'
+        if not author_avatar.startswith('uploads/'):
+            author_avatar = f'uploads/{author_avatar}' if not author_avatar.startswith('static/') else author_avatar.replace('static/', '')
+        
+        # Lấy thông tin media
+        image = None
+        video = None
+        if c.image:
+            image = f'uploads/{c.image}'
+        elif c.video:
+            video = f'uploads/{c.video}'
+        
+        return {
+            'id': c.id,
+            'content': c.content,
+            'author': {
+                'id': c.author.id,
+                'name': c.author.name,
+                'avatar': author_avatar
+            },
+            'image': image,
+            'video': video,
+            'sticker': c.sticker,
+            'is_edited': c.is_edited,
+            'created_at': c.created_at.strftime('%H:%M %d/%m/%Y'),
+            'likes': c.likes_count,
+            'is_liked': c.is_liked_by(current_user.id) if current_user.is_authenticated else False,
+            'can_edit': c.can_edit(current_user) if current_user.is_authenticated else False,
+            'can_delete': c.can_delete(current_user) if current_user.is_authenticated else False,
+            'replies': replies_data
+        }
+    
+    # Lấy tất cả bình luận không bị đánh dấu spam
+    comments = Comment.query.filter_by(
+        post_id=post_id, 
+        parent_id=None,
+        is_spam=False
+    ).order_by(Comment.created_at.desc()).all()
+    
+    return jsonify({
+        'comments': [serialize_comment(c) for c in comments],
+        'total': len(comments)
+    })
 
 @app.route('/admin/post/<int:post_id>/delete', methods=['POST'])
 @login_required
@@ -1030,34 +1269,172 @@ def admin_delete_comment(comment_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# Sửa lại route admin_dashboard để truyền thêm posts
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload
+
 @app.route('/admin')
 @login_required
 def admin_dashboard():
     if current_user.role != 'admin':
-        flash('Bạn không có quyền truy cập!', 'error')
+        flash('Bạn không có quyền truy cập trang quản trị!', 'error')
         return redirect(url_for('home'))
 
+    # Thống kê tổng quan
     stats = {
         'total_users': User.query.count(),
         'total_posts': Post.query.count(),
         'total_experts': User.query.filter_by(is_verified_expert=True).count(),
-        'total_points': db.session.query(db.func.sum(User.points)).scalar() or 0
+        'total_points': db.session.query(func.sum(User.points)).scalar() or 0,
     }
 
-    users = User.query.order_by(User.id.desc()).all()
+    # Thống kê theo người dùng
+    user_stats = db.session.query(
+        User.id,
+        User.name,
+        User.email,
+        User.role,
+        User.is_verified_expert,
+        User.points,
+        User.avatar,
+        User.is_active,  # Thêm is_active vào query
+        func.count(Post.id).label('post_count'),
+        func.coalesce(func.sum(Post.views), 0).label('total_views'),
+        func.coalesce(func.sum(Post.likes), 0).label('total_likes'),
+        func.coalesce(func.sum(Post.comments_count), 0).label('total_comments')
+    ).outerjoin(Post, User.id == Post.user_id)\
+     .group_by(User.id)\
+     .order_by(func.count(Post.id).desc())\
+     .limit(20).all()
+
+    # Thống kê theo chủ đề
+    topic_stats = db.session.query(
+        Post.category,
+        func.count(Post.id).label('count')
+    ).group_by(Post.category).all()
+
+    topic_dict = {cat: count for cat, count in topic_stats}
+
+    # Lấy danh sách user, expert_requests, reports, posts nếu cần
+    users = User.query.all()
     expert_requests = ExpertRequest.query.filter_by(status='pending').all()
-    reports = Report.query.order_by(Report.created_at.desc()).all()
-    posts = Post.query.order_by(Post.created_at.desc()).all()  # THÊM DÒNG NÀY
+    reports = Report.query.all()
+    posts = Post.query.order_by(Post.created_at.desc()).limit(20).all()
 
     return render_template(
         'admin_dashboard.html',
         stats=stats,
+        user_stats=user_stats,  # Thêm thống kê theo người dùng
+        topic_stats=topic_dict,
         users=users,
         expert_requests=expert_requests,
         reports=reports,
-        posts=posts   # THÊM DÒNG NÀY
+        posts=posts
     )
+
+
+@app.route('/api/admin/notifications')
+@login_required
+def api_admin_notifications():
+    if current_user.role != 'admin':
+        return jsonify([])
+
+    notifs = Notification.query.filter_by(user_id=current_user.id)\
+                               .order_by(Notification.is_read.asc(), Notification.created_at.desc())\
+                               .limit(30).all()
+
+    results = []
+    for n in notifs:
+        icon = '🔔'
+        if n.type == 'report_post': icon = '🚩'
+        elif n.type == 'report_comment': icon = '💬'
+        elif n.type == 'expert_request': icon = '👨‍⚕️'
+        elif n.type == 'new_user': icon = '👶'
+        elif n.type == 'expert_action': icon = '✅'
+
+        results.append({
+            'id': n.id,
+            'title': f"{icon} {n.title}",
+            'message': n.message,
+            'type': n.type,
+            'is_read': n.is_read,
+            'created_at': n.created_at.strftime('%H:%M %d/%m'),
+            'related_user': {
+                'name': n.related_user.name if n.related_user else 'Hệ thống',
+                'email': n.related_user.email if n.related_user else ''
+            } if n.related_user else None,
+            'action_link': (
+                '/admin#experts' if n.type in ['expert_request', 'expert_action'] else
+                '/admin#reports' if n.type in ['report_post', 'report_comment'] else
+                '/admin#users'
+            )
+        })
+
+    return jsonify(results)
+
+# ADMIN chọn bài vieetx hữu ích
+@app.route('/admin/post/<int:post_id>/mark_helpful', methods=['POST'])
+@login_required
+def mark_post_helpful(post_id):
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Không có quyền!'}), 403
+    
+    post = Post.query.get_or_404(post_id)
+    
+    # Kiểm tra đã đánh dấu chưa
+    if post.is_helpful:
+        return jsonify({'error': 'Bài viết đã được đánh dấu hữu ích rồi!'}), 400
+    
+    post.is_helpful = True
+    post.author.points += 50  # CỘNG 50 ĐIỂM
+    update_user_badge(post.author)
+    
+    # Thông báo cho tác giả
+    notif = Notification(
+        user_id=post.user_id,
+        title="🎉 Bài viết của bạn được đánh giá hữu ích!",
+        message=f"Admin đã chọn bài '{post.title[:50]}...' là bài viết hữu ích. Bạn nhận được +50 điểm!",
+        type='admin_award',
+        related_id=post.id,
+        related_user_id=current_user.id
+    )
+    db.session.add(notif)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Đã đánh dấu bài viết hữu ích!'})
+
+# Admin  TRỪ ĐIỂM KHI BỊ BÁO CÁO ĐÚNG (-50 ĐIỂM)
+@app.route('/admin/report/<int:report_id>/confirm', methods=['POST'])
+@login_required
+def confirm_report(report_id):
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Không có quyền!'}), 403
+    
+    report = Report.query.get_or_404(report_id)
+    post = report.post
+    
+    # === TRỪ 50 ĐIỂM CHO TÁC GIẢ BÀI BỊ BÁO CÁO ĐÚNG ===
+    post.author.points = max(0, post.author.points - 50)
+    update_user_badge(post.author)
+    
+    # Xóa bài viết
+    db.session.delete(post)
+    
+    # Thông báo cho tác giả
+    notif = Notification(
+        user_id=post.user_id,
+        title="⚠️ Bài viết của bạn vi phạm quy định",
+        message=f"Bài viết '{post.title[:50]}...' đã bị xóa do vi phạm. Bạn bị trừ 50 điểm.",
+        type='warning',
+        related_user_id=current_user.id
+    )
+    db.session.add(notif)
+    
+    # Xóa báo cáo
+    db.session.delete(report)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Đã xử lý báo cáo và trừ điểm!'})
+
 
 # XÓA BÀI VIẾT (CHỦ BÀI)
 @app.route('/post/<int:post_id>/delete', methods=['POST'])
@@ -1593,6 +1970,29 @@ def rate_post(post_id):
         'user_rating': stars
     })
 
+@app.route('/user/<int:user_id>')
+def user_profile(user_id):
+    viewed_user = User.query.get_or_404(user_id)
+    
+    # Lấy bài viết của người này
+    posts = Post.query.filter_by(user_id=user_id).order_by(Post.created_at.desc()).limit(20).all()
+    
+    # Kiểm tra trạng thái kết bạn (nếu đang đăng nhập)
+    friendship_status = 'not_authenticated'
+    if current_user.is_authenticated:
+        friendship_status = current_user.get_friendship_status(user_id)
+    
+    # Kiểm tra xem có phải chính mình không
+    is_own_profile = current_user.is_authenticated and current_user.id == user_id
+
+    return render_template(
+        'user_profile.html',
+        user=viewed_user,
+        posts=posts,
+        friendship_status=friendship_status,
+        is_own_profile=is_own_profile
+    )
+                
 # LẤY ĐÁNH GIÁ CỦA USER
 @app.route('/api/post/<int:post_id>/my-rating')
 @login_required
@@ -1606,28 +2006,102 @@ def get_my_rating(post_id):
         return jsonify({'stars': rating.stars})
     return jsonify({'stars': 0})
 
+#để theo dõi lượt xem trên trang home
+@app.route('/track_home_view/<int:post_id>', methods=['POST'])
+def track_home_view(post_id):
+    post = Post.query.get_or_404(post_id)
+    
+    # Kiểm tra xem người dùng đã xem bài viết này trong phiên hiện tại chưa
+    if current_user.is_authenticated:
+        # Lấy danh sách các bài viết đã xem trên trang home trong phiên của người dùng
+        home_viewed_posts = session.get('home_viewed_posts', [])
+        
+        # Chỉ tăng lượt xem nếu chưa xem bài viết này trên trang home trong phiên hiện tại
+        if post_id not in home_viewed_posts:
+            post.views += 1
+            db.session.commit()
+            
+            # Thêm bài viết vào danh sách đã xem trên trang home
+            home_viewed_posts.append(post_id)
+            session['home_viewed_posts'] = home_viewed_posts
+    else:
+        # Đối với người dùng chưa đăng nhập, sử dụng cookie để theo dõi
+        home_viewed_posts = request.cookies.get('home_viewed_posts', '').split(',')
+        home_viewed_posts = [int(p) for p in home_viewed_posts if p.isdigit()]
+        
+        if post_id not in home_viewed_posts:
+            post.views += 1
+            db.session.commit()
+            
+            # Thêm bài viết vào cookie
+            home_viewed_posts.append(post_id)
+            response = make_response(jsonify({'success': True, 'views': post.views}))
+            response.set_cookie('home_viewed_posts', ','.join(map(str, home_viewed_posts)), max_age=3600) # 1 giờ
+            return response
+    
+    return jsonify({'success': True, 'views': post.views})
+
+#khi nào người dùng nhấp vào bài viết 
+@app.route('/track_view/<int:post_id>', methods=['POST'])
+@login_required
+def track_view(post_id):
+    post = Post.query.get_or_404(post_id)
+    post.views += 1
+    db.session.commit()
+    return jsonify({'success': True, 'views': post.views})
+
+# xem chi tiết thống kê của một người dùng
+@app.route('/admin/user/<int:user_id>/stats')
+@login_required
+def admin_user_stats(user_id):
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Không có quyền!'}), 403
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Lấy thống kê chi tiết của người dùng
+    posts = Post.query.filter_by(user_id=user_id).all()
+    
+    # Tính toán thống kê
+    total_views = sum(post.views for post in posts)
+    total_likes = sum(post.likes for post in posts)
+    total_comments = sum(post.comments_count for post in posts)
+    
+    # Lấy thống kê theo từng bài viết
+    post_stats = []
+    for post in posts:
+        post_stats.append({
+            'id': post.id,
+            'title': post.title,
+            'views': post.views,
+            'likes': post.likes,
+            'comments': post.comments_count,
+            'created_at': post.created_at.strftime('%d/%m/%Y')
+        })
+    
+    return jsonify({
+        'user': {
+            'id': user.id,
+            'name': user.name,
+            'email': user.email,
+            'role': user.role,
+            'is_verified_expert': user.is_verified_expert,
+            'points': user.points
+        },
+        'stats': {
+            'total_posts': len(posts),
+            'total_views': total_views,
+            'total_likes': total_likes,
+            'total_comments': total_comments
+        },
+        'post_stats': post_stats
+    })
+
 # === CHẠY APP ===
 if __name__ == '__main__':
     with app.app_context():
         # Đảm bảo tất cả các bảng được tạo
         db.create_all()
-        
-        # Tạo admin nếu chưa có
-        if not User.query.filter_by(email='admin@momconnect.com').first():
-            hashed = generate_password_hash('admin123')
-            admin = User(
-                name='Admin MomConnect',
-                email='admin@momconnect.com',
-                password=hashed,
-                role='admin',
-                points=9999,
-                is_verified_expert=True
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("ĐÃ TẠO TÀI KHOẢN ADMIN:")
-            print("Email: admin@momconnect.com")
-            print("Mật khẩu: admin123")
 
     socketio.run(app, debug=True, port=5000, use_reloader=False)
     # KHÔNG DÙNG app.run()!

@@ -28,7 +28,31 @@
                             class="w-14 h-14 rounded-full object-cover ring-4 ring-pink-200 shadow-lg">
                         <div>
                             <div class="flex items-center gap-3">
-                                <h3 class="text-xl font-bold text-gray-900">{{ post.author.name }}</h3>
+                                <div class="flex flex-col">
+                                    <!-- TÊN NGƯỜI DÙNG -->
+                                    <a href="{{ url_for('user_profile', user_id=post.author.id) }}"
+                                        class="text-xl font-bold text-gray-900 hover:text-pink-600 hover:underline transition">
+                                        {{ post.author.name }}
+                                    </a>
+
+                                    <!-- HUY HIỆU CHỈ HIỆN NẾU KHÔNG PHẢI ADMIN -->
+                                    {% if post.author.role != 'admin' %}
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <i class="fas fa-medal text-sm
+                                            {% if 'Ứng viên Chuyên gia' in post.author.badge %}text-purple-600
+                                            {% elif 'Thành Viên Bạc' in post.author.badge %}text-gray-500
+                                            {% elif 'Thành Viên Đồng' in post.author.badge %}text-orange-500
+                                            {% else %}text-green-600{% endif %}"></i>
+                                        <span class="text-sm font-medium
+                                            {% if 'Ứng viên Chuyên gia' in post.author.badge %}text-purple-600
+                                            {% elif 'Thành Viên Bạc' in post.author.badge %}text-gray-600
+                                            {% elif 'Thành Viên Đồng' in post.author.badge %}text-orange-600
+                                            {% else %}text-green-700{% endif %}">
+                                            {{ post.author.badge }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                </div>
                                 {% if post.author.is_verified_expert %}
                                 <span
                                     class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
@@ -79,7 +103,8 @@
 
             <!-- Nội dung bài viết -->
             <div class="p-6 pt-4">
-                <a href="{{ url_for('post_detail', post_id=post.id) }}" class="block">
+                <a href="{{ url_for('post_detail', post_id=post.id) }}" onclick="trackView({{ post.id }})"
+                    class="block">
                     <h2 class="text-2xl font-bold text-gray-900 hover:text-pink-600 transition mb-3">
                         {{ post.title }}
                     </h2>
@@ -148,6 +173,11 @@
                             <i class="fas fa-comment text-2xl text-blue-600 group-hover:scale-110 transition"></i>
                             <span class="font-bold text-blue-700" id="comment-count-{{ post.id }}">{{
                                 post.comments_count }} Bình luận</span>
+                        </button>
+                        <button class="flex items-center gap-2 group">
+                            <i class="fas fa-eye text-2xl text-indigo-600 group-hover:scale-110 transition"></i>
+                            <span class="font-bold text-indigo-700 view-count" id="view-count-{{ post.id }}">{{
+                                post.views|default(0) }} Lượt xem</span>
                         </button>
                         <button onclick="toggleShareMenu({{ post.id }})" class="flex items-center gap-2 group relative">
                             <i class="fas fa-share text-2xl text-green-600 group-hover:scale-110 transition"></i>
@@ -333,8 +363,26 @@
             <div class="text-center">
                 <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
                     class="w-24 h-24 rounded-full mx-auto ring-8 ring-white shadow-2xl mb-4 object-cover">
-                <h3 class="text-2xl font-bold">{{ current_user.name }}</h3>
-                <p class="mt-2 text-pink-100">{{ current_user.points }} điểm tích lũy</p>
+                <div class="text-center">
+                    <h3 class="text-2xl font-bold text-white">{{ current_user.name }}</h3>
+
+                    <!-- HUY HIỆU CHỈ HIỆN NẾU KHÔNG PHẢI ADMIN -->
+                    {% if current_user.role != 'admin' %}
+                    <div class="flex items-center justify-center gap-2 mt-2">
+                        <i class="fas fa-medal text-lg
+                                {% if 'Ứng viên Chuyên gia' in current_user.badge %}text-purple-300
+                                {% elif 'Thành Viên Bạc' in current_user.badge %}text-gray-300
+                                {% elif 'Thành Viên Đồng' in current_user.badge %}text-orange-300
+                                {% else %}text-green-300{% endif %}"></i>
+                        <span class="text-lg font-medium text-pink-100">
+                            {{ current_user.badge }}
+                        </span>
+                    </div>
+                    {% endif %}
+
+                    <p class="mt-2 text-pink-100 opacity-90">{{ current_user.points }} điểm tích lũy</p>
+                </div>
+
                 <a href="{{ url_for('profile') }}"
                     class="mt-6 inline-block px-8 py-3 bg-white text-pink-600 rounded-full font-bold hover:shadow-xl transition">
                     Cập nhật hồ sơ
@@ -352,7 +400,17 @@
                     <div class="flex items-center gap-3">
                         <img src="{{ url_for('static', filename=friend.avatar or 'images/default-avatar.png') }}"
                             class="w-12 h-12 rounded-full ring-2 ring-pink-200 object-cover">
-                        <span class="font-medium">{{ friend.name }}</span>
+                        <div>
+                            <p class="font-bold">
+                                <a href="{{ url_for('user_profile', user_id=friend.id) }}"
+                                    class="hover:text-pink-600 hover:underline transition">
+                                    {{ friend.name }}
+                                </a>
+                            </p>
+                            <p class="text-xs text-gray-500 flex items-center gap-1">
+                                <i class="fas fa-medal text-xs"></i> {{ friend.badge }}
+                            </p>
+                        </div>
                     </div>
                     <button onclick="openChat({{ friend.id }})" class="text-blue-600 hover:text-blue-700">
                         <i class="fas fa-comment-dots text-xl"></i>
@@ -375,7 +433,12 @@
                     <div class="flex items-center gap-3">
                         <img src="{{ url_for('static', filename=user.avatar or 'images/default-avatar.png') }}"
                             class="w-12 h-12 rounded-full ring-2 ring-pink-200 object-cover">
-                        <span class="font-medium">{{ user.name }}</span>
+                        <span class="font-medium">
+                            <a href="{{ url_for('user_profile', user_id=user.id) }}"
+                                class="hover:text-pink-600 hover:underline transition">
+                                {{ user.name }}
+                            </a>
+                        </span>
                     </div>
                     <button onclick="handleFriendAction('{{ user.id }}', 'add_friend', this)"
                         class="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full text-sm font-medium hover:shadow-lg transition">
@@ -1407,68 +1470,36 @@
     function showReplyForm(commentId) {
         const replyForm = document.getElementById(`reply-form-${commentId}`);
 
-        // Hide all other reply forms
-        document.querySelectorAll('[id^="reply-form-"]').forEach(form => {
-            if (form.id !== `reply-form-${commentId}`) {
-                form.classList.add('hidden');
-            }
-        });
+        // Lấy postId từ comment container
+        const commentContainer = document.getElementById(`comment-${commentId}`);
+        const postId = commentContainer.closest('[id^="comments-section-"]')?.id.split('-')[2]
+            || document.querySelector('[id^="comment-input-"]')?.id.split('-')[2];
 
-        // Create reply form if it doesn't exist
         if (replyForm.innerHTML === '') {
             replyForm.innerHTML = `
-                <div class="flex gap-3 mt-2">
-                    <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
-                        class="w-8 h-8 rounded-full object-cover">
-                    <div class="flex-1">
-                        <textarea id="reply-input-${commentId}" 
-                            placeholder="Viết trả lời..."
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 outline-none resize-none"
-                            rows="2"
-                            data-post-id="${commentId}"
-                            onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitReply(${commentId}); }"></textarea>
-                        <div class="flex justify-between mt-2">
-                            <div class="flex gap-2">
-                                <label class="cursor-pointer text-gray-600 hover:text-pink-600">
-                                    <i class="fas fa-image"></i>
-                                    <input type="file" id="reply-file-${commentId}" accept="image/*,video/*"
-                                        class="hidden" onchange="previewReplyMedia(this, ${commentId})">
-                                </label>
-                                <button onclick="toggleReplyStickerPicker(${commentId})"
-                                    class="text-gray-600 hover:text-yellow-600">
-                                    <i class="fas fa-smile"></i>
-                                </button>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="hideReplyForm(${commentId})" 
-                                    class="px-3 py-1 text-gray-600 hover:text-gray-800">
-                                    Hủy
-                                </button>
-                                <button onclick="submitReply(${commentId})"
-                                    class="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                                    Trả lời
-                                </button>
-                            </div>
-                        </div>
-                        <div id="reply-media-preview-${commentId}"></div>
-                        <div id="reply-sticker-picker-${commentId}" class="hidden mt-2 p-2 bg-white rounded-lg shadow border">
-                            <div class="grid grid-cols-6 gap-1">
-                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '😀')">😀</div>
-                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '😂')">😂</div>
-                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '❤️')">❤️</div>
-                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '👍')">👍</div>
-                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '🎉')">🎉</div>
-                                <div class="cursor-pointer hover:bg-gray-100 p-1 rounded" onclick="insertReplySticker(${commentId}, '😢')">😢</div>
-                            </div>
-                        </div>
+            <div class="flex gap-3 mt-2">
+                <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
+                    class="w-8 h-8 rounded-full object-cover">
+                <div class="flex-1">
+                    <textarea id="reply-input-${commentId}" 
+                        placeholder="Viết trả lời..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 outline-none resize-none"
+                        rows="2"
+                        data-post-id="${postId}"
+                        data-parent-id="${commentId}"
+                        onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitReply(${commentId}, ${postId}); }"></textarea>
+                    <div class="flex justify-end gap-2 mt-2">
+                        <button onclick="hideReplyForm(${commentId})" 
+                            class="px-3 py-1 text-gray-600 hover:text-gray-800">Hủy</button>
+                        <button onclick="submitReply(${commentId}, ${postId})"
+                            class="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Trả lời</button>
                     </div>
                 </div>
-            `;
+            </div>
+        `;
         }
 
         replyForm.classList.toggle('hidden');
-
-        // Focus on the reply input
         if (!replyForm.classList.contains('hidden')) {
             document.getElementById(`reply-input-${commentId}`).focus();
         }
@@ -1555,25 +1586,20 @@
     }
 
     // Submit reply
-    async function submitReply(commentId) {
+    async function submitReply(commentId, postId) {
         const textarea = document.getElementById(`reply-input-${commentId}`);
         const content = textarea.value.trim();
-        const postId = textarea.getAttribute('data-post-id');
 
-        if (!content && !commentMedia[commentId]?.reply) {
-            showToast('Vui lòng nhập nội dung trả lời', false);
+        if (!content) {
+            showToast('Vui lòng nhập nội dung', false);
             return;
         }
 
+        const formData = new FormData();
+        formData.append('content', content);
+        formData.append('parent_id', commentId);
+
         try {
-            const formData = new FormData();
-            formData.append('content', content);
-            formData.append('parent_id', commentId);
-
-            if (commentMedia[commentId]?.reply) {
-                formData.append('media', commentMedia[commentId].reply);
-            }
-
             const res = await fetch(`/comment/${postId}`, {
                 method: 'POST',
                 body: formData
@@ -1582,27 +1608,17 @@
             const data = await res.json();
 
             if (data.success) {
-                // Clear input
                 textarea.value = '';
-                removeReplyMedia(commentId);
                 hideReplyForm(commentId);
+                showToast('Đã gửi trả lời!');
 
-                // Update comment count
-                const commentCount = document.getElementById(`comment-count-${postId}`);
-                if (commentCount) {
-                    const currentCount = parseInt(commentCount.textContent);
-                    commentCount.textContent = currentCount + 1;
-                }
-
-                // Add reply to list
-                addCommentToList(postId, data.comment, true, commentId);
-
-                showToast('Đã gửi trả lời thành công!');
+                // Reload để hiển thị reply mới
+                location.reload();
             } else {
-                showToast(data.error || 'Không thể gửi trả lời', false);
+                showToast(data.error || 'Lỗi gửi reply', false);
             }
         } catch (error) {
-            console.error('Error submitting reply:', error);
+            console.error('Error:', error);
             showToast('Lỗi kết nối', false);
         }
     }
@@ -1892,6 +1908,52 @@
                 menu.classList.add('hidden');
             });
         }
+    });
+
+    // Thêm vào phần script của trang home
+    function trackView(postId) {
+        // Gửi request đến backend để tăng lượt xem
+        fetch(`/track_view/${postId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Cập nhật số lượt xem trên giao diện
+                    const viewElement = document.getElementById(`view-count-${postId}`);
+                    if (viewElement) {
+                        viewElement.textContent = `${data.views} Lượt xem`;
+                    }
+                }
+            })
+            .catch(error => console.error('Error tracking view:', error));
+    }
+
+    // Thêm vào phần script của trang home
+    document.addEventListener('DOMContentLoaded', function () {
+        // Gửi request để tăng lượt xem cho mỗi bài viết trên trang home
+        {% for post in posts %}
+        fetch('/track_home_view/{{ post.id }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Cập nhật số lượt xem trên giao diện
+                    const viewElement = document.getElementById(`view-count-{{ post.id }}`);
+                    if (viewElement) {
+                        viewElement.textContent = `${data.views} Lượt xem`;
+                    }
+                }
+            })
+            .catch(error => console.error('Error tracking home view:', error));
+        {% endfor %}
     });
 
     console.log('🎉 Home page with Facebook-style friend system loaded!');

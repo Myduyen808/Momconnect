@@ -2,6 +2,63 @@
 {% extends "base.html" %}
 {% block title %}Admin Dashboard - MomConnect{% endblock %}
 
+<style>
+    /* Modal styles */
+    .modal-overlay {
+        position: fixed !important;
+        inset: 0 !important;
+        background-color: rgba(0, 0, 0, 0.6) !important;
+        z-index: 9999 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 1rem !important;
+    }
+
+    .modal-overlay.hidden {
+        display: none !important;
+    }
+
+    .modal-content {
+        background: white !important;
+        border-radius: 1.5rem !important;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+        max-width: 42rem !important;
+        width: 100% !important;
+        padding: 2rem !important;
+        position: relative !important;
+    }
+
+    /* Ensure modal is on top */
+    #userEditModal {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        z-index: 9999 !important;
+    }
+
+    /* Tab styles */
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    .tab-btn {
+        border-bottom: 2px solid transparent;
+        color: #6b7280;
+    }
+
+    .tab-btn.active {
+        border-bottom-color: #ec4899;
+        color: #ec4899;
+    }
+</style>
+
 {% block content %}
 <div class="max-w-7xl mx-auto">
     <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
@@ -16,19 +73,24 @@
     <div class="bg-white rounded-xl shadow-lg overflow-hidden">
         <div class="border-b border-gray-200">
             <nav class="flex space-x-8 px-6" aria-label="Tabs">
-                <button onclick="showTab('stats')" class="tab-btn active py-4 px-1 border-b-2 font-medium text-sm" data-tab="stats">
+                <button onclick="showTab('stats')" class="tab-btn active py-4 px-1 border-b-2 font-medium text-sm"
+                    data-tab="stats">
                     <i class="fas fa-chart-pie mr-2"></i> Thống kê
                 </button>
-                <button onclick="showTab('users')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm" data-tab="users">
+                <button onclick="showTab('users')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm"
+                    data-tab="users">
                     <i class="fas fa-users mr-2"></i> Người dùng
                 </button>
-                <button onclick="showTab('experts')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm" data-tab="experts">
+                <button onclick="showTab('experts')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm"
+                    data-tab="experts">
                     <i class="fas fa-user-check mr-2"></i> Chuyên gia
                 </button>
-                <button onclick="showTab('posts')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm" data-tab="posts">
+                <button onclick="showTab('posts')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm"
+                    data-tab="posts">
                     <i class="fas fa-newspaper mr-2"></i> Bài viết
                 </button>
-                <button onclick="showTab('reports')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm" data-tab="reports">
+                <button onclick="showTab('reports')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm"
+                    data-tab="reports">
                     <i class="fas fa-flag mr-2"></i> Báo cáo
                 </button>
             </nav>
@@ -36,28 +98,216 @@
 
         <div class="p-6">
             <!-- TAB: Thống kê -->
+            <!-- TAB: Thống kê -->
             <div id="stats" class="tab-content">
-                {% include "admin/partials/stats.html" %}
+                <!-- Thống kê tổng quan -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+                    <div class="stat-card bg-gradient-to-br from-pink-400 to-purple-600">
+                        <i class="fas fa-users text-4xl text-white opacity-80"></i>
+                        <p class="text-4xl font-bold text-white">{{ stats.total_users }}</p>
+                        <p class="text-white opacity-90">Tổng người dùng</p>
+                    </div>
+
+                    <div class="stat-card bg-gradient-to-br from-blue-400 to-cyan-600">
+                        <i class="fas fa-newspaper text-4xl text-white opacity-80"></i>
+                        <p class="text-4xl font-bold text-white">{{ stats.total_posts }}</p>
+                        <p class="text-white opacity-90">Tổng bài viết</p>
+                    </div>
+
+                    <div class="stat-card bg-gradient-to-br from-green-400 to-teal-600">
+                        <i class="fas fa-user-md text-4xl text-white opacity-80"></i>
+                        <p class="text-4xl font-bold text-white">{{ stats.total_experts }}</p>
+                        <p class="text-white opacity-90">Chuyên gia</p>
+                    </div>
+
+                    <div class="stat-card bg-gradient-to-br from-yellow-400 to-orange-600">
+                        <i class="fas fa-coins text-4xl text-white opacity-80"></i>
+                        <p class="text-4xl font-bold text-white">{{ stats.total_points }}</p>
+                        <p class="text-white opacity-90">Tổng điểm tích lũy</p>
+                    </div>
+                </div>
+
+                <!-- Thống kê theo người dùng -->
+                <!-- Thống kê theo người dùng -->
+                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-6">Thống kê theo người dùng</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        ID
+                                    </th>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Người dùng
+                                    </th>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Email
+                                    </th>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Vai trò
+                                    </th>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Điểm
+                                    </th>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Bài viết
+                                    </th>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Lượt xem
+                                    </th>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Lượt thích
+                                    </th>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Bình luận
+                                    </th>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Trạng thái
+                                    </th>
+                                    <th
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Hành động
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                {% for user_stat in user_stats %}
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        #{{ user_stat.id }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="flex-shrink-0 h-10 w-10">
+                                                <img class="h-10 w-10 rounded-full"
+                                                    src="{{ url_for('static', filename=user_stat.avatar or 'images/default-avatar.png') }}"
+                                                    alt="">
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">{{ user_stat.name }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ user_stat.email }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            {% if user_stat.role == 'admin' %}bg-red-100 text-red-800
+                            {% elif user_stat.is_verified_expert %}bg-green-100 text-green-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                            {% if user_stat.role == 'admin' %}Admin
+                                            {% elif user_stat.is_verified_expert %}Chuyên gia
+                                            {% else %}Người dùng{% endif %}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                                        {{ user_stat.points }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user_stat.post_count }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user_stat.total_views }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user_stat.total_likes }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user_stat.total_comments }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        {% if user_stat.is_active %}
+                                        <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">Hoạt
+                                            động</span>
+                                        {% else %}
+                                        <span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs">Bị
+                                            khóa</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <button onclick="viewUserStats({{ user_stat.id }})"
+                                            class="text-indigo-600 hover:text-indigo-900 mr-3">
+                                            Xem chi tiết
+                                        </button>
+                                        <button type="button"
+                                            onclick="openUserEditModal({{ user_stat.id }}, '{{ user_stat.name|replace("'", "\\'") }}', '{{ user_stat.email }}', '{{ user_stat.role }}', {{ user_stat.points }})"
+                                            class="text-blue-600 hover:text-blue-800 mr-3" title="Chỉnh sửa">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        {% if user_stat.id != current_user.id %}
+                                        {% if user_stat.is_active %}
+                                        <a href="{{ url_for('admin_user_action', user_id=user_stat.id, action='block') }}"
+                                            class="text-red-600 hover:text-red-800" title="Khóa tài khoản"
+                                            onclick="return confirm('Khóa tài khoản {{ user_stat.name }}?')">
+                                            <i class="fas fa-ban"></i>
+                                        </a>
+                                        {% else %}
+                                        <a href="{{ url_for('admin_user_action', user_id=user_stat.id, action='unblock') }}"
+                                            class="text-green-600 hover:text-green-800" title="Mở khóa"
+                                            onclick="return confirm('Mở khóa tài khoản {{ user_stat.name }}?')">
+                                            <i class="fas fa-unlock"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% else %}
+                                        <span class="text-gray-400 text-xs">Bạn</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+
+                <!-- Thống kê theo chủ đề -->
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-6">Thống kê theo chủ đề</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {% set topics = {'health': 'Sức khỏe', 'nutrition': 'Dinh dưỡng', 'story': 'Tâm sự', 'tips':
+                        'Mẹo hay', 'other': 'Khác'} %}
+                        {% for code, name in topics.items() %}
+                        <div class="bg-gray-50 rounded-lg p-4 text-center hover:shadow-md transition">
+                            <p class="font-medium text-gray-700">{{ name }}</p>
+                            <p class="text-3xl font-bold text-pink-600 mt-2">{{ topic_stats.get(code, 0) }}</p>
+                            <p class="text-sm text-gray-500">bài viết</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
 
             <!-- TAB: Người dùng -->
             <div id="users" class="tab-content hidden">
-                {% include "admin/partials/users.html" %}
+                {% include 'admin/partials/users.html' with context %}
             </div>
 
             <!-- TAB: Chuyên gia -->
             <div id="experts" class="tab-content hidden">
-                {% include "admin/partials/experts.html" %}
+                {% include 'admin/partials/experts.html' with context %}
             </div>
 
             <!-- TAB: Bài viết (MỚI) -->
             <div id="posts" class="tab-content hidden">
-                {% include "admin/partials/posts.html" %}
+                {% include 'admin/partials/posts.html' with context %}
             </div>
 
             <!-- TAB: Báo cáo -->
             <div id="reports" class="tab-content hidden">
-                {% include "admin/partials/reports.html" %}
+                {% include 'admin/partials/reports.html' with context %}
             </div>
         </div>
     </div>
@@ -80,11 +330,6 @@
         showTab('stats');
     });
 
-    // Các hàm cũ vẫn giữ nguyên
-    function openEditModal(userId, name, email, role, points, avatar) { /* giữ nguyên */ }
-    function closeEditModal() { /* giữ nguyên */ }
-    document.getElementById('editUserForm')?.addEventListener('submit', /* giữ nguyên */);
-
     // Hàm mở modal xem chi tiết bài viết
     function openPostModal(postId, title, content, author, created_at, is_locked, commentCount) {
         document.getElementById('modal_post_id').value = postId;
@@ -95,33 +340,57 @@
         document.getElementById('modal_comment_count').textContent = commentCount;
         document.getElementById('lock_status').textContent = is_locked ? 'Đã khóa' : 'Bình thường';
         document.getElementById('lock_status').className = is_locked ? 'text-red-600 font-bold' : 'text-green-600 font-bold';
-        
+
         // Load bình luận
         fetch(`/admin/post/${postId}/comments`)
-            .then(r => r.json())
+            .then(response => {
+                if (!response.ok) throw new Error('Network error');
+                return response.json();
+            })
             .then(data => {
                 const list = document.getElementById('comments_list');
                 list.innerHTML = '';
-                if (data.comments.length === 0) {
-                    list.innerHTML = '<p class="text-gray-500">Chưa có bình luận nào</p>';
-                } else {
-                    data.comments.forEach(c => {
-                        const div = document.createElement('div');
-                        div.className = 'flex justify-between items-start bg-gray-50 p-3 rounded mb-2';
-                        div.innerHTML = `
-                            <div>
-                                <strong>${c.author}</strong> <span class="text-xs text-gray-500">${c.created_at}</span><br>
-                                <p class="mt-1">${c.content.replace(/\n/g, '<br>')}</p>
-                            </div>
-                            <button onclick="deleteComment(${c.id}, this)" class="text-red-600 hover:text-red-800 text-sm">
-                                Xóa
-                            </button>
-                        `;
-                        list.appendChild(div);
-                    });
+                document.getElementById('modal_comment_count').textContent = data.total || 0;
+
+                if (!data.comments || data.comments.length === 0) {
+                    list.innerHTML = '<p class="text-gray-500 text-center py-8">Chưa có bình luận nào</p>';
+                    return;
                 }
+
+                data.comments.forEach(c => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-gray-50 p-4 rounded-lg';
+
+                    let mediaHtml = '';
+                    if (c.image) {
+                        mediaHtml = `<img src="/static/${c.image}" class="mt-3 max-w-xs rounded cursor-pointer" onclick="openImageModal('/static/${c.image}')">`;
+                    } else if (c.video) {
+                        mediaHtml = `<video controls class="mt-3 max-w-xs rounded"><source src="/static/${c.video}"></video>`;
+                    } else if (c.sticker) {
+                        mediaHtml = `<p class="text-5xl mt-3">${c.sticker}</p>`;
+                    }
+
+                    div.innerHTML = `
+                <div class="flex justify-between">
+                    <div>
+                        <strong>${c.author.name}</strong>
+                        <span class="text-xs text-gray-500 ml-2">${c.created_at}</span>
+                        <p class="mt-2">${c.content.replace(/\n/g, '<br>')}</p>
+                        ${mediaHtml}
+                    </div>
+                    <button onclick="deleteComment(${c.id})" class="text-red-600 hover:text-red-800">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+                    list.appendChild(div);
+                });
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                document.getElementById('comments_list').innerHTML = '<p class="text-red-500">Lỗi tải bình luận!</p>';
             });
-        
+
         document.getElementById('postDetailModal').classList.remove('hidden');
     }
 
@@ -131,21 +400,29 @@
 
     function deleteComment(commentId, btn) {
         if (!confirm('Xóa bình luận này?')) return;
-        fetch(`/admin/comment/${commentId}/delete`, {method: 'POST'})
-            .then(r => r.json())
+        fetch(`/admin/comment/${commentId}/delete`, { method: 'POST' })
+            .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    btn.parentElement.parentElement.remove();
+                    btn.closest('.flex.justify-between').remove();
+                    // Cập nhật số lượng bình luận
+                    const countEl = document.getElementById('modal_comment_count');
+                    const currentCount = parseInt(countEl.textContent);
+                    countEl.textContent = currentCount - 1;
                 } else {
-                    alert('Lỗi: ' + data.error);
+                    alert('Lỗi: ' + (data.error || 'Lỗi không xác định'));
                 }
+            })
+            .catch(error => {
+                console.error('Error deleting comment:', error);
+                alert('Lỗi kết nối khi xóa bình luận!');
             });
     }
 
     // Xóa bài viết
     function deletePost(postId) {
         if (!confirm('XÓA HOÀN TOÀN bài viết này? Không thể khôi phục!')) return;
-        fetch(`/admin/post/${postId}/delete`, {method: 'POST'})
+        fetch(`/admin/post/${postId}/delete`, { method: 'POST' })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
@@ -159,7 +436,7 @@
     // Khóa/Mở khóa bài viết
     function toggleLock(postId, current) {
         const action = current ? 'unlock' : 'lock';
-        fetch(`/admin/post/${postId}/${action}`, {method: 'POST'})
+        fetch(`/admin/post/${postId}/${action}`, { method: 'POST' })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
@@ -167,5 +444,305 @@
                 }
             });
     }
+
+    // Thêm hàm xử lý lỗi chung
+    function safeFetch(url, options = {}) {
+        return fetch(url, options)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .catch(error => {
+                console.error('Fetch error:', error);
+                throw error;
+            });
+    }
+
+    // Hàm xem chi tiết thống kê người dùng
+    function viewUserStats(userId) {
+        fetch(`/admin/user/${userId}/stats`)
+            .then(response => response.json())
+            .then(data => {
+                // Hiển thị modal với thông tin chi tiết
+                document.getElementById('modal_user_name').textContent = data.user.name;
+                document.getElementById('modal_user_email').textContent = data.user.email;
+                document.getElementById('modal_user_role').textContent =
+                    data.user.role === 'admin' ? 'Admin' :
+                        data.user.is_verified_expert ? 'Chuyên gia' : 'Người dùng';
+                document.getElementById('modal_user_points').textContent = data.user.points;
+
+                document.getElementById('modal_total_posts').textContent = data.stats.total_posts;
+                document.getElementById('modal_total_views').textContent = data.stats.total_views;
+                document.getElementById('modal_total_likes').textContent = data.stats.total_likes;
+                document.getElementById('modal_total_comments').textContent = data.stats.total_comments;
+
+                // Hiển thị danh sách bài viết
+                const postsList = document.getElementById('modal_posts_list');
+                postsList.innerHTML = '';
+
+                data.post_stats.forEach(post => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <a href="/post/${post.id}" class="text-indigo-600 hover:text-indigo-900">
+                            ${post.title}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${post.views}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${post.likes}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${post.comments}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${post.created_at}
+                    </td>
+                `;
+                    postsList.appendChild(row);
+                });
+
+                // Hiển thị modal
+                document.getElementById('userStatsModal').classList.remove('hidden');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Lỗi khi tải thông tin thống kê!');
+            });
+    }
+
+    function closeUserStatsModal() {
+        document.getElementById('userStatsModal').classList.add('hidden');
+    }
+
+    // Hàm mở modal chỉnh sửa người dùng
+    function openUserEditModal(userId, name, email, role, points) {
+        console.log('Opening modal for user:', userId);
+
+        // Điền dữ liệu vào form
+        document.getElementById('edit_user_id').value = userId;
+        document.getElementById('edit_name').value = name;
+        document.getElementById('edit_email').value = email;
+        document.getElementById('edit_role').value = role;
+        document.getElementById('edit_points').value = points;
+
+        // Hiển thị modal
+        const modal = document.getElementById('userEditModal');
+        modal.classList.remove('hidden');
+
+        // Đảm bảo modal hiển thị
+        setTimeout(() => {
+            modal.style.display = 'flex';
+        }, 10);
+
+        console.log('Modal should be visible now');
+    }
+
+    // Hàm đóng modal chỉnh sửa người dùng
+    function closeUserEditModal() {
+        const modal = document.getElementById('userEditModal');
+        modal.classList.add('hidden');
+        document.getElementById('userEditForm').reset();
+    }
+
+    // Đóng modal khi click bên ngoài
+    document.addEventListener('click', function (event) {
+        const modal = document.getElementById('userEditModal');
+        if (event.target === modal) {
+            closeUserEditModal();
+        }
+    });
+
+    // Xử lý submit form chỉnh sửa người dùng
+    document.addEventListener('DOMContentLoaded', function () {
+        const userEditForm = document.getElementById('userEditForm');
+        if (userEditForm) {
+            userEditForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                console.log('Form submitted');
+
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang lưu...';
+                submitBtn.disabled = true;
+
+                try {
+                    const formData = new FormData(this);
+                    console.log('FormData:', formData);
+
+                    const res = await fetch('/admin/user/edit', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    console.log('Response status:', res.status);
+                    const data = await res.json();
+                    console.log('Response data:', data);
+
+                    if (data.success) {
+                        alert('✅ Cập nhật người dùng thành công!');
+                        location.reload();
+                    } else {
+                        alert('❌ Lỗi: ' + (data.error || 'Không thể cập nhật'));
+                    }
+                } catch (err) {
+                    console.error('Error:', err);
+                    alert('❌ Lỗi kết nối đến server!');
+                } finally {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+            });
+        }
+    });
 </script>
+<!-- Modal hiển thị chi tiết thống kê người dùng -->
+<div id="userStatsModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Thống kê chi tiết người dùng</h3>
+                <button onclick="closeUserStatsModal()" class="text-gray-400 hover:text-gray-500">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-medium text-gray-700 mb-2">Thông tin người dùng</h4>
+                    <p class="text-sm text-gray-600">Tên: <span id="modal_user_name" class="font-medium"></span></p>
+                    <p class="text-sm text-gray-600">Email: <span id="modal_user_email" class="font-medium"></span></p>
+                    <p class="text-sm text-gray-600">Vai trò: <span id="modal_user_role" class="font-medium"></span></p>
+                    <p class="text-sm text-gray-600">Điểm: <span id="modal_user_points" class="font-medium"></span></p>
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="font-medium text-gray-700 mb-2">Thống kê tổng quan</h4>
+                    <p class="text-sm text-gray-600">Bài viết: <span id="modal_total_posts" class="font-medium"></span>
+                    </p>
+                    <p class="text-sm text-gray-600">Lượt xem: <span id="modal_total_views" class="font-medium"></span>
+                    </p>
+                    <p class="text-sm text-gray-600">Lượt thích: <span id="modal_total_likes"
+                            class="font-medium"></span></p>
+                    <p class="text-sm text-gray-600">Bình luận: <span id="modal_total_comments"
+                            class="font-medium"></span></p>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="font-medium text-gray-700 mb-2">Thống kê theo bài viết</h4>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Tiêu đề
+                                </th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Lượt xem
+                                </th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Lượt thích
+                                </th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Bình luận
+                                </th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Ngày đăng
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="modal_posts_list">
+                            <!-- Dữ liệu sẽ được thêm bằng JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal chỉnh sửa người dùng -->
+<div id="userEditModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-gray-800">
+                <i class="fas fa-user-edit mr-2"></i>Chỉnh sửa người dùng
+            </h3>
+            <button type="button" onclick="closeUserEditModal()" class="text-gray-500 hover:text-gray-700 text-3xl">
+                &times;
+            </button>
+        </div>
+
+        <form id="userEditForm" enctype="multipart/form-data">
+            <input type="hidden" name="user_id" id="edit_user_id">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-user mr-1"></i>Tên
+                    </label>
+                    <input type="text" name="name" id="edit_name" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-pink-300 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-envelope mr-1"></i>Email
+                    </label>
+                    <input type="email" name="email" id="edit_email" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-pink-300 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-shield-alt mr-1"></i>Vai trò
+                    </label>
+                    <select name="role" id="edit_role"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-pink-300 outline-none">
+                        <option value="user">Người dùng</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-coins mr-1"></i>Điểm tích lũy
+                    </label>
+                    <input type="number" name="points" id="edit_points" min="0" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-pink-300 outline-none">
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-image mr-1"></i>Avatar mới (tùy chọn)
+                </label>
+                <input type="file" name="avatar" accept="image/*"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-xl">
+                <p class="text-xs text-gray-500 mt-2">Để trống nếu không muốn thay đổi</p>
+            </div>
+
+            <div class="mt-8 flex justify-end gap-4">
+                <button type="button" onclick="closeUserEditModal()"
+                    class="px-6 py-3 bg-gray-200 text-gray-700 rounded-full font-bold hover:bg-gray-300 transition">
+                    <i class="fas fa-times mr-2"></i>Hủy
+                </button>
+                <button type="submit"
+                    class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full font-bold hover:shadow-xl transition">
+                    <i class="fas fa-save mr-2"></i>Lưu thay đổi
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}

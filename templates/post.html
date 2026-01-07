@@ -6,7 +6,8 @@
     <div class="bg-white rounded-3xl shadow-2xl p-8">
         <div class="flex items-center justify-between mb-8">
             <h1 class="text-3xl font-bold text-gray-900">Đăng bài chia sẻ</h1>
-            <a href="{{ url_for('home') }}" class="text-pink-600 hover:text-pink-700 font-medium flex items-center gap-2">
+            <a href="{{ url_for('home') }}"
+                class="text-pink-600 hover:text-pink-700 font-medium flex items-center gap-2">
                 <i class="fas fa-arrow-left"></i> Quay lại
             </a>
         </div>
@@ -37,15 +38,39 @@
                 </select>
             </div>
 
+            <div>
+                <label class="block text-lg font-medium text-gray-700 mb-3">Loại bài viết</label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label
+                        class="flex items-center p-5 bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl border-2 border-blue-300 cursor-pointer hover:shadow-lg transition">
+                        <input type="radio" name="post_type" value="question" checked
+                            class="mr-4 text-blue-600 text-xl">
+                        <div>
+                            <div class="font-bold text-blue-900">Hỏi ý kiến cộng đồng</div>
+                            <div class="text-sm text-blue-700">Cần mẹ nào giúp đỡ, tư vấn</div>
+                        </div>
+                    </label>
+                    <label
+                        class="flex items-center p-5 bg-gradient-to-r from-orange-50 to-orange-100 rounded-2xl border-2 border-orange-300 cursor-pointer hover:shadow-lg transition">
+                        <input type="radio" name="post_type" value="sharing" class="mr-4 text-orange-600 text-xl">
+                        <div>
+                            <div class="font-bold text-orange-900">Chia sẻ kinh nghiệm</div>
+                            <div class="text-sm text-orange-700">Mẹo hay, câu chuyện nuôi con (+20 điểm)</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
             <!-- ĐĂNG NHIỀU ẢNH + VIDEO -->
             <div>
                 <label class="block text-lg font-medium text-gray-700 mb-4">
                     Ảnh & Video (tùy chọn - được đăng nhiều ảnh + 1 video)
                 </label>
-                
-                <div class="border-2 border-dashed border-pink-300 rounded-2xl p-8 text-center hover:border-pink-500 transition">
-                    <input type="file" name="media" multiple accept="image/*,video/*"
-                        class="hidden" id="media-input" onchange="previewMedia(this)">
+
+                <div
+                    class="border-2 border-dashed border-pink-300 rounded-2xl p-8 text-center hover:border-pink-500 transition">
+                    <input type="file" name="media" multiple accept="image/*,video/*" class="hidden" id="media-input"
+                        onchange="previewMedia(this)">
                     <label for="media-input" class="cursor-pointer">
                         <i class="fas fa-cloud-upload-alt text-6xl text-pink-400 mb-4"></i>
                         <p class="text-xl text-gray-600 font-medium">Click để chọn ảnh hoặc video</p>
@@ -72,35 +97,35 @@
 </div>
 
 <script>
-function previewMedia(input) {
-    const preview = document.getElementById('media-preview');
-    preview.innerHTML = '';
-    const files = input.files;
+    function previewMedia(input) {
+        const preview = document.getElementById('media-preview');
+        preview.innerHTML = '';
+        const files = input.files;
 
-    for (let file of files) {
-        const div = document.createElement('div');
-        div.className = 'relative group';
+        for (let file of files) {
+            const div = document.createElement('div');
+            div.className = 'relative group';
 
-        if (file.type.startsWith('image/')) {
-            const img = document.createElement('img');
-            img.src = URL.createObjectURL(file);
-            img.className = 'w-full h-48 object-cover rounded-xl shadow-lg';
-            div.appendChild(img);
-        } else if (file.type.startsWith('video/')) {
-            const video = document.createElement('video');
-            video.src = URL.createObjectURL(file);
-            video.controls = true;
-            video.className = 'w-full h-48 object-cover rounded-xl shadow-lg';
-            div.appendChild(video);
+            if (file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.className = 'w-full h-48 object-cover rounded-xl shadow-lg';
+                div.appendChild(img);
+            } else if (file.type.startsWith('video/')) {
+                const video = document.createElement('video');
+                video.src = URL.createObjectURL(file);
+                video.controls = true;
+                video.className = 'w-full h-48 object-cover rounded-xl shadow-lg';
+                div.appendChild(video);
 
-            const overlay = document.createElement('div');
-            overlay.className = 'absolute inset-0 bg-black bg-opacity-40 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition';
-            overlay.innerHTML = '<i class="fas fa-play-circle text-white text-5xl"></i>';
-            div.appendChild(overlay);
+                const overlay = document.createElement('div');
+                overlay.className = 'absolute inset-0 bg-black bg-opacity-40 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition';
+                overlay.innerHTML = '<i class="fas fa-play-circle text-white text-5xl"></i>';
+                div.appendChild(overlay);
+            }
+
+            preview.appendChild(div);
         }
-
-        preview.appendChild(div);
     }
-}
 </script>
 {% endblock %}

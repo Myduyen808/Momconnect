@@ -1,40 +1,439 @@
-{% if expert_requests %}
-<div class="space-y-4">
-    {% for req in expert_requests %}
-    <div class="border rounded-lg p-4 hover:shadow transition">
-        <div class="flex justify-between items-start">
-            <div>
-                <p class="font-semibold">{{ req.user.name }} <span class="text-sm text-gray-500">#{{ req.user.id
-                        }}</span></p>
-                <p class="text-sm text-gray-600">Email: {{ req.user.email }}</p>
-                <p class="mt-2"><strong>Lý do:</strong> {{ req.reason }}</p>
-                {% if req.certificate %}
-                <a href="{{ url_for('static', filename=req.certificate) }}" target="_blank"
-                    class="text-blue-600 text-sm hover:underline">
-                    Xem chứng chỉ
+<!-- templates/admin/partials/experts.html -->
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <h3 class="text-2xl font-bold text-gray-800">
+            <i class="fas fa-user-check mr-2 text-purple-600"></i>
+            Yêu cầu trở thành chuyên gia
+        </h3>
+        <span class="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-full font-semibold">
+            {{ expert_requests | length }} yêu cầu chờ duyệt
+        </span>
+    </div>
+
+    {% if expert_requests %}
+    <div class="overflow-x-auto bg-white rounded-xl shadow">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gradient-to-r from-purple-50 to-pink-50">
+                <tr>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Người dùng
+                    </th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Lĩnh vực
+                    </th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Thống kê
+                    </th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Bằng cấp
+                    </th>
+                    <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Ngày gửi
+                    </th>
+                    <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Hành động
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for req in expert_requests %}
+                {% set total_posts = req.user.posts.count() %}
+                {% set total_comments = Comment.query.filter_by(user_id=req.user.id).count() %}
+                {% set avg_likes = db.session.query(func.avg(Post.likes)).filter(Post.user_id == req.user.id).scalar()
+                or 0 %}
+
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-6 py-4">
+                        <div class="flex items-center">
+                            <img class="h-12 w-12 rounded-full ring-2 ring-purple-200"
+                                src="{{ url_for('static', filename=req.user.avatar or 'images/default-avatar.png') }}"
+                                alt="{{ req.user.name }}">
+                            <div class="ml-4">
+                                <div class="text-sm font-bold text-gray-900">{{ req.user.name }}</div>
+                                <div class="text-sm text-gray-500">{{ req.user.email }}</div>
+                                <div class="text-xs text-purple-600 font-semibold mt-1">
+                                    <i class="fas fa-star"></i> {{ req.user.points }} điểm
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+
+                    <td class="px-6 py-4">
+                        <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                     {% if req.category == 'dinh_duong' %}bg-green-100 text-green-800
+                                     {% elif req.category == 'suc_khoe' %}bg-blue-100 text-blue-800
+                                     {% elif req.category == 'tam_ly' %}bg-purple-100 text-purple-800
+                                     {% elif req.category == 'giao_duc' %}bg-yellow-100 text-yellow-800
+                                     {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ req.category | replace('_', ' ') | title }}
+                        </span>
+                    </td>
+
+                    <td class="px-6 py-4">
+                        <div class="space-y-1 text-sm">
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-600">Điểm:</span>
+                                <span class="font-semibold text-gray-700">
+                                    {{ req.user.points }} điểm
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-600">Nội dung:</span>
+                                <span
+                                    class="font-bold {% if (total_posts + total_comments) >= 50 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    {{ total_posts + total_comments }}
+                                    {% if (total_posts + total_comments) >= 50 %}
+                                    <i class="fas fa-check-circle ml-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-times-circle ml-1"></i>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-600">TB like:</span>
+                                <span
+                                    class="font-bold {% if avg_likes >= 5 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    {{ "%.1f"|format(avg_likes) }}
+                                    {% if avg_likes >= 5 %}
+                                    <i class="fas fa-check-circle ml-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-times-circle ml-1"></i>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    </td>
+
+                    <td class="px-6 py-4 text-center">
+                        {% if req.certificate %}
+                        <button
+                            onclick="viewCertificate('{{ url_for('static', filename=req.certificate) }}', '{{ req.user.name }}')"
+                            class="inline-flex items-center px-3 py-2 border border-blue-300 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition">
+                            <i class="fas fa-file-image mr-2"></i>
+                            Xem bằng cấp
+                        </button>
+                        {% else %}
+                        <span class="text-gray-400 text-sm italic">Không có</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <i class="far fa-calendar-alt mr-1"></i>
+                        {{ req.created_at.strftime('%d/%m/%Y') }}
+                        <div class="text-xs text-gray-400 mt-1">
+                            {{ req.created_at.strftime('%H:%M') }}
+                        </div>
+                    </td>
+
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex flex-col gap-2">
+                            <button onclick="viewRequestDetail({{ req.id }})"
+                                class="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition text-sm font-medium">
+                                <i class="fas fa-eye mr-1"></i> Xem chi tiết
+                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="approveExpert({{ req.id }}, '{{ req.user.name }}')"
+                                    class="flex-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition text-sm font-medium">
+                                    <i class="fas fa-check"></i> Duyệt
+                                </button>
+                                <button onclick="rejectExpert({{ req.id }}, '{{ req.user.name }}')"
+                                    class="flex-1 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm font-medium">
+                                    <i class="fas fa-times"></i> Từ chối
+                                </button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16 bg-gray-50 rounded-xl">
+        <i class="fas fa-clipboard-list text-6xl text-gray-300 mb-4"></i>
+        <p class="text-gray-500 text-lg font-medium">Không có yêu cầu nào đang chờ duyệt</p>
+        <p class="text-gray-400 text-sm mt-2">Các yêu cầu mới sẽ xuất hiện tại đây</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal xem chi tiết yêu cầu -->
+<div id="requestDetailModal"
+    class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div
+            class="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-t-2xl flex items-center justify-between">
+            <h3 class="text-xl font-bold">
+                <i class="fas fa-user-graduate mr-2"></i>
+                Chi tiết yêu cầu chuyên gia
+            </h3>
+            <button onclick="closeRequestDetailModal()" class="text-white hover:text-gray-200 transition">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+
+        <div id="requestDetailContent" class="p-6">
+            <!-- Nội dung sẽ được load bằng JavaScript -->
+        </div>
+    </div>
+</div>
+
+<!-- Modal xem bằng cấp -->
+<div id="certificateModal"
+    class="fixed inset-0 bg-black bg-opacity-75 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div
+            class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-t-2xl flex items-center justify-between">
+            <h3 class="text-lg font-bold" id="certificateTitle">
+                <i class="fas fa-certificate mr-2"></i>
+                Bằng cấp / Chứng chỉ
+            </h3>
+            <button onclick="closeCertificateModal()" class="text-white hover:text-gray-200 transition">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+
+        <div class="p-6">
+            <img id="certificateImage" src="" alt="Certificate" class="w-full h-auto rounded-lg shadow-lg">
+            <div class="mt-4 flex gap-3">
+                <a id="certificateDownload" href="" download
+                    class="flex-1 text-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">
+                    <i class="fas fa-download mr-2"></i> Tải xuống
                 </a>
-                {% endif %}
-            </div>
-            <div class="flex space-x-2">
-                <form method="POST" action="{{ url_for('admin_expert_action', req_id=req.id, action='approve') }}"
-                    class="inline">
-                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700"
-                        onclick="return confirm('Duyệt chuyên gia?')">
-                        Duyệt
-                    </button>
-                </form>
-                <form method="POST" action="{{ url_for('admin_expert_action', req_id=req.id, action='reject') }}"
-                    class="inline">
-                    <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700"
-                        onclick="return confirm('Từ chối yêu cầu?')">
-                        Từ chối
-                    </button>
-                </form>
+                <a id="certificateOpen" href="" target="_blank"
+                    class="flex-1 text-center px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition">
+                    <i class="fas fa-external-link-alt mr-2"></i> Mở tab mới
+                </a>
             </div>
         </div>
     </div>
-    {% endfor %}
 </div>
-{% else %}
-<p class="text-center text-gray-500 py-8">Không có yêu cầu nào đang chờ duyệt.</p>
-{% endif %}
+
+<script>
+    // Dữ liệu yêu cầu
+    const expertRequests = {{ expert_requests | tojson | safe }};
+
+    // Xem chi tiết yêu cầu
+    function viewRequestDetail(reqId) {
+        const req = expertRequests.find(r => r.id === reqId);
+        if (!req) return;
+
+        const totalPosts = req.user.posts ? req.user.posts.length : 0;
+        const totalComments = req.user.comments ? req.user.comments.length : 0;
+
+        let certificateHtml = '';
+        if (req.certificate) {
+            certificateHtml = `
+            <div class="bg-blue-50 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-certificate mr-2 text-blue-600"></i>
+                    Bằng cấp / Chứng chỉ
+                </h4>
+                <img src="{{ url_for('static', filename='') }}${req.certificate}" 
+                     alt="Certificate" 
+                     class="w-full rounded-lg shadow-md cursor-pointer hover:shadow-xl transition"
+                     onclick="viewCertificate('{{ url_for('static', filename='') }}${req.certificate}', '${req.user.name}')">
+            </div>
+        `;
+        } else {
+            certificateHtml = `
+            <div class="bg-gray-50 rounded-lg p-4 text-center">
+                <i class="fas fa-file-excel text-gray-300 text-3xl mb-2"></i>
+                <p class="text-gray-500 text-sm">Không có bằng cấp đính kèm</p>
+            </div>
+        `;
+        }
+
+        document.getElementById('requestDetailContent').innerHTML = `
+        <div class="space-y-6">
+            <!-- Thông tin người dùng -->
+            <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-6">
+                <h4 class="font-bold text-gray-800 mb-4 text-lg flex items-center">
+                    <i class="fas fa-user mr-2 text-purple-600"></i>
+                    Thông tin người dùng
+                </h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Tên:</p>
+                        <p class="font-semibold text-gray-900">${req.user.name}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Email:</p>
+                        <p class="font-semibold text-gray-900">${req.user.email}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Điểm tích lũy:</p>
+                        <p class="font-semibold text-purple-600">${req.user.points} điểm</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Lĩnh vực:</p>
+                        <p class="font-semibold text-gray-900">${req.category}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Thống kê hoạt động -->
+            <div class="bg-green-50 rounded-lg p-6">
+                <h4 class="font-bold text-gray-800 mb-4 text-lg flex items-center">
+                    <i class="fas fa-chart-bar mr-2 text-green-600"></i>
+                    Thống kê hoạt động
+                </h4>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="text-center p-4 bg-white rounded-lg shadow">
+                        <div class="text-3xl font-bold text-blue-600">${totalPosts}</div>
+                        <div class="text-sm text-gray-600 mt-1">Bài viết</div>
+                    </div>
+                    <div class="text-center p-4 bg-white rounded-lg shadow">
+                        <div class="text-3xl font-bold text-purple-600">${totalComments}</div>
+                        <div class="text-sm text-gray-600 mt-1">Bình luận</div>
+                    </div>
+                    <div class="text-center p-4 bg-white rounded-lg shadow">
+                        <div class="text-3xl font-bold text-green-600">${totalPosts + totalComments}</div>
+                        <div class="text-sm text-gray-600 mt-1">Tổng nội dung</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Lý do và kinh nghiệm -->
+            <div class="bg-yellow-50 rounded-lg p-6">
+                <h4 class="font-bold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-comment-dots mr-2 text-yellow-600"></i>
+                    Lý do & Kinh nghiệm
+                </h4>
+                <p class="text-gray-700 leading-relaxed whitespace-pre-line">${req.reason}</p>
+            </div>
+            
+            <!-- Bằng cấp -->
+            ${certificateHtml}
+            
+            <!-- Thông tin gửi -->
+            <div class="bg-gray-50 rounded-lg p-4">
+                <div class="flex items-center justify-between text-sm text-gray-600">
+                    <span><i class="far fa-calendar mr-2"></i>Ngày gửi: <strong>${new Date(req.created_at).toLocaleString('vi-VN')}</strong></span>
+                    <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full font-semibold">Chờ duyệt</span>
+                </div>
+            </div>
+            
+            <!-- Nút hành động -->
+            <div class="flex gap-3 pt-4 border-t">
+                <button onclick="approveExpert(${req.id}, '${req.user.name}')"
+                        class="flex-1 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-semibold">
+                    <i class="fas fa-check mr-2"></i> Phê duyệt
+                </button>
+                <button onclick="rejectExpert(${req.id}, '${req.user.name}')"
+                        class="flex-1 px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-semibold">
+                    <i class="fas fa-times mr-2"></i> Từ chối
+                </button>
+            </div>
+        </div>
+    `;
+
+        document.getElementById('requestDetailModal').classList.remove('hidden');
+    }
+
+    function closeRequestDetailModal() {
+        document.getElementById('requestDetailModal').classList.add('hidden');
+    }
+
+    // Xem bằng cấp
+    function viewCertificate(url, userName) {
+        document.getElementById('certificateTitle').innerHTML = `
+        <i class="fas fa-certificate mr-2"></i>
+        Bằng cấp của ${userName}
+    `;
+        document.getElementById('certificateImage').src = url;
+        document.getElementById('certificateDownload').href = url;
+        document.getElementById('certificateOpen').href = url;
+        document.getElementById('certificateModal').classList.remove('hidden');
+    }
+
+    function closeCertificateModal() {
+        document.getElementById('certificateModal').classList.add('hidden');
+    }
+
+    // Phê duyệt chuyên gia
+    function approveExpert(reqId, userName) {
+        const note = prompt(`✅ PHÊ DUYỆT CHUYÊN GIA: ${userName}\n\nGhi chú cho user (không bắt buộc):`);
+        if (note === null) return; // User clicked Cancel
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/admin/expert/${reqId}/approve`;
+
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'note';
+        input.value = note || 'Chúc mừng bạn đã trở thành chuyên gia!';
+        form.appendChild(input);
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    // Từ chối yêu cầu
+    function rejectExpert(reqId, userName) {
+        const note = prompt(`❌ TỪ CHỐI YÊU CẦU: ${userName}\n\nLý do từ chối (BẮT BUỘC):`);
+
+        if (note === null) return; // User clicked Cancel
+
+        if (!note || note.trim() === '') {
+            alert('⚠️ Vui lòng nhập lý do từ chối!');
+            return rejectExpert(reqId, userName); // Gọi lại hàm
+        }
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/admin/expert/${reqId}/reject`;
+
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'note';
+        input.value = note;
+        form.appendChild(input);
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    // Đóng modal khi click outside
+    document.getElementById('requestDetailModal')?.addEventListener('click', function (e) {
+        if (e.target === this) {
+            closeRequestDetailModal();
+        }
+    });
+
+    document.getElementById('certificateModal')?.addEventListener('click', function (e) {
+        if (e.target === this) {
+            closeCertificateModal();
+        }
+    });
+</script>
+
+<style>
+    /* Animation cho modal */
+    #requestDetailModal,
+    #certificateModal {
+        animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    /* Hover effect cho bảng */
+    tbody tr {
+        transition: all 0.2s ease;
+    }
+
+    tbody tr:hover {
+        transform: translateX(4px);
+    }
+</style>
