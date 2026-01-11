@@ -1,0 +1,332 @@
+{% extends "expert/base_expert.html" %}
+
+{% block title %}Thống kê - Chuyên gia{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- HEADER -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">Thống kê & Phân tích</h1>
+        <p class="text-gray-600">Theo dõi hiệu quả hoạt động chuyên gia của bạn</p>
+    </div>
+
+    <!-- TIME FILTER -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+        <div class="flex flex-wrap gap-4 items-center">
+            <label class="font-bold text-gray-700">
+                <i class="far fa-calendar mr-2"></i>Xem theo:
+            </label>
+            <div class="flex gap-2">
+                <button onclick="setTimeRange('7days')" 
+                        class="time-btn active px-4 py-2 rounded-lg font-medium transition">
+                    7 ngày
+                </button>
+                <button onclick="setTimeRange('30days')" 
+                        class="time-btn px-4 py-2 rounded-lg font-medium transition">
+                    30 ngày
+                </button>
+                <button onclick="setTimeRange('90days')" 
+                        class="time-btn px-4 py-2 rounded-lg font-medium transition">
+                    90 ngày
+                </button>
+                <button onclick="setTimeRange('year')" 
+                        class="time-btn px-4 py-2 rounded-lg font-medium transition">
+                    1 năm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- OVERVIEW STATS -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="stat-card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+            <div class="flex justify-between items-start mb-4">
+                <div class="bg-white bg-opacity-30 p-3 rounded-xl">
+                    <i class="fas fa-eye text-2xl"></i>
+                </div>
+                <span class="text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">+12%</span>
+            </div>
+            <h3 class="text-4xl font-bold mb-2">15,234</h3>
+            <p class="text-blue-100">Tổng lượt xem</p>
+        </div>
+
+        <div class="stat-card bg-gradient-to-br from-pink-500 to-pink-600 text-white">
+            <div class="flex justify-between items-start mb-4">
+                <div class="bg-white bg-opacity-30 p-3 rounded-xl">
+                    <i class="fas fa-heart text-2xl"></i>
+                </div>
+                <span class="text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">+8%</span>
+            </div>
+            <h3 class="text-4xl font-bold mb-2">1,847</h3>
+            <p class="text-pink-100">Lượt thích</p>
+        </div>
+
+        <div class="stat-card bg-gradient-to-br from-green-500 to-green-600 text-white">
+            <div class="flex justify-between items-start mb-4">
+                <div class="bg-white bg-opacity-30 p-3 rounded-xl">
+                    <i class="fas fa-comments text-2xl"></i>
+                </div>
+                <span class="text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">+15%</span>
+            </div>
+            <h3 class="text-4xl font-bold mb-2">923</h3>
+            <p class="text-green-100">Bình luận</p>
+        </div>
+
+        <div class="stat-card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+            <div class="flex justify-between items-start mb-4">
+                <div class="bg-white bg-opacity-30 p-3 rounded-xl">
+                    <i class="fas fa-users text-2xl"></i>
+                </div>
+                <span class="text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">+23%</span>
+            </div>
+            <h3 class="text-4xl font-bold mb-2">456</h3>
+            <p class="text-purple-100">Người theo dõi</p>
+        </div>
+    </div>
+
+    <!-- CHARTS ROW 1 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- VIEWS CHART -->
+        <div class="bg-white rounded-xl shadow-md p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <i class="fas fa-chart-line text-blue-500"></i>
+                Lượt xem theo thời gian
+            </h3>
+            <canvas id="viewsChart" height="250"></canvas>
+        </div>
+
+        <!-- ENGAGEMENT CHART -->
+        <div class="bg-white rounded-xl shadow-md p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <i class="fas fa-chart-bar text-green-500"></i>
+                Tương tác người dùng
+            </h3>
+            <canvas id="engagementChart" height="250"></canvas>
+        </div>
+    </div>
+
+    <!-- CHARTS ROW 2 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- CATEGORY DISTRIBUTION -->
+        <div class="bg-white rounded-xl shadow-md p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <i class="fas fa-chart-pie text-purple-500"></i>
+                Phân bố theo danh mục
+            </h3>
+            <canvas id="categoryChart" height="250"></canvas>
+        </div>
+
+        <!-- TOP POSTS -->
+        <div class="bg-white rounded-xl shadow-md p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <i class="fas fa-fire text-orange-500"></i>
+                Bài viết nổi bật
+            </h3>
+            <div class="space-y-4">
+                <div class="flex items-center gap-4 p-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg hover:shadow-md transition">
+                    <div class="text-3xl font-bold text-orange-500">1</div>
+                    <div class="flex-1">
+                        <h4 class="font-bold text-gray-800">Chăm sóc trẻ sơ sinh 0-3 tháng</h4>
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-eye mr-1"></i> 2,345 views
+                            <span class="mx-2">•</span>
+                            <i class="fas fa-heart mr-1"></i> 189 likes
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg hover:shadow-md transition">
+                    <div class="text-3xl font-bold text-blue-500">2</div>
+                    <div class="flex-1">
+                        <h4 class="font-bold text-gray-800">Dinh dưỡng cho trẻ biếng ăn</h4>
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-eye mr-1"></i> 1,892 views
+                            <span class="mx-2">•</span>
+                            <i class="fas fa-heart mr-1"></i> 156 likes
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 p-3 bg-gradient-to-r from-green-50 to-teal-50 rounded-lg hover:shadow-md transition">
+                    <div class="text-3xl font-bold text-green-500">3</div>
+                    <div class="flex-1">
+                        <h4 class="font-bold text-gray-800">Phát triển ngôn ngữ ở trẻ</h4>
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-eye mr-1"></i> 1,567 views
+                            <span class="mx-2">•</span>
+                            <i class="fas fa-heart mr-1"></i> 142 likes
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DETAILED TABLE -->
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <div class="bg-gradient-to-r from-indigo-500 to-purple-600 text-white p-6">
+            <h3 class="text-xl font-bold flex items-center gap-2">
+                <i class="fas fa-table"></i>
+                Chi tiết hiệu suất bài viết
+            </h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b-2 border-gray-200">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-sm font-bold text-gray-700">Tiêu đề</th>
+                        <th class="px-6 py-4 text-center text-sm font-bold text-gray-700">Danh mục</th>
+                        <th class="px-6 py-4 text-center text-sm font-bold text-gray-700">Lượt xem</th>
+                        <th class="px-6 py-4 text-center text-sm font-bold text-gray-700">Thích</th>
+                        <th class="px-6 py-4 text-center text-sm font-bold text-gray-700">Bình luận</th>
+                        <th class="px-6 py-4 text-center text-sm font-bold text-gray-700">Đánh giá</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-gray-800">Chăm sóc trẻ sơ sinh 0-3 tháng</div>
+                            <div class="text-sm text-gray-500">15/01/2026</div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                                Sức khỏe
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-center font-bold text-blue-600">2,345</td>
+                        <td class="px-6 py-4 text-center font-bold text-pink-600">189</td>
+                        <td class="px-6 py-4 text-center font-bold text-green-600">67</td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-1">
+                                <i class="fas fa-star text-yellow-400"></i>
+                                <span class="font-bold">4.8</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-gray-800">Dinh dưỡng cho trẻ biếng ăn</div>
+                            <div class="text-sm text-gray-500">14/01/2026</div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                                Dinh dưỡng
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-center font-bold text-blue-600">1,892</td>
+                        <td class="px-6 py-4 text-center font-bold text-pink-600">156</td>
+                        <td class="px-6 py-4 text-center font-bold text-green-600">52</td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-1">
+                                <i class="fas fa-star text-yellow-400"></i>
+                                <span class="font-bold">4.6</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Time Range Filter
+function setTimeRange(range) {
+    document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    updateCharts();
+}
+
+// Views Chart
+const viewsCtx = document.getElementById('viewsChart').getContext('2d');
+new Chart(viewsCtx, {
+    type: 'line',
+    data: {
+        labels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+        datasets: [{
+            label: 'Lượt xem',
+            data: [320, 450, 380, 520, 490, 610, 580],
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false }
+        }
+    }
+});
+
+// Engagement Chart
+const engagementCtx = document.getElementById('engagementChart').getContext('2d');
+new Chart(engagementCtx, {
+    type: 'bar',
+    data: {
+        labels: ['Thích', 'Bình luận', 'Chia sẻ'],
+        datasets: [{
+            data: [189, 67, 23],
+            backgroundColor: ['#ec4899', '#10b981', '#8b5cf6']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false }
+        }
+    }
+});
+
+// Category Chart
+const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+new Chart(categoryCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['Sức khỏe', 'Dinh dưỡng', 'Tâm lý', 'Phát triển'],
+        datasets: [{
+            data: [35, 28, 20, 17],
+            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false
+    }
+});
+
+function updateCharts() {
+    console.log('Updating charts...');
+}
+</script>
+
+<style>
+.stat-card {
+    padding: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+}
+
+.time-btn {
+    background: white;
+    color: #6b7280;
+    border: 2px solid #e5e7eb;
+}
+
+.time-btn.active {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border-color: #667eea;
+}
+</style>
+{% endblock %}

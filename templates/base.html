@@ -23,12 +23,9 @@
         }
 
         @keyframes pulse {
-
-            0%,
-            100% {
+            0%, 100% {
                 opacity: 1
             }
-
             50% {
                 opacity: 0.6
             }
@@ -73,6 +70,42 @@
 
         .animate-pulse-slow {
             animation: pulse 3s infinite;
+        }
+        
+        /* Expert menu improvements */
+        .expert-menu-item {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .expert-menu-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: 0.5s;
+        }
+        
+        .expert-menu-item:hover::before {
+            left: 100%;
+        }
+        
+        .expert-dropdown {
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
     </style>
 </head>
@@ -127,15 +160,13 @@
                     </div>
                 </div>
 
-                <!-- Điểm -->
+                <!-- Điểm - Chỉ hiển thị cho user thường, không hiển thị cho admin -->
+                {% if current_user.role != 'admin' %}
                 <div class="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full border border-green-200">
                     <i class="fas fa-coins text-green-600"></i>
                     <span class="text-green-700 font-bold">{{ current_user.points }} điểm</span>
                 </div>
-
-                <a href="{{ url_for('friends') }}" class="text-pink-600 hover:text-pink-700 font-medium">
-                    <i class="fas fa-user-friends mr-1"></i> Bạn bè
-                </a>
+                {% endif %}
 
                 <!-- HUY HIỆU + VAI TRÒ -->
                 <div class="flex items-center gap-3">
@@ -153,44 +184,110 @@
                     {% endif %}
 
                     <!-- Vai trò Admin / Chuyên gia -->
-                    {% if current_user.role == 'admin' %}
-                    <a href="{{ url_for('admin_dashboard') }}"
-                        class="bg-gradient-to-r from-red-600 to-pink-600 text-white px-6 py-3 rounded-full font-bold hover:shadow-xl transition flex items-center gap-2 shadow-lg">
-                        <i class="fas fa-crown"></i> Quản trị viên
-                    </a>
-                    {% elif current_user.is_verified_expert %}
-                    <span
-                        class="bg-gradient-to-r from-purple-500 to-blue-600 text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1">
-                        <i class="fas fa-stethoscope"></i> Chuyên gia
-                    </span>
-                    {% else %}
-                    <a href="{{ url_for('expert_request') }}" class="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-full font-semibold
-          hover:shadow-lg transition flex items-center gap-1 shadow-md text-sm">
-                        <i class="fas fa-crown"></i>
-                        Bạn muốn trở thành Chuyên gia?
-                    </a>
-                    {% endif %}
+                    <!-- Vai trò Admin / Chuyên gia + MENU RIÊNG CHO CHUYÊN GIA -->
+                    <div class="flex items-center gap-3">
+                        <!-- Vai trò Admin -->
+                        {% if current_user.role == 'admin' %}
+                        <a href="{{ url_for('admin_dashboard') }}"
+                            class="bg-gradient-to-r from-red-600 to-pink-600 text-white px-6 py-3 rounded-full font-bold hover:shadow-xl transition flex items-center gap-2 shadow-lg">
+                            <i class="fas fa-crown"></i> Quản trị viên
+                        </a>
+                        {% endif %}
+
+                        <!-- Vai trò Chuyên gia + MENU RIÊNG (Dropdown) -->
+                        {% if current_user.is_verified_expert %}
+                        <div class="relative group">
+                            <button
+                                class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-full font-bold hover:shadow-xl transition flex items-center gap-2 shadow-lg transform hover:scale-105">
+                                <i class="fas fa-stethoscope"></i> 
+                                <span class="hidden sm:inline">Chuyên gia</span>
+                                <i class="fas fa-chevron-down ml-1 text-sm"></i>
+                            </button>
+
+                            <!-- Dropdown menu chuyên gia - cải thiện -->
+                            <div
+                                class="hidden group-hover:block absolute right-0 mt-3 w-72 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 expert-dropdown overflow-hidden">
+                                <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4">
+                                    <div class="flex items-center gap-3">
+                                        <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}" 
+                                             alt="{{ current_user.name }}" 
+                                             class="w-12 h-12 rounded-full object-cover border-2 border-white">
+                                        <div>
+                                            <h4 class="font-bold">{{ current_user.name }}</h4>
+                                            <p class="text-sm opacity-90">{{ current_user.expert_category or 'Chuyên gia' }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="py-2">
+                                    <a href="{{ url_for('expert_dashboard') }}"
+                                        class="expert-menu-item block px-4 py-3 hover:bg-purple-50 transition flex items-center gap-3 group">
+                                        <i class="fas fa-tachometer-alt w-6 text-purple-600 group-hover:scale-110 transition-transform"></i>
+                                        <span class="font-medium">Dashboard</span>
+                                        <span class="ml-auto bg-purple-100 text-purple-600 text-xs px-2 py-1 rounded-full">Tổng quan</span>
+                                    </a>
+                                    <a href="{{ url_for('expert_posts') }}"
+                                        class="expert-menu-item block px-4 py-3 hover:bg-purple-50 transition flex items-center gap-3 group">
+                                        <i class="fas fa-newspaper w-6 text-purple-600 group-hover:scale-110 transition-transform"></i>
+                                        <span class="font-medium">Bài viết tư vấn</span>
+                                        <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">{{ current_user.posts.filter_by(is_expert_post=True).count() or 0 }}</span>
+                                    </a>
+                                    <a href="{{ url_for('expert_schedule') }}"
+                                        class="expert-menu-item block px-4 py-3 hover:bg-purple-50 transition flex items-center gap-3 group">
+                                        <i class="fas fa-calendar-alt w-6 text-purple-600 group-hover:scale-110 transition-transform"></i>
+                                        <span class="font-medium">Lịch tư vấn</span>
+                                        <span class="ml-auto bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">0</span>
+                                    </a>
+                                    <a href="{{ url_for('expert_analytics') }}"
+                                        class="expert-menu-item block px-4 py-3 hover:bg-purple-50 transition flex items-center gap-3 group">
+                                        <i class="fas fa-chart-line w-6 text-purple-600 group-hover:scale-110 transition-transform"></i>
+                                        <span class="font-medium">Thống kê</span>
+                                    </a>
+                                    <a href="{{ url_for('expert_profile') }}"
+                                        class="expert-menu-item block px-4 py-3 hover:bg-purple-50 transition flex items-center gap-3 group">
+                                        <i class="fas fa-user-circle w-6 text-purple-600 group-hover:scale-110 transition-transform"></i>
+                                        <span class="font-medium">Hồ sơ chuyên gia</span>
+                                    </a>
+                                    <hr class="my-2 border-gray-200">
+                                    <a href="{{ url_for('profile') }}"
+                                        class="expert-menu-item block px-4 py-3 hover:bg-gray-100 transition flex items-center gap-3 text-gray-700 group">
+                                        <i class="fas fa-user-edit w-6 text-gray-500 group-hover:scale-110 transition-transform"></i>
+                                        <span class="font-medium">Hồ sơ cá nhân</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Người dùng thường - Nút trở thành chuyên gia -->
+                        <a href="{{ url_for('expert_request') }}"
+                            class="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-full font-semibold hover:shadow-lg transition flex items-center gap-1 shadow-md text-sm transform hover:scale-105">
+                            <i class="fas fa-crown"></i>
+                            <span class="hidden sm:inline">Trở thành Chuyên gia?</span>
+                        </a>
+                        {% endif %}
+                    </div>
                 </div>
 
                 <a href="{{ url_for('create_post') }}"
-                    class="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full font-bold hover:shadow-lg transition">
-                    Đăng bài
+                    class="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full font-bold hover:shadow-lg transition transform hover:scale-105">
+                    <i class="fas fa-plus mr-2"></i>Đăng bài
                 </a>
 
                 <!-- Avatar + Logout -->
                 <div class="flex items-center gap-3">
-                    <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
-                        class="w-10 h-10 rounded-full object-cover ring-2 ring-pink-300">
+                    <div class="relative group">
+                        <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
+                            class="w-10 h-10 rounded-full object-cover ring-2 ring-pink-300 cursor-pointer transform hover:scale-110 transition-transform">
+                        <div class="absolute inset-0 rounded-full bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all"></div>
+                    </div>
 
-                    <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-red-600">
+                    <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-red-600 transition-colors">
                         <i class="fas fa-sign-out-alt text-xl"></i>
                     </a>
                 </div>
                 {% else %}
-                <a href="{{ url_for('login') }}" class="text-pink-600 font-bold">Đăng nhập</a>
+                <a href="{{ url_for('login') }}" class="text-pink-600 font-bold hover:text-pink-700 transition-colors">Đăng nhập</a>
                 <a href="{{ url_for('register') }}"
-                    class="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full font-bold">Đăng
-                    ký</a>
+                    class="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full font-bold hover:shadow-lg transition transform hover:scale-105">Đăng ký</a>
                 {% endif %}
             </div>
         </div>
@@ -202,7 +299,7 @@
         {% if messages %}
         {% for category, message in messages %}
         <div
-            class="bg-{{ 'green' if category == 'success' else 'red' }}-100 border border-{{ 'green' if category == 'success' else 'red' }}-300 text-{{ 'green' if category == 'success' else 'red' }}-700 px-6 py-4 rounded-xl mb-4 shadow flex items-center gap-3">
+            class="bg-{{ 'green' if category == 'success' else 'red' }}-100 border border-{{ 'green' if category == 'success' else 'red' }}-300 text-{{ 'green' if category == 'success' else 'red' }}-700 px-6 py-4 rounded-xl mb-4 shadow flex items-center gap-3 transform transition-all hover:scale-[1.01]">
             <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' }} text-2xl"></i>
             {{ message }}
         </div>
@@ -307,8 +404,6 @@
             updateNotificationBadge();
             setInterval(updateNotificationBadge, 10000);
         });
-
-
     </script>
 
     {% block scripts %}{% endblock %}

@@ -211,15 +211,17 @@
 
 <script>
     // Dữ liệu yêu cầu
-    const expertRequests = {{ expert_requests | tojson | safe }};
+    const expertRequests = {{ expert_requests_json | tojson | safe }};
 
     // Xem chi tiết yêu cầu
     function viewRequestDetail(reqId) {
         const req = expertRequests.find(r => r.id === reqId);
         if (!req) return;
 
-        const totalPosts = req.user.posts ? req.user.posts.length : 0;
-        const totalComments = req.user.comments ? req.user.comments.length : 0;
+    // Dùng dữ liệu đã tính sẵn từ Python
+        const totalPosts = req.total_posts || 0;
+        const totalComments = req.total_comments || 0;
+        const avgLikes = req.avg_likes || 0;
 
         let certificateHtml = '';
         if (req.certificate) {

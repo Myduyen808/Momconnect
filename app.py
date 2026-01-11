@@ -2,7 +2,7 @@
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, make_response, abort, redirect, url_for, abort
 from flask_login import LoginManager, login_user, logout_user, current_user, login_required
 from flask_socketio import SocketIO, join_room, emit
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -19,6 +19,9 @@ from sqlalchemy import func
 import base64   
 import time
 import pytz
+# Decorator kiểm tra quyền chuyên gia
+from functools import wraps
+from flask_login import current_user
 
 # ✅ THÊM DÒNG NÀY - Import model CommentLike
 from models import (
@@ -37,7 +40,8 @@ from models import (
     CommentReport,      # ← Model báo cáo comment
     ExpertRequest,      # ← Thêm cái này nếu dùng
     Follow,             # ← Thêm cái này nếu dùng
-    HiddenPost          # ← Thêm cái này nếu dùng
+    HiddenPost,          # ← Thêm cái này nếu dùng
+    ExpertProfile
 )
 
 
@@ -54,6 +58,7 @@ app.config.from_object(Config)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=7)
+app.config['JSON_AS_ASCII'] = False  # Giữ nguyên ký tự Unicode (tiếng Việt có dấu)
 
 # ========================
 # KHỞI TẠO DB TRONG CONTEXT (CHỈ 1 LẦN)
@@ -237,9 +242,17 @@ def login():
         email = request.form['email'].strip()
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
+        
         if user and check_password_hash(user.password, password):
             login_user(user)
+            
+            # Lưu thông tin chuyên gia vào session
+            session['is_expert'] = user.is_verified_expert
+            if user.is_verified_expert:
+                session['expert_category'] = user.expert_category
+            
             return redirect(url_for('home'))
+        
         flash('Email hoặc mật khẩu sai!', 'danger')
     return render_template('login.html')
 
@@ -248,6 +261,18 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('home'))
+
+
+# Decorator kiểm tra quyền chuyên gia
+def expert_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_verified_expert:
+            flash('Chỉ chuyên gia mới được truy cập tính năng này!', 'error')
+            return redirect(url_for('home'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 # LIKE
 @app.route('/like/<int:post_id>', methods=['POST'])
@@ -602,7 +627,8 @@ def search_users():
         'avatar': u.avatar or 'images/default-avatar.png'
     } for u in users])
 
-from sqlalchemy import func  # ← Đảm bảo có dòng này ở đầu file
+
+from sqlalchemy import func
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -631,12 +657,21 @@ def profile():
     total_posts = current_user.posts.count()
     total_comments = Comment.query.filter_by(user_id=current_user.id).count()
 
+    # Tính trung bình like (nếu có bài viết)
+    avg_likes = 0
+    if total_posts > 0:
+        avg_result = db.session.query(func.avg(Post.likes))\
+                              .filter(Post.user_id == current_user.id)\
+                              .scalar()
+        avg_likes = round(avg_result or 0, 1)
+
     return render_template(
         'profile.html',
         user=current_user,
         Comment=Comment,
         total_posts=total_posts,
-        total_comments=total_comments
+        total_comments=total_comments,
+        avg_likes=avg_likes   # ← Truyền số đã tính, không cần db
     )
 
 # ĐĂNG BÀI
@@ -644,11 +679,14 @@ def profile():
 @login_required
 def create_post():
     if request.method == 'POST':
-        title = request.form['title'].strip()
-        content = request.form['content'].strip()
+        title = request.form.get('title').strip()
+        content = request.form.get('content').strip()
         category = request.form.get('category', 'other')
         post_type = request.form.get('post_type', 'question')  # Lấy loại bài
-
+        
+        # Kiểm tra xem người dùng có phải là chuyên gia và có đăng bài chuyên gia không
+        is_expert_post = current_user.is_verified_expert and request.form.get('is_expert_post') == 'on'
+        
         images_list = []
         video_file = None
 
@@ -671,21 +709,42 @@ def create_post():
             images=','.join(images_list) if images_list else None,
             video=video_file,
             user_id=current_user.id,
-            post_type=post_type  # ← Gán loại bài
+            post_type=post_type,  # ← Gán loại bài
+            is_expert_post=is_expert_post  # ← Đánh dấu bài viết chuyên gia
         )
         
         post.created_at = vietnam_now()
         db.session.add(post)
         db.session.commit()
 
-        # Chỉ cộng điểm nếu là bài chia sẻ
-        if post_type == 'sharing':
-            current_user.points += 20
-            update_user_badge(current_user)
-            db.session.commit()
-            flash('Đăng bài chia sẻ kinh nghiệm thành công! Bạn nhận +20 điểm tích lũy!', 'success')
+        # Thông báo cho tác giả nếu là bài viết chuyên gia
+        if is_expert_post:
+            # Thông báo cho tất cả người theo dõi (follower) của chuyên gia
+            followers = Follow.query.filter_by(followed_id=current_user.id).all()
+            
+            for follower in followers:
+                # Kiểm tra xem đã có thông báo tương tự chưa (tránh spam)
+                existing_notif = Notification.query.filter_by(
+                    user_id=follower.follower_id,  # follower.follower_id là người nhận
+                    type='expert_post',
+                    related_id=post.id
+                ).first()
+                
+                if not existing_notif:
+                    new_notif = Notification(
+                        user_id=follower.follower_id,
+                        title="Bài viết tư vấn mới từ chuyên gia",
+                        message=f"{current_user.name} vừa đăng bài tư vấn mới trong lĩnh vực {current_user.expert_category or 'của bạn'}.",
+                        type='expert_post',
+                        related_id=post.id,
+                        related_user_id=current_user.id
+                    )
+                    db.session.add(new_notif)
+            
+            db.session.commit()  # Commit sau khi thêm tất cả thông báo
+            flash('Bài viết tư vấn đã được đăng thành công và thông báo cho người theo dõi!', 'success')
         else:
-            flash('Đăng câu hỏi thành công!', 'success')
+            flash('Bài viết đã được đăng thành công!', 'success')
 
         return redirect(url_for('home'))
 
@@ -716,7 +775,7 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        # THÔNG BÁO CHO ADMIN
+        # Thông báo cho admin
         notify_all_admins(
             title="Thành viên mới đăng ký!",
             message=f"Người dùng mới: {name} ({email}) vừa đăng ký tài khoản.",
@@ -1234,11 +1293,78 @@ def admin_post_comments(post_id):
 def admin_delete_post(post_id):
     if current_user.role != 'admin':
         return jsonify({'error': 'Không có quyền'}), 403
+    
     post = Post.query.get_or_404(post_id)
+    
     try:
+        # 1. TRỪ ĐIỂM TÁC GIẢ (theo bảng của bạn: bị báo cáo đúng → -50 điểm)
+        post.author.points = max(0, post.author.points - 50)
+        update_user_badge(post.author)
+        
+        # 2. THÔNG BÁO CHO TÁC GIẢ
+        notif = Notification(
+            user_id=post.user_id,
+            title="Bài viết của bạn đã bị xóa",
+            message=f"Bài viết '{post.title[:50]}...' đã bị admin xóa do vi phạm báo cáo. Bạn bị trừ 50 điểm tích lũy.",
+            type='post_deleted_penalty',
+            related_id=post.id,
+            related_user_id=current_user.id  # Admin nào xóa
+        )
+        db.session.add(notif)
+        
+        # 3. XÓA TẤT CẢ DỮ LIỆU LIÊN QUAN (đây là bước quan trọng để tránh lỗi)
+        PostLike.query.filter_by(post_id=post_id).delete()          # Xóa like
+        PostRating.query.filter_by(post_id=post_id).delete()        # Xóa rating
+        HiddenPost.query.filter_by(post_id=post_id).delete()        # Xóa ẩn bài
+        Report.query.filter_by(post_id=post_id).delete()            # Xóa báo cáo
+        Comment.query.filter_by(post_id=post_id).delete()           # Xóa bình luận
+        
+        # 4. Xóa chính bài viết
         db.session.delete(post)
+        
         db.session.commit()
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'message': 'Đã xóa bài viết, trừ 50 điểm tác giả và gửi thông báo!'})
+    
+    except Exception as e:
+        db.session.rollback()
+        print(f"Lỗi khi xóa bài viết {post_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+#Cảnh báo & Trừ điểm (không xóa bài)
+@app.route('/admin/report/<int:report_id>/warn', methods=['POST'])
+@login_required
+def admin_warn_report(report_id):
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Không có quyền!'}), 403
+    
+    report = Report.query.get_or_404(report_id)
+    post = report.post
+    
+    try:
+        # TRỪ 50 ĐIỂM TÁC GIẢ
+        post.author.points = max(0, post.author.points - 50)
+        update_user_badge(post.author)
+        
+        # THÔNG BÁO CẢNH BÁO CHO TÁC GIẢ
+        notif = Notification(
+            user_id=post.user_id,
+            title="Cảnh báo: Bài viết của bạn vi phạm quy định",
+            message=f"Bài viết '{post.title[:50]}...' đã nhận báo cáo hợp lệ. Bạn bị trừ 50 điểm. Vui lòng chỉnh sửa để tránh bị xóa.",
+            type='post_warning_penalty',
+            related_id=post.id,
+            related_user_id=current_user.id
+        )
+        db.session.add(notif)
+        
+        # XÓA BÁO CÁO (đã xử lý xong)
+        db.session.delete(report)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Đã cảnh báo và trừ điểm tác giả!'
+        }, ensure_ascii=False)
+    
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -1296,7 +1422,7 @@ def admin_dashboard():
         User.is_verified_expert,
         User.points,
         User.avatar,
-        User.is_active,  # Thêm is_active vào query
+        User.is_active,
         func.count(Post.id).label('post_count'),
         func.coalesce(func.sum(Post.views), 0).label('total_views'),
         func.coalesce(func.sum(Post.likes), 0).label('total_likes'),
@@ -1314,21 +1440,59 @@ def admin_dashboard():
 
     topic_dict = {cat: count for cat, count in topic_stats}
 
-    # Lấy danh sách user, expert_requests, reports, posts nếu cần
+    # Lấy danh sách user, expert_requests, reports, posts
     users = User.query.all()
     expert_requests = ExpertRequest.query.filter_by(status='pending').all()
     reports = Report.query.all()
     posts = Post.query.order_by(Post.created_at.desc()).limit(20).all()
 
+# === TÍNH THỐNG KÊ CHI TIẾT VÀ CHUYỂN THÀNH DICT ĐỂ TRUYỀN JSON ===
+    expert_requests_data = []
+    for req in ExpertRequest.query.filter_by(status='pending').all():
+        user = req.user
+        total_posts = user.posts.count()  # Đếm số bài viết
+        total_comments = Comment.query.filter_by(user_id=user.id).count()  # Đếm số bình luận
+        
+        avg_likes = 0
+        if total_posts > 0:
+            avg_result = db.session.query(func.avg(Post.likes))\
+                                  .filter(Post.user_id == user.id)\
+                                  .scalar()
+            avg_likes = round(avg_result or 0, 1)
+        
+        expert_requests_data.append({
+            'id': req.id,
+            'user': {
+                'id': user.id,
+                'name': user.name,
+                'email': user.email,
+                'points': user.points,
+                'avatar': user.avatar or 'images/default-avatar.png'
+            },
+            'category': req.category,
+            'reason': req.reason,
+            'certificate': req.certificate,
+            'created_at': req.created_at.isoformat(),  # Chuyển datetime thành string
+            'status': req.status,
+            'total_posts': total_posts,
+            'total_comments': total_comments,
+            'avg_likes': avg_likes
+        })
+
     return render_template(
         'admin_dashboard.html',
         stats=stats,
-        user_stats=user_stats,  # Thêm thống kê theo người dùng
+        user_stats=user_stats,
         topic_stats=topic_dict,
         users=users,
-        expert_requests=expert_requests,
+        expert_requests=ExpertRequest.query.filter_by(status='pending').all(),  # Giữ nguyên cho loop Jinja
+        expert_requests_json=expert_requests_data,  # ← BIẾN JSON ĐÃ TÍNH SẴN
         reports=reports,
-        posts=posts
+        posts=posts,
+        Comment=Comment,
+        db=db,
+        Post=Post,
+        func=func
     )
 
 
@@ -1351,6 +1515,18 @@ def api_admin_notifications():
         elif n.type == 'new_user': icon = '👶'
         elif n.type == 'expert_action': icon = '✅'
 
+        # CHUYỂN RELATED_USER THÀNH DICT AN TOÀN
+        related_user_data = None
+        if n.related_user:
+            related_user_data = {
+                'id': n.related_user.id,
+                'name': n.related_user.name,
+                'email': n.related_user.email,
+                'avatar': n.related_user.avatar or 'images/default-avatar.png',
+                # Nếu related_user là ExpertRequest thì thêm trường đặc biệt (tùy chọn)
+                'is_expert_request': isinstance(n.related_user, ExpertRequest)
+            }
+
         results.append({
             'id': n.id,
             'title': f"{icon} {n.title}",
@@ -1358,10 +1534,7 @@ def api_admin_notifications():
             'type': n.type,
             'is_read': n.is_read,
             'created_at': n.created_at.strftime('%H:%M %d/%m'),
-            'related_user': {
-                'name': n.related_user.name if n.related_user else 'Hệ thống',
-                'email': n.related_user.email if n.related_user else ''
-            } if n.related_user else None,
+            'related_user': related_user_data,
             'action_link': (
                 '/admin#experts' if n.type in ['expert_request', 'expert_action'] else
                 '/admin#reports' if n.type in ['report_post', 'report_comment'] else
@@ -1990,7 +2163,10 @@ def user_profile(user_id):
         user=viewed_user,
         posts=posts,
         friendship_status=friendship_status,
-        is_own_profile=is_own_profile
+        is_own_profile=is_own_profile,
+        db=db,
+        Post=Post,
+        func=func
     )
                 
 # LẤY ĐÁNH GIÁ CỦA USER
@@ -2096,6 +2272,275 @@ def admin_user_stats(user_id):
         },
         'post_stats': post_stats
     })
+
+
+# ====================================
+# EXPERT DASHBOARD
+# ====================================
+@app.route('/expert/dashboard')
+@expert_required
+def expert_dashboard():
+    # Lấy tất cả bài viết của chuyên gia
+    expert_posts = Post.query.filter_by(
+        user_id=current_user.id,
+        is_expert_post=True
+    ).all()
+
+    # Lấy ID của tất cả bài viết chuyên gia
+    post_ids = [post.id for post in expert_posts]
+    
+    stats = {
+        'total_views': sum(post.views for post in expert_posts),
+        'followers_count': current_user.followers.count(),
+        'posts_count': len(expert_posts),
+        'consultations_count': 0,  # TODO: Thêm model Consultation
+        'new_comments': Comment.query.filter(Comment.post_id.in_(post_ids)).count() if post_ids else 0,
+        'new_likes': db.session.query(func.sum(Post.likes))
+                           .filter(Post.user_id == current_user.id)
+                           .scalar() or 0,
+        'new_followers': 0,  # TODO: Tính theo thời gian
+        'new_consultations': 0
+    }
+
+    # Lấy bài viết gần đây (5 bài)
+    recent_posts = Post.query.filter_by(
+        user_id=current_user.id,
+        is_expert_post=True
+    ).order_by(Post.created_at.desc()).limit(5).all()
+
+    return render_template(
+        'expert/dashboard.html',
+        stats=stats,
+        recent_posts=recent_posts,
+        upcoming_consultations=[],  # TODO: Thêm model Consultation
+        unanswered_questions=[]     # TODO: Filter câu hỏi chưa trả lời
+    )
+
+# ====================================
+# EXPERT POSTS - QUẢN LÝ BÀI VIẾT
+# ====================================
+@app.route('/expert/posts', methods=['GET', 'POST'])
+@expert_required
+def expert_posts():
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        content = request.form.get('content', '').strip()
+        category = request.form.get('category', 'other')
+        
+        if not title or not content:
+            flash('Vui lòng điền đầy đủ thông tin!', 'error')
+            return redirect(url_for('expert_posts'))
+        
+        # Xử lý upload media
+        images_list = []
+        video_file = None
+
+        if 'media' in request.files:
+            files = request.files.getlist('media')
+            for file in files:
+                if file and file.filename:
+                    filename = secure_filename(f"{int(time.time())}_{file.filename}")
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(filepath)
+                    
+                    if file.mimetype.startswith('video/'):
+                        video_file = filename
+                    else:
+                        images_list.append(filename)
+        
+        # Tạo bài viết chuyên gia
+        post = Post(
+            user_id=current_user.id,
+            title=title,
+            content=content,
+            category=category,
+            is_expert_post=True,
+            images=','.join(images_list) if images_list else None,
+            video=video_file
+        )
+        
+        db.session.add(post)
+        db.session.commit()
+        
+        # Thông báo cho followers
+        followers = Follow.query.filter_by(followed_id=current_user.id).all()
+        for follower in followers:
+            notif = Notification(
+                user_id=follower.follower_id,
+                title="Bài viết tư vấn mới từ chuyên gia",
+                message=f"{current_user.name} vừa đăng bài: {title[:50]}...",
+                type='expert_post',
+                related_id=post.id,
+                related_user_id=current_user.id
+            )
+            db.session.add(notif)
+        
+        db.session.commit()
+        flash('Bài viết tư vấn đã được tạo thành công!', 'success')
+        return redirect(url_for('expert_posts'))
+    
+    # GET - Lấy danh sách bài viết
+    posts = Post.query.filter_by(
+        user_id=current_user.id,
+        is_expert_post=True
+    ).order_by(Post.created_at.desc()).all()
+    
+    return render_template('expert/posts.html', posts=posts)
+
+# ====================================
+# EXPERT SCHEDULE - LỊCH TƯ VẤN
+# ====================================
+@app.route('/expert/schedule', methods=['GET', 'POST'])
+@expert_required
+def expert_schedule():
+    if request.method == 'POST':
+        # TODO: Xử lý tạo lịch tư vấn khi có model Consultation
+        flash('Chức năng đang phát triển!', 'info')
+        return redirect(url_for('expert_schedule'))
+    
+    # GET - Hiển thị lịch
+    # TODO: Lấy danh sách consultation từ database
+    upcoming_consultations = []
+    
+    return render_template(
+        'expert/schedule.html',
+        upcoming_consultations=upcoming_consultations
+    )
+
+# ====================================
+# EXPERT ANALYTICS - THỐNG KÊ
+# ====================================
+@app.route('/expert/analytics')
+@expert_required
+def expert_analytics():
+    # Lấy tất cả bài viết của chuyên gia
+    expert_posts = Post.query.filter_by(
+        user_id=current_user.id,
+        is_expert_post=True
+    ).all()
+    
+    # Tính toán thống kê
+    total_views = sum(post.views for post in expert_posts)
+    total_likes = sum(post.likes for post in expert_posts)
+    total_comments = sum(post.comments_count for post in expert_posts)
+    
+    stats = {
+        'total_views': total_views,
+        'total_likes': total_likes,
+        'total_comments': total_comments,
+        'followers_count': current_user.followers.count(),
+        'posts_count': len(expert_posts)
+    }
+    
+    # Thống kê theo danh mục
+    category_stats = {}
+    for post in expert_posts:
+        cat = post.category or 'other'
+        if cat not in category_stats:
+            category_stats[cat] = {'count': 0, 'views': 0}
+        category_stats[cat]['count'] += 1
+        category_stats[cat]['views'] += post.views
+    
+    # Top bài viết
+    top_posts = sorted(expert_posts, key=lambda x: x.views, reverse=True)[:5]
+    
+    return render_template(
+        'expert/analytics.html',
+        stats=stats,
+        category_stats=category_stats,
+        top_posts=top_posts
+    )
+
+# ====================================
+# EXPERT PROFILE - HỒ SƠ CHUYÊN GIA
+# ====================================
+@app.route('/expert/profile', methods=['GET', 'POST'])
+@expert_required
+def expert_profile():
+    if request.method == 'POST':
+        try:
+            # Cập nhật thông tin cơ bản
+            current_user.name = request.form.get('name', '').strip()
+            current_user.bio = request.form.get('bio', '').strip()
+            
+            # Cập nhật thông tin chuyên môn
+            current_user.specialty = request.form.get('specialty', '').strip()
+            current_user.experience_years = int(request.form.get('experience_years', 0))
+            current_user.workplace = request.form.get('workplace', '').strip()
+            current_user.license_number = request.form.get('license_number', '').strip()
+            
+            # Ngày hết hạn chứng chỉ
+            license_expiry_str = request.form.get('license_expiry', '')
+            if license_expiry_str:
+                from datetime import datetime
+                current_user.license_expiry = datetime.strptime(license_expiry_str, '%Y-%m-%d')
+            
+            # Phí tư vấn
+            current_user.consultation_fee = float(request.form.get('consultation_fee', 0))
+            
+            # Học vấn và chứng chỉ
+            current_user.education = request.form.get('education', '').strip()
+            current_user.certifications = request.form.get('certifications', '').strip()
+            
+            # Trạng thái hoạt động
+            current_user.availability = request.form.get('availability', 'available')
+            
+            # Xử lý upload avatar
+            if 'avatarInput' in request.files:
+                file = request.files['avatarInput']
+                if file and file.filename:
+                    filename = secure_filename(f"expert_{current_user.id}_{int(time.time())}_{file.filename}")
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(filepath)
+                    current_user.avatar = f"uploads/{filename}"
+            
+            # Xử lý upload chứng chỉ
+            if 'certificate_upload' in request.files:
+                files = request.files.getlist('certificate_upload')
+                for file in files:
+                    if file and file.filename:
+                        filename = secure_filename(f"cert_{current_user.id}_{int(time.time())}_{file.filename}")
+                        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                        file.save(filepath)
+                        # TODO: Lưu vào bảng certificates nếu có
+            
+            db.session.commit()
+            flash('Hồ sơ đã được cập nhật thành công!', 'success')
+            return redirect(url_for('expert_profile'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Có lỗi xảy ra: {str(e)}', 'error')
+            return redirect(url_for('expert_profile'))
+    
+    # GET - Hiển thị form
+    return render_template('expert/profile.html')
+
+# API: XÓA BÀI VIẾT CHUYÊN GIA
+# ====================================
+@app.route('/expert/post/<int:post_id>/delete', methods=['POST'])
+@expert_required
+def expert_delete_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    
+    # Kiểm tra quyền sở hữu
+    if post.user_id != current_user.id:
+        return jsonify({'error': 'Không có quyền xóa bài viết này!'}), 403
+    
+    try:
+        # Xóa các dữ liệu liên quan
+        PostLike.query.filter_by(post_id=post_id).delete()
+        PostRating.query.filter_by(post_id=post_id).delete()
+        Comment.query.filter_by(post_id=post_id).delete()
+        Report.query.filter_by(post_id=post_id).delete()
+        
+        db.session.delete(post)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Đã xóa bài viết!'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 # === CHẠY APP ===
 if __name__ == '__main__':

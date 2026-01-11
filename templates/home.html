@@ -39,12 +39,12 @@
                                     {% if post.author.role != 'admin' %}
                                     <div class="flex items-center gap-2 mt-1">
                                         <i class="fas fa-medal text-sm
-                                            {% if 'Ứng viên Chuyên gia' in post.author.badge %}text-purple-600
+                                            {% if post.author.badge and 'Ứng viên Chuyên gia' in post.author.badge %}text-purple-600
                                             {% elif 'Thành Viên Bạc' in post.author.badge %}text-gray-500
                                             {% elif 'Thành Viên Đồng' in post.author.badge %}text-orange-500
                                             {% else %}text-green-600{% endif %}"></i>
                                         <span class="text-sm font-medium
-                                            {% if 'Ứng viên Chuyên gia' in post.author.badge %}text-purple-600
+                                            {% if post.author.badge and 'Ứng viên Chuyên gia' in post.author.badge %}text-purple-600
                                             {% elif 'Thành Viên Bạc' in post.author.badge %}text-gray-600
                                             {% elif 'Thành Viên Đồng' in post.author.badge %}text-orange-600
                                             {% else %}text-green-700{% endif %}">

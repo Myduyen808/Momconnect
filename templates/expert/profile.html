@@ -1,0 +1,352 @@
+{% extends "expert/base_expert.html" %}
+
+{% block title %}Hồ sơ Chuyên gia{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- HEADER -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">Hồ sơ Chuyên gia</h1>
+        <p class="text-gray-600">Quản lý thông tin chuyên môn và chứng chỉ của bạn</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- LEFT SIDEBAR - AVATAR & QUICK INFO -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- AVATAR CARD -->
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-center">
+                    <div class="relative inline-block">
+                        <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}" 
+                             alt="{{ current_user.name }}" 
+                             id="avatarPreview"
+                             class="w-32 h-32 rounded-full object-cover border-4 border-white shadow-xl mx-auto">
+                        <label for="avatarInput" 
+                               class="absolute bottom-0 right-0 bg-white text-purple-600 p-2 rounded-full cursor-pointer hover:bg-purple-50 transition shadow-lg">
+                            <i class="fas fa-camera"></i>
+                        </label>
+                        <input type="file" id="avatarInput" accept="image/*" class="hidden" onchange="previewAvatar(this)">
+                    </div>
+                    <h3 class="text-white text-xl font-bold mt-4">{{ current_user.name }}</h3>
+                    <p class="text-purple-100 text-sm">{{ current_user.email }}</p>
+                </div>
+                
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <span class="text-gray-600 flex items-center gap-2">
+                            <i class="fas fa-certificate text-purple-500"></i>
+                            Trạng thái
+                        </span>
+                        <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+                            Đã xác minh
+                        </span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between py-3 border-b border-gray-100">
+                        <span class="text-gray-600 flex items-center gap-2">
+                            <i class="fas fa-star text-yellow-500"></i>
+                            Điểm uy tín
+                        </span>
+                        <span class="font-bold text-gray-800">{{ current_user.credibility_score or 0 }}</span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between py-3">
+                        <span class="text-gray-600 flex items-center gap-2">
+                            <i class="fas fa-users text-blue-500"></i>
+                            Người theo dõi
+                        </span>
+                        <span class="font-bold text-gray-800">{{ current_user.followers.count() }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QUICK ACTIONS -->
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <i class="fas fa-bolt text-yellow-500"></i>
+                    Thao tác nhanh
+                </h3>
+                <div class="space-y-3">
+                    <button onclick="changePassword()" 
+                            class="w-full flex items-center gap-3 p-3 bg-gray-50 hover:bg-purple-50 rounded-lg transition">
+                        <i class="fas fa-key text-purple-600"></i>
+                        <span class="font-medium">Đổi mật khẩu</span>
+                    </button>
+                    <button onclick="viewPublicProfile()" 
+                            class="w-full flex items-center gap-3 p-3 bg-gray-50 hover:bg-blue-50 rounded-lg transition">
+                        <i class="fas fa-eye text-blue-600"></i>
+                        <span class="font-medium">Xem trang công khai</span>
+                    </button>
+                    <button onclick="downloadCertificate()" 
+                            class="w-full flex items-center gap-3 p-3 bg-gray-50 hover:bg-green-50 rounded-lg transition">
+                        <i class="fas fa-download text-green-600"></i>
+                        <span class="font-medium">Tải chứng chỉ</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT MAIN CONTENT - FORMS -->
+        <div class="lg:col-span-2 space-y-6">
+            <form method="POST" action="{{ url_for('expert_profile') }}" enctype="multipart/form-data">
+                <!-- PERSONAL INFO SECTION -->
+                <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
+                    <div class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6">
+                        <h2 class="text-xl font-bold flex items-center gap-2">
+                            <i class="fas fa-user-circle"></i>
+                            Thông tin cá nhân
+                        </h2>
+                    </div>
+                    
+                    <div class="p-6 space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">
+                                    <i class="fas fa-user mr-2"></i>Họ và tên *
+                                </label>
+                                <input type="text" name="name" value="{{ current_user.name }}" required
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">
+                                    <i class="fas fa-envelope mr-2"></i>Email
+                                </label>
+                                <input type="email" value="{{ current_user.email }}" disabled
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-align-left mr-2"></i>Giới thiệu
+                            </label>
+                            <textarea name="bio" rows="4"
+                                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                      placeholder="Viết vài dòng giới thiệu về bản thân...">{{ current_user.bio or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROFESSIONAL INFO SECTION -->
+                <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
+                    <div class="bg-gradient-to-r from-purple-500 to-pink-600 text-white p-6">
+                        <h2 class="text-xl font-bold flex items-center gap-2">
+                            <i class="fas fa-briefcase"></i>
+                            Thông tin chuyên môn
+                        </h2>
+                    </div>
+                    
+                    <div class="p-6 space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">
+                                    <i class="fas fa-stethoscope mr-2"></i>Chuyên môn *
+                                </label>
+                                <input type="text" name="specialty" value="{{ current_user.specialty or '' }}"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                       placeholder="VD: Nhi khoa">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">
+                                    <i class="fas fa-briefcase mr-2"></i>Kinh nghiệm (năm)
+                                </label>
+                                <input type="number" name="experience_years" value="{{ current_user.experience_years or 0 }}" min="0"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-hospital mr-2"></i>Nơi làm việc
+                            </label>
+                            <input type="text" name="workplace" value="{{ current_user.workplace or '' }}"
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                   placeholder="VD: Bệnh viện Nhi Đồng 1">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-id-card mr-2"></i>Số chứng chỉ hành nghề
+                            </label>
+                            <input type="text" name="license_number" value="{{ current_user.license_number or '' }}"
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                   placeholder="VD: 12345/BYT">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">
+                                    <i class="far fa-calendar mr-2"></i>Ngày hết hạn chứng chỉ
+                                </label>
+                                <input type="date" name="license_expiry" 
+                                       value="{{ current_user.license_expiry.strftime('%Y-%m-%d') if current_user.license_expiry else '' }}"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">
+                                    <i class="fas fa-dollar-sign mr-2"></i>Phí tư vấn (VNĐ/buổi)
+                                </label>
+                                <input type="number" name="consultation_fee" value="{{ current_user.consultation_fee or 0 }}" min="0"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                       placeholder="0 = Miễn phí">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EDUCATION & CERTIFICATIONS -->
+                <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
+                    <div class="bg-gradient-to-r from-green-500 to-teal-600 text-white p-6">
+                        <h2 class="text-xl font-bold flex items-center gap-2">
+                            <i class="fas fa-graduation-cap"></i>
+                            Học vấn & Chứng chỉ
+                        </h2>
+                    </div>
+                    
+                    <div class="p-6 space-y-6">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-university mr-2"></i>Trình độ học vấn
+                            </label>
+                            <textarea name="education" rows="4"
+                                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                      placeholder="Liệt kê các bằng cấp, trường học...">{{ current_user.education or '' }}</textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-certificate mr-2"></i>Chứng chỉ chuyên môn
+                            </label>
+                            <textarea name="certifications" rows="4"
+                                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                      placeholder="Liệt kê các chứng chỉ, khóa đào tạo...">{{ current_user.certifications or '' }}</textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-upload mr-2"></i>Tải lên chứng chỉ mới
+                            </label>
+                            <input type="file" name="certificate_upload" accept="image/*,.pdf" multiple
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                            <p class="text-sm text-gray-500 mt-2">Chấp nhận: JPG, PNG, PDF (tối đa 5MB)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AVAILABILITY SETTINGS -->
+                <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
+                    <div class="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
+                        <h2 class="text-xl font-bold flex items-center gap-2">
+                            <i class="fas fa-clock"></i>
+                            Cài đặt lịch tư vấn
+                        </h2>
+                    </div>
+                    
+                    <div class="p-6 space-y-6">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-signal mr-2"></i>Trạng thái hoạt động
+                            </label>
+                            <select name="availability" 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                                <option value="available" {{ 'selected' if current_user.availability == 'available' else '' }}>
+                                    Sẵn sàng tư vấn
+                                </option>
+                                <option value="busy" {{ 'selected' if current_user.availability == 'busy' else '' }}>
+                                    Bận
+                                </option>
+                                <option value="offline" {{ 'selected' if current_user.availability == 'offline' else '' }}>
+                                    Offline
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <h4 class="font-bold text-orange-800 mb-2 flex items-center gap-2">
+                                <i class="fas fa-info-circle"></i>
+                                Lưu ý
+                            </h4>
+                            <ul class="text-sm text-orange-700 space-y-1 list-disc list-inside">
+                                <li>Trạng thái này sẽ hiển thị công khai cho người dùng</li>
+                                <li>Khi "Bận" hoặc "Offline", người dùng không thể đặt lịch mới</li>
+                                <li>Bạn vẫn nhận được tin nhắn khi offline</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUBMIT BUTTON -->
+                <div class="flex gap-4">
+                    <button type="submit" 
+                            class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-xl font-bold hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-2">
+                        <i class="fas fa-save"></i>
+                        Lưu thay đổi
+                    </button>
+                    <button type="reset" 
+                            class="px-8 py-4 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition">
+                        <i class="fas fa-undo mr-2"></i>
+                        Đặt lại
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Preview Avatar
+function previewAvatar(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('avatarPreview').src = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// Quick Actions
+function changePassword() {
+    alert('Chức năng đổi mật khẩu đang được phát triển!');
+}
+
+function viewPublicProfile() {
+    window.open(`/user/${{{ current_user.id }}}`, '_blank');
+}
+
+function downloadCertificate() {
+    alert('Chức năng tải chứng chỉ đang được phát triển!');
+}
+
+// Form Validation
+document.querySelector('form')?.addEventListener('submit', function(e) {
+    const specialty = document.querySelector('[name="specialty"]').value.trim();
+    
+    if (!specialty) {
+        e.preventDefault();
+        alert('Vui lòng nhập chuyên môn!');
+        return false;
+    }
+});
+</script>
+
+<style>
+input[type="file"]::-webkit-file-upload-button {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+    margin-right: 1rem;
+}
+
+input[type="file"]::-webkit-file-upload-button:hover {
+    background: linear-gradient(135deg, #764ba2, #667eea);
+}
+</style>
+{% endblock %}

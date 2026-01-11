@@ -1,0 +1,277 @@
+{% extends "expert/base_expert.html" %}
+
+{% block title %}Chuyên gia Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Thống kê nhanh -->
+    <div class="expert-stats">
+        <div class="expert-stat-card">
+            <div class="expert-stat-number">{{ stats.total_views or 0 }}</div>
+            <div class="expert-stat-label">
+                <i class="fas fa-eye text-blue-500"></i> Lượt xem
+            </div>
+        </div>
+        <div class="expert-stat-card">
+            <div class="expert-stat-number">{{ stats.followers_count or 0 }}</div>
+            <div class="expert-stat-label">
+                <i class="fas fa-users text-green-500"></i> Người theo dõi
+            </div>
+        </div>
+        <div class="expert-stat-card">
+            <div class="expert-stat-number">{{ stats.posts_count or 0 }}</div>
+            <div class="expert-stat-label">
+                <i class="fas fa-newspaper text-purple-500"></i> Bài viết
+            </div>
+        </div>
+        <div class="expert-stat-card">
+            <div class="expert-stat-number">{{ stats.consultations_count or 0 }}</div>
+            <div class="expert-stat-label">
+                <i class="fas fa-calendar-check text-orange-500"></i> Tư vấn
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Cột chính -->
+        <div class="lg:col-span-2 space-y-8">
+            <!-- Lịch tư vấn sắp tới -->
+            <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-calendar-alt mr-2 text-blue-500"></i>
+                        Lịch tư vấn sắp tới
+                    </h2>
+                    <span class="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">
+                        {{ upcoming_consultations|length }} lịch
+                    </span>
+                </div>
+                {% if upcoming_consultations %}
+                <div class="space-y-4">
+                    {% for consultation in upcoming_consultations %}
+                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center space-x-3">
+                                <img src="{{ url_for('static', filename=consultation.user.avatar or 'images/default-avatar.png') }}" 
+                                     alt="{{ consultation.user.name }}" 
+                                     class="w-10 h-10 rounded-full object-cover">
+                                <div>
+                                    <h3 class="font-medium text-gray-800">{{ consultation.user.name }}</h3>
+                                    <p class="text-sm text-gray-500 flex items-center">
+                                        <i class="far fa-clock mr-1"></i>
+                                        {{ consultation.scheduled_at.strftime('%H:%M %d/%m/%Y') }}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button class="px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition-colors">
+                                    <i class="fas fa-video mr-1"></i> Bắt đầu
+                                </button>
+                                <button class="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300 transition-colors">
+                                    <i class="fas fa-calendar-alt mr-1"></i> Đổi lịch
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-calendar-times text-4xl mb-4 text-gray-300"></i>
+                    <p class="text-lg font-medium mb-4">Không có lịch tư vấn nào</p>
+                    <a href="{{ url_for('expert_schedule') }}" class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                        <i class="fas fa-plus mr-2"></i> Tạo lịch tư vấn
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Câu hỏi chưa trả lời -->
+            <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-question-circle mr-2 text-green-500"></i>
+                        Câu hỏi chưa trả lời
+                    </h2>
+                    <span class="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">
+                        {{ unanswered_questions|length }} câu hỏi
+                    </span>
+                </div>
+                {% if unanswered_questions %}
+                <div class="space-y-4">
+                    {% for question in unanswered_questions[:5] %}
+                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center space-x-3">
+                                <img src="{{ url_for('static', filename=question.user.avatar or 'images/default-avatar.png') }}" 
+                                     alt="{{ question.user.name }}" 
+                                     class="w-10 h-10 rounded-full object-cover">
+                                <div>
+                                    <h3 class="font-medium text-gray-800">{{ question.user.name }}</h3>
+                                    <p class="text-sm text-gray-500 flex items-center">
+                                        <i class="far fa-clock mr-1"></i>
+                                        {{ question.created_at.strftime('%H:%M %d/%m/%Y') }}
+                                    </p>
+                                </div>
+                            </div>
+                            <a href="{{ url_for('expert_answer', question_id=question.id) }}" 
+                               class="px-3 py-1 bg-green-500 text-white rounded-md text-sm hover:bg-green-600 transition-colors">
+                                <i class="fas fa-reply mr-1"></i> Trả lời
+                            </a>
+                        </div>
+                        <p class="text-gray-700">{{ question.content|truncate(100) }}</p>
+                    </div>
+                    {% endfor %}
+                    {% if unanswered_questions|length > 5 %}
+                    <div class="text-center mt-4">
+                        <a href="{{ url_for('expert_questions') }}" class="text-blue-500 hover:text-blue-700 font-medium">
+                            Xem tất cả câu hỏi <i class="fas fa-arrow-right ml-1"></i>
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-check-circle text-4xl mb-4 text-gray-300"></i>
+                    <p class="text-lg font-medium">Đã trả lời tất cả câu hỏi</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Hồ sơ chuyên gia -->
+            <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
+                <h2 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
+                    <i class="fas fa-user-circle mr-2 text-purple-500"></i>
+                    Hồ sơ chuyên gia
+                </h2>
+                <div class="text-center mb-4">
+                    <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}" 
+                         alt="{{ current_user.name }}" 
+                         class="w-24 h-24 rounded-full object-cover mx-auto border-4 border-purple-200 mb-4">
+                    <h3 class="text-lg font-bold text-gray-800">{{ current_user.name }}</h3>
+                    <p class="text-sm text-gray-600 mb-3">{{ current_user.expert_category or 'Chuyên gia' }}</p>
+                    <div class="flex justify-center">
+                        <span class="bg-purple-100 text-purple-600 px-3 py-1 rounded-full text-sm font-medium">
+                            <i class="fas fa-stethoscope mr-1"></i>
+                            Chuyên gia đã xác minh
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="space-y-3 mb-4">
+                    <div class="flex justify-between py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600 flex items-center">
+                            <i class="fas fa-briefcase mr-2 text-gray-400"></i>
+                            Kinh nghiệm
+                        </span>
+                        <span class="text-sm font-medium text-gray-800">{{ current_user.experience_years or 0 }} năm</span>
+                    </div>
+                    <div class="flex justify-between py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600 flex items-center">
+                            <i class="fas fa-graduation-cap mr-2 text-gray-400"></i>
+                            Chuyên môn
+                        </span>
+                        <span class="text-sm font-medium text-gray-800">{{ current_user.specialty or 'Chưa xác định' }}</span>
+                    </div>
+                    <div class="flex justify-between py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600 flex items-center">
+                            <i class="fas fa-hospital mr-2 text-gray-400"></i>
+                            Nơi làm việc
+                        </span>
+                        <span class="text-sm font-medium text-gray-800">{{ current_user.workplace or 'Chưa xác định' }}</span>
+                    </div>
+                    <div class="flex justify-between py-2">
+                        <span class="text-sm text-gray-600 flex items-center">
+                            <i class="fas fa-star mr-2 text-gray-400"></i>
+                            Điểm uy tín
+                        </span>
+                        <span class="text-sm font-medium text-gray-800">{{ current_user.credibility_score or 0 }}</span>
+                    </div>
+                </div>
+                
+                <a href="{{ url_for('expert_profile') }}" 
+                   class="w-full block text-center bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-2 rounded-lg font-medium hover:shadow-lg transition-all transform hover:scale-105">
+                    <i class="fas fa-edit mr-2"></i> Chỉnh sửa hồ sơ
+                </a>
+            </div>
+            
+            <!-- Hoạt động gần đây -->
+            <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-orange-500">
+                <h2 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
+                    <i class="fas fa-chart-line mr-2 text-orange-500"></i>
+                    Hoạt động gần đây
+                </h2>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                        <div class="flex items-center">
+                            <i class="fas fa-comment text-blue-500 mr-3"></i>
+                            <span class="text-gray-700">Bình luận mới</span>
+                        </div>
+                        <span class="bg-blue-100 text-blue-600 px-2 py-1 rounded-full text-sm font-medium">{{ stats.new_comments or 0 }}</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-pink-50 rounded-lg">
+                        <div class="flex items-center">
+                            <i class="fas fa-heart text-pink-500 mr-3"></i>
+                            <span class="text-gray-700">Lượt thích</span>
+                        </div>
+                        <span class="bg-pink-100 text-pink-600 px-2 py-1 rounded-full text-sm font-medium">{{ stats.new_likes or 0 }}</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                        <div class="flex items-center">
+                            <i class="fas fa-users text-green-500 mr-3"></i>
+                            <span class="text-gray-700">Người theo dõi</span>
+                        </div>
+                        <span class="bg-green-100 text-green-600 px-2 py-1 rounded-full text-sm font-medium">{{ stats.new_followers or 0 }}</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                        <div class="flex items-center">
+                            <i class="fas fa-calendar-check text-purple-500 mr-3"></i>
+                            <span class="text-gray-700">Lịch tư vấn</span>
+                        </div>
+                        <span class="bg-purple-100 text-purple-600 px-2 py-1 rounded-full text-sm font-medium">{{ stats.new_consultations or 0 }}</span>
+                    </div>
+                </div>
+                
+                <a href="{{ url_for('expert_analytics') }}" 
+                   class="w-full block text-center bg-gradient-to-r from-orange-500 to-pink-600 text-white py-2 rounded-lg font-medium hover:shadow-lg transition-all transform hover:scale-105 mt-4">
+                    <i class="fas fa-chart-bar mr-2"></i> Xem thống kê chi tiết
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Thêm hiệu ứng animation cho các thẻ thống kê
+    const statCards = document.querySelectorAll('.expert-stat-card');
+    statCards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 100 * index);
+    });
+    
+    // Thêm hiệu ứng hover cho các nút
+    const buttons = document.querySelectorAll('button, a');
+    buttons.forEach(button => {
+        button.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px)';
+        });
+        
+        button.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block title %}{{ current_user.name }} - Chuyên gia{% endblock %}
+
+{% block styles %}
+<style>
+    /* ===== HEADER CHUYÊN GIA ===== */
+    .expert-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem 0;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .expert-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        opacity: 0.5;
+    }
+
+    /* ===== PROFILE SECTION ===== */
+    .expert-profile {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        position: relative;
+        z-index: 10;
+    }
+
+    .expert-avatar-wrapper {
+        position: relative;
+    }
+
+    .expert-avatar {
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .expert-avatar:hover {
+        transform: scale(1.05) rotate(3deg);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .expert-verified-badge {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        background: linear-gradient(135deg, #4CAF50, #8BC34A);
+        color: white;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 3px solid white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        animation: pulse-badge 2s infinite;
+    }
+
+    @keyframes pulse-badge {
+
+        0%,
+        100% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.1);
+        }
+    }
+
+    .expert-info h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .expert-badges {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .expert-badge {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        gap: 0.5rem;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .expert-badge:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    /* ===== NAVIGATION TABS ===== */
+    .expert-nav {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(15px);
+        border-radius: 16px;
+        padding: 0.75rem;
+        margin-top: 1.5rem;
+        position: relative;
+        z-index: 10;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .expert-nav-list {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .expert-nav-item {
+        color: white;
+        padding: 0.875rem 1.5rem;
+        border-radius: 12px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        font-weight: 600;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: 2px solid transparent;
+    }
+
+    .expert-nav-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        transition: 0.5s;
+    }
+
+    .expert-nav-item:hover::before {
+        left: 100%;
+    }
+
+    .expert-nav-item:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-3px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    .expert-nav-item.active {
+        background: white;
+        color: #667eea;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        transform: translateY(-3px);
+        border-color: white;
+    }
+
+    .expert-nav-item i {
+        font-size: 1.1rem;
+    }
+
+    /* ===== STATS CARDS ===== */
+    .expert-stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        text-align: center;
+        transition: all 0.3s ease;
+        border-top: 4px solid #667eea;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .expert-stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+        transition: 0.5s;
+    }
+
+    .expert-stat-card:hover::before {
+        left: 100%;
+    }
+
+    .expert-stat-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+        border-top-color: #764ba2;
+    }
+
+    .expert-stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
+    }
+
+    .expert-stat-label {
+        color: #64748b;
+        font-weight: 600;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+        .expert-profile {
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .expert-nav-list {
+            flex-direction: column;
+        }
+
+        .expert-nav-item {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .expert-info h1 {
+            font-size: 1.5rem;
+        }
+
+        .expert-avatar {
+            width: 70px;
+            height: 70px;
+        }
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .expert-nav {
+        animation: fadeInUp 0.5s ease-out;
+    }
+
+    .expert-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .expert-stat-card {
+        background: white;
+        border-radius: 1rem;
+        padding: 1.25rem;
+        text-align: center;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        cursor: default;
+    }
+
+    .expert-stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .expert-stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: #667eea;
+    }
+
+    .expert-stat-label {
+        font-size: 1rem;
+        color: #555;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .expert-stat-label i {
+        font-size: 1.2rem;
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="expert-header">
+    <div class="container mx-auto px-4 py-4">
+        <!-- PROFILE SECTION -->
+        <div class="expert-profile">
+            <div class="expert-avatar-wrapper">
+                <img src="{{ url_for('static', filename=current_user.avatar or 'images/default-avatar.png') }}"
+                    alt="{{ current_user.name }}" class="expert-avatar">
+                <div class="expert-verified-badge">
+                    <i class="fas fa-check"></i>
+                </div>
+            </div>
+
+            <div class="expert-info">
+                <h1>{{ current_user.name }}</h1>
+                <div class="expert-badges">
+                    <span class="expert-badge">
+                        <i class="fas fa-stethoscope"></i>
+                        Chuyên gia đã xác minh
+                    </span>
+                    <span class="expert-badge">
+                        <i class="fas fa-certificate"></i>
+                        {{ current_user.expert_category or 'Đa khoa' }}
+                    </span>
+                    {% if current_user.experience_years %}
+                    <span class="expert-badge">
+                        <i class="fas fa-briefcase"></i>
+                        {{ current_user.experience_years }} năm kinh nghiệm
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- NAVIGATION TABS -->
+        <nav class="expert-nav">
+            <div class="expert-nav-list">
+                <a href="{{ url_for('expert_dashboard') }}"
+                    class="expert-nav-item {{ 'active' if request.endpoint == 'expert_dashboard' else '' }}">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Dashboard</span>
+                </a>
+
+                <a href="{{ url_for('expert_posts') }}"
+                    class="expert-nav-item {{ 'active' if request.endpoint == 'expert_posts' else '' }}">
+                    <i class="fas fa-newspaper"></i>
+                    <span>Bài viết</span>
+                </a>
+
+                <a href="{{ url_for('expert_schedule') }}"
+                    class="expert-nav-item {{ 'active' if request.endpoint == 'expert_schedule' else '' }}">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Lịch tư vấn</span>
+                </a>
+
+                <a href="{{ url_for('expert_analytics') }}"
+                    class="expert-nav-item {{ 'active' if request.endpoint == 'expert_analytics' else '' }}">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Thống kê</span>
+                </a>
+
+                <a href="{{ url_for('expert_profile') }}"
+                    class="expert-nav-item {{ 'active' if request.endpoint == 'expert_profile' else '' }}">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Hồ sơ</span>
+                </a>
+            </div>
+        </nav>
+    </div>
+</div>
+{% endblock %}
