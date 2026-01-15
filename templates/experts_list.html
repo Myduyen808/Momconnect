@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Danh sách chuyên gia{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- HEADER -->
+    <div class="text-center mb-12">
+        <h1 class="text-4xl font-bold text-gray-800 mb-4">
+            <i class="fas fa-user-md text-purple-600"></i>
+            Đội ngũ chuyên gia
+        </h1>
+        <p class="text-gray-600 text-lg">Tìm kiếm và đặt lịch tư vấn với các chuyên gia hàng đầu</p>
+    </div>
+
+    <!-- BỘ LỌC (TÙY CHỌN) -->
+    <div class="flex flex-wrap gap-3 mb-8 justify-center">
+        <button class="px-6 py-3 rounded-full font-medium bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg">
+            Tất cả
+        </button>
+        <button class="px-6 py-3 rounded-full font-medium bg-white text-gray-700 hover:shadow-md transition">
+            Sức khỏe bà mẹ
+        </button>
+        <button class="px-6 py-3 rounded-full font-medium bg-white text-gray-700 hover:shadow-md transition">
+            Dinh dưỡng
+        </button>
+        <button class="px-6 py-3 rounded-full font-medium bg-white text-gray-700 hover:shadow-md transition">
+            Tâm lý
+        </button>
+    </div>
+
+    <!-- DANH SÁCH CHUYÊN GIA -->
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {% for expert in experts %}
+        <div class="bg-white rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-all transform hover:scale-105">
+            <!-- AVATAR + BADGE -->
+            <div class="relative h-48 bg-gradient-to-br from-purple-500 to-indigo-600">
+                <img src="{{ url_for('static', filename=expert.avatar or 'images/default-avatar.png') }}"
+                     class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 w-32 h-32 rounded-full object-cover border-8 border-white shadow-2xl">
+                
+                <!-- BADGE CHUYÊN GIA -->
+                <span class="absolute top-4 right-4 bg-white text-purple-600 px-4 py-2 rounded-full text-sm font-bold shadow-lg">
+                    <i class="fas fa-stethoscope"></i> Chuyên gia
+                </span>
+            </div>
+
+            <!-- THÔNG TIN -->
+            <div class="pt-20 pb-8 px-6 text-center">
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">{{ expert.name }}</h3>
+                
+                <!-- CHUYÊN NGÀNH -->
+                <p class="text-purple-600 font-semibold mb-1">
+                    <i class="fas fa-briefcase-medical"></i>
+                    {{ expert.expert_category or 'Chuyên gia' }}
+                </p>
+                
+                <!-- CHUYÊN MÔN CỤ THỂ -->
+                {% if expert.specialty %}
+                <p class="text-sm text-gray-600 mb-4">{{ expert.specialty }}</p>
+                {% endif %}
+                
+                <!-- KINH NGHIỆM -->
+                {% if expert.experience_years %}
+                <p class="text-sm text-gray-500 mb-4">
+                    <i class="fas fa-award"></i>
+                    {{ expert.experience_years }} năm kinh nghiệm
+                </p>
+                {% endif %}
+
+                <!-- BIO -->
+                {% if expert.bio %}
+                <p class="text-gray-600 text-sm mb-6 line-clamp-3">{{ expert.bio }}</p>
+                {% endif %}
+
+                <!-- THỐNG KÊ NHANH -->
+                <div class="flex justify-around mb-6 text-sm">
+                    <div class="text-center">
+                        <p class="font-bold text-purple-600 text-xl">{{ expert.total_posts }}</p>
+                        <p class="text-gray-500">Bài viết</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="font-bold text-green-600 text-xl">{{ expert.total_consultations }}</p>
+                        <p class="text-gray-500">Tư vấn</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="font-bold text-blue-600 text-xl">{{ expert.followers.count() }}</p>
+                        <p class="text-gray-500">Người theo dõi</p>
+                    </div>
+                </div>
+
+                <!-- BUTTONS -->
+                <div class="flex gap-3">
+                    <a href="{{ url_for('expert_public_profile', expert_id=expert.id) }}"
+                       class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-full font-bold hover:shadow-lg transition flex items-center justify-center gap-2">
+                        <i class="fas fa-calendar-check"></i>
+                        Đặt lịch tư vấn
+                    </a>
+                    <a href="{{ url_for('user_profile', user_id=expert.id) }}"
+                       class="px-4 py-3 bg-gray-200 text-gray-700 rounded-full font-bold hover:bg-gray-300 transition">
+                        <i class="fas fa-user"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- EMPTY STATE -->
+    {% if not experts %}
+    <div class="text-center py-20 bg-white rounded-3xl shadow-xl">
+        <i class="fas fa-user-doctor text-8xl text-gray-200 mb-6"></i>
+        <p class="text-2xl text-gray-500 font-medium">Chưa có chuyên gia nào</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block title %}{{ expert.name }} - Chuyên gia{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- BACK BUTTON -->
+    <a href="{{ url_for('experts_list') }}" class="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-6 font-medium">
+        <i class="fas fa-arrow-left"></i>
+        Quay lại danh sách chuyên gia
+    </a>
+
+    <div class="grid lg:grid-cols-3 gap-8">
+        <!-- CỘT TRÁI - THÔNG TIN CHUYÊN GIA -->
+        <div class="lg:col-span-1">
+            <!-- CARD CHUYÊN GIA -->
+            <div class="bg-white rounded-3xl shadow-xl overflow-hidden sticky top-24">
+                <!-- HEADER GRADIENT -->
+                <div class="h-32 bg-gradient-to-br from-purple-500 to-indigo-600 relative">
+                    <img src="{{ url_for('static', filename=expert.avatar or 'images/default-avatar.png') }}"
+                         class="absolute -bottom-16 left-1/2 transform -translate-x-1/2 w-32 h-32 rounded-full object-cover border-8 border-white shadow-2xl">
+                </div>
+
+                <!-- THÔNG TIN -->
+                <div class="pt-20 pb-6 px-6 text-center">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">{{ expert.name }}</h2>
+                    
+                    <!-- BADGE CHUYÊN GIA -->
+                    <span class="inline-block bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-full text-sm font-bold mb-4">
+                        <i class="fas fa-stethoscope"></i> Chuyên gia
+                    </span>
+
+                    <!-- CHUYÊN NGÀNH -->
+                    <p class="text-purple-600 font-semibold mb-1">
+                        <i class="fas fa-briefcase-medical"></i>
+                        {{ expert.expert_category or 'Chuyên gia' }}
+                    </p>
+
+                    <!-- CHUYÊN MÔN -->
+                    {% if expert.specialty %}
+                    <p class="text-gray-600 mb-4">{{ expert.specialty }}</p>
+                    {% endif %}
+
+                    <!-- KINH NGHIỆM -->
+                    {% if expert.experience_years %}
+                    <div class="flex items-center justify-center gap-2 text-gray-600 mb-4">
+                        <i class="fas fa-award text-yellow-500"></i>
+                        <span>{{ expert.experience_years }} năm kinh nghiệm</span>
+                    </div>
+                    {% endif %}
+
+                    <!-- NƠI LÀM VIỆC -->
+                    {% if expert.workplace %}
+                    <div class="flex items-center justify-center gap-2 text-gray-600 mb-4">
+                        <i class="fas fa-hospital"></i>
+                        <span class="text-sm">{{ expert.workplace }}</span>
+                    </div>
+                    {% endif %}
+
+                    <!-- PHÍ TƯ VẤN -->
+                    {% if expert.consultation_fee %}
+                    <div class="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-4">
+                        <p class="text-sm text-gray-600 mb-1">Phí tư vấn</p>
+                        <p class="text-2xl font-bold text-green-600">
+                            {{ "{:,.0f}".format(expert.consultation_fee) }} VNĐ
+                            <span class="text-sm font-normal text-gray-500">/buổi</span>
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    <!-- BIO -->
+                    {% if expert.bio %}
+                    <div class="text-left mb-6">
+                        <h4 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                            <i class="fas fa-user-circle text-purple-600"></i>
+                            Giới thiệu
+                        </h4>
+                        <p class="text-gray-600 text-sm">{{ expert.bio }}</p>
+                    </div>
+                    {% endif %}
+
+                    <!-- THỐNG KÊ -->
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-purple-600">{{ stats.total_posts }}</p>
+                            <p class="text-xs text-gray-500">Bài viết</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-green-600">{{ stats.total_consultations }}</p>
+                            <p class="text-xs text-gray-500">Tư vấn</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-yellow-500">{{ stats.rating }}</p>
+                            <p class="text-xs text-gray-500">Đánh giá</p>
+                        </div>
+                    </div>
+
+                    <!-- NÚT THEO DÕI -->
+                    {% if current_user.is_authenticated and current_user.id != expert.id %}
+                    <button onclick="toggleFollow({{ expert.id }})" 
+                            class="w-full bg-blue-600 text-white py-3 rounded-full font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2 mb-3">
+                        <i class="fas fa-user-plus"></i>
+                        Theo dõi
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT PHẢI - LỊCH TƯ VẤN + BÀI VIẾT -->
+        <div class="lg:col-span-2 space-y-8">
+            <!-- LỊCH TƯ VẤN -->
+            <div class="bg-white rounded-3xl shadow-xl p-8">
+                <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                    <i class="fas fa-calendar-alt text-purple-600"></i>
+                    Đặt lịch tư vấn
+                </h3>
+
+                {% if slots_by_date %}
+                <div class="space-y-6">
+                    {% for date, slots in slots_by_date.items() %}
+                    <div class="border-l-4 border-purple-500 pl-6">
+                        <h4 class="text-lg font-bold text-gray-700 mb-4">
+                            <i class="far fa-calendar text-purple-600"></i>
+                            {{ slots[0].start_time.strftime('%A, %d/%m/%Y') }}
+                        </h4>
+                        
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {% for slot in slots %}
+                            <button onclick="confirmBooking({{ slot.id }})"
+                                    class="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 hover:border-purple-400 rounded-xl p-4 text-center transition-all hover:shadow-lg group">
+                                <p class="font-bold text-purple-700 text-lg group-hover:text-purple-900">
+                                    {{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}
+                                </p>
+                                <p class="text-sm text-gray-600 mt-1">
+                                    {{ ((slot.end_time - slot.start_time).total_seconds() / 60)|int }} phút
+                                </p>
+                                {% if slot.notes %}
+                                <p class="text-xs text-gray-500 mt-2 truncate">{{ slot.notes }}</p>
+                                {% endif %}
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-12">
+                    <i class="fas fa-calendar-times text-6xl text-gray-300 mb-4"></i>
+                    <p class="text-gray-500 text-lg">Chuyên gia chưa mở lịch tư vấn</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- BÀI VIẾT TƯ VẤN GẦN ĐÂY -->
+            <div class="bg-white rounded-3xl shadow-xl p-8">
+                <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                    <i class="fas fa-newspaper text-purple-600"></i>
+                    Bài viết tư vấn gần đây
+                </h3>
+
+                {% if recent_posts %}
+                <div class="space-y-4">
+                    {% for post in recent_posts %}
+                    <a href="{{ url_for('post_detail', post_id=post.id) }}"
+                       class="block p-6 border-2 border-gray-200 rounded-2xl hover:border-purple-400 hover:shadow-lg transition-all group">
+                        <div class="flex items-start gap-4">
+                            {% if post.get_images_list() %}
+                            <img src="{{ url_for('static', filename='uploads/' ~ post.get_images_list()[0]) }}"
+                                 class="w-24 h-24 rounded-xl object-cover">
+                            {% else %}
+                            <div class="w-24 h-24 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+                                <i class="fas fa-file-alt text-3xl text-white"></i>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="flex-1">
+                                <h4 class="font-bold text-gray-800 text-lg group-hover:text-purple-600 transition mb-2">
+                                    {{ post.title }}
+                                </h4>
+                                <p class="text-gray-600 text-sm line-clamp-2 mb-3">
+                                    {{ post.content[:150] }}...
+                                </p>
+                                <div class="flex items-center gap-4 text-sm text-gray-500">
+                                    <span><i class="far fa-clock"></i> {{ post.created_at | vietnam_time }}</span>
+                                    <span><i class="fas fa-heart"></i> {{ post.likes }}</span>
+                                    <span><i class="fas fa-comment"></i> {{ post.comments_count }}</span>
+                                    <span><i class="fas fa-eye"></i> {{ post.views }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-center text-gray-500 py-8">Chưa có bài viết nào</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL XÁC NHẬN ĐẶT LỊCH -->
+<div id="bookingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-8">
+        <h3 class="text-2xl font-bold text-gray-800 mb-6">Xác nhận đặt lịch</h3>
+        
+        <form id="bookingForm" method="POST">
+            <input type="hidden" name="slot_id" id="slotId">
+            
+            <div class="mb-6">
+                <label class="block text-sm font-bold text-gray-700 mb-2">
+                    Ghi chú cho chuyên gia (tùy chọn)
+                </label>
+                <textarea name="notes" rows="4"
+                          class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none"
+                          placeholder="Mô tả vấn đề của bạn để chuyên gia chuẩn bị tốt hơn..."></textarea>
+            </div>
+
+            <div class="flex gap-3">
+                <button type="button" onclick="closeBookingModal()"
+                        class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition">
+                    Hủy
+                </button>
+                <button type="submit"
+                        class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition">
+                    <i class="fas fa-check mr-2"></i>
+                    Xác nhận
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+</style>
+
+<script>
+function confirmBooking(slotId) {
+    document.getElementById('slotId').value = slotId;
+    document.getElementById('bookingModal').classList.remove('hidden');
+}
+
+function closeBookingModal() {
+    document.getElementById('bookingModal').classList.add('hidden');
+}
+
+document.getElementById('bookingForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const slotId = document.getElementById('slotId').value;
+    const notes = this.notes.value;
+    
+    const formData = new FormData();
+    formData.append('notes', notes);
+    
+    try {
+        const res = await fetch(`/book-slot/${slotId}`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            alert(data.message || 'Đặt lịch thành công!');
+            location.reload();
+        } else {
+            alert(data.error || 'Có lỗi xảy ra!');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Lỗi kết nối!');
+    }
+});
+
+async function toggleFollow(expertId) {
+    try {
+        const res = await fetch(`/follow/${expertId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await res.json();
+        alert(data.message);
+        location.reload();
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+</script>
+{% endblock %}

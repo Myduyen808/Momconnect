@@ -72,6 +72,7 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(200), nullable=False)
     avatar = db.Column(db.String(200), default='default.jpg')
     bio = db.Column(db.Text)
+    phone = db.Column(db.String(15), unique=True)  # Số điện thoại
     
     # ===== THÔNG TIN GIA ĐÌNH =====
     children_count = db.Column(db.Integer, default=0)
@@ -455,42 +456,50 @@ class ExpertProfile(db.Model):
     consultation_fee = db.Column(db.Float)
     credibility_score = db.Column(db.Float, default=0)
     
-    expert_posts = db.relationship(
-        'ExpertPost',
-        back_populates='expert',
-        lazy='dynamic',
-        cascade='all, delete-orphan'
-    )
+    # expert_posts = db.relationship(
+    #     'ExpertPost',
+    #     back_populates='expert',
+    #     lazy='dynamic',
+    #     cascade='all, delete-orphan'
+    # )
 
-    consultations = db.relationship(
-        'Consultation',
-        back_populates='expert',
-        lazy='dynamic',
-        cascade='all, delete-orphan'
-    )
+    # consultations = db.relationship(
+    #     'Consultation',
+    #     back_populates='expert',
+    #     lazy='dynamic',
+    #     cascade='all, delete-orphan'
+    # )
 
+# =====================================================
+# EXPERT POST MODEL - BÀI VIẾT CHUYÊN GIA
+# =====================================================
 class ExpertPost(db.Model):
     __tablename__ = 'expert_posts'
     
     id = db.Column(db.Integer, primary_key=True)
-    expert_id = db.Column(db.Integer, db.ForeignKey('expert_profiles.id'), nullable=False)
+    expert_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Thay đổi từ expert_profile_id
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    category = db.Column(db.String(50))
+    category = db.Column(db.String(50), default='other')
     medical_references = db.Column(db.Text)
     views_count = db.Column(db.Integer, default=0)
     likes_count = db.Column(db.Integer, default=0)
     comments_count = db.Column(db.Integer, default=0)
     is_published = db.Column(db.Boolean, default=False)
     published_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
     
-    expert = db.relationship('ExpertProfile', back_populates='expert_posts')
+    # Thay đổi relationship để trỏ đến User thay vì ExpertProfile
+    expert = db.relationship('User', backref='expert_posts')
 
+# =====================================================
+# CONSULTATION MODEL - BUỔI TƯ VẤN
+# =====================================================
 class Consultation(db.Model):
     __tablename__ = 'consultations'
     
     id = db.Column(db.Integer, primary_key=True)
-    expert_id = db.Column(db.Integer, db.ForeignKey('expert_profiles.id'), nullable=False)
+    expert_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     scheduled_at = db.Column(db.DateTime)
     duration_minutes = db.Column(db.Integer, default=30)
@@ -499,8 +508,63 @@ class Consultation(db.Model):
     notes = db.Column(db.Text)
     fee = db.Column(db.Float)
     
-    expert = db.relationship('ExpertProfile', back_populates='consultations')
-    user = db.relationship('User', backref='consultations')
+    # Sửa relationship để chỉ định rõ foreign_key
+    expert = db.relationship('User', foreign_keys=[expert_id], backref='expert_consultations')
+    user = db.relationship('User', foreign_keys=[user_id], backref='user_consultations')
+
+# ✅ 1. KHUNG GIỜ - Chuyên gia tạo ra (Expert-owned slots)
+class TimeSlot(db.Model):
+    __tablename__ = 'time_slots'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # === CHUYÊN GIA SỞ HỮU ===
+    expert_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # === THỜI GIAN ===
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    
+    # === TRẠNG THÁI ===
+    status = db.Column(db.String(20), default='available')  # available, booked, cancelled
+    
+    # === SỐ NGƯỜI TỐI ĐA ===
+    max_participants = db.Column(db.Integer, default=1)
+    
+    # === GHI CHÚ ===
+    notes = db.Column(db.Text)
+    
+    # === THỜI GIAN TẠO ===
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+    
+    # === RELATIONSHIPS ===
+    expert = db.relationship('User', foreign_keys=[expert_id], backref='time_slots')
+    booking = db.relationship('Booking', back_populates='time_slot', uselist=False)  # 1-1
+
+# ✅ 2. ĐẶT LỊCH - Người dùng đặt vào khung giờ có sẵn
+class Booking(db.Model):
+    __tablename__ = 'bookings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # === NGƯỜI ĐẶT ===
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # === KHUNG GIỜ ĐÃ CHỌN ===
+    time_slot_id = db.Column(db.Integer, db.ForeignKey('time_slots.id'), nullable=False)
+    
+    # === NỘI DUNG YÊU CẦU ===
+    notes = db.Column(db.Text)
+    
+    # === TRẠNG THÁI ===
+    status = db.Column(db.String(20), default='scheduled')  # scheduled, completed, cancelled
+    
+    # === THỜI GIAN TẠO ===
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+    
+    # === RELATIONSHIPS ===
+    user = db.relationship('User', foreign_keys=[user_id], backref='bookings')
+    time_slot = db.relationship('TimeSlot', back_populates='booking')
 
 # =====================================================
 # EVENT LISTENERS

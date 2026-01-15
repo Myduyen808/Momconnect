@@ -4,13 +4,9 @@
 
 {% block content %}
 <div class="container mx-auto px-4 py-8">
-    <!-- HEADER -->
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">Hồ sơ Chuyên gia</h1>
-        <p class="text-gray-600">Quản lý thông tin chuyên môn và chứng chỉ của bạn</p>
-    </div>
+    <h1 class="text-3xl font-bold text-gray-800 mb-8">Hồ sơ Chuyên gia</h1>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <form method="POST" action="{{ url_for('expert_profile') }}" enctype="multipart/form-data" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- LEFT SIDEBAR - AVATAR & QUICK INFO -->
         <div class="lg:col-span-1 space-y-6">
             <!-- AVATAR CARD -->
@@ -25,7 +21,7 @@
                                class="absolute bottom-0 right-0 bg-white text-purple-600 p-2 rounded-full cursor-pointer hover:bg-purple-50 transition shadow-lg">
                             <i class="fas fa-camera"></i>
                         </label>
-                        <input type="file" id="avatarInput" accept="image/*" class="hidden" onchange="previewAvatar(this)">
+                        <input type="file" id="avatarInput" name="avatarInput" accept="image/*" class="hidden" onchange="previewAvatar(this)">
                     </div>
                     <h3 class="text-white text-xl font-bold mt-4">{{ current_user.name }}</h3>
                     <p class="text-purple-100 text-sm">{{ current_user.email }}</p>
@@ -89,12 +85,12 @@
         <!-- RIGHT MAIN CONTENT - FORMS -->
         <div class="lg:col-span-2 space-y-6">
             <form method="POST" action="{{ url_for('expert_profile') }}" enctype="multipart/form-data">
-                <!-- PERSONAL INFO SECTION -->
+                <!-- THÔNG TIN ĐĂNG KÝ (CÁ NHÂN) -->
                 <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
                     <div class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6">
                         <h2 class="text-xl font-bold flex items-center gap-2">
                             <i class="fas fa-user-circle"></i>
-                            Thông tin cá nhân
+                            Thông tin đăng ký
                         </h2>
                     </div>
                     
@@ -110,11 +106,39 @@
                             
                             <div>
                                 <label class="block text-sm font-bold text-gray-700 mb-2">
-                                    <i class="fas fa-envelope mr-2"></i>Email
+                                    <i class="fas fa-envelope mr-2"></i>Email (không thể sửa)
                                 </label>
                                 <input type="email" value="{{ current_user.email }}" disabled
                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed">
                             </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">
+                                    <i class="fas fa-phone mr-2"></i>Số điện thoại
+                                </label>
+                                <input type="text" name="phone" value="{{ current_user.phone or '' }}"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                       placeholder="VD: 0123456789">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">
+                                    <i class="fas fa-child mr-2"></i>Số con
+                                </label>
+                                <input type="number" name="children_count" value="{{ current_user.children_count or 0 }}" min="0"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-birthday-cake mr-2"></i>Độ tuổi con (cách nhau bởi dấu phẩy)
+                            </label>
+                            <input type="text" name="children_ages" value="{{ current_user.children_ages or '' }}"
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                   placeholder="VD: 3,5,8">
                         </div>
 
                         <div>
@@ -128,7 +152,7 @@
                     </div>
                 </div>
 
-                <!-- PROFESSIONAL INFO SECTION -->
+                <!-- THÔNG TIN CHUYÊN MÔN -->
                 <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
                     <div class="bg-gradient-to-r from-purple-500 to-pink-600 text-white p-6">
                         <h2 class="text-xl font-bold flex items-center gap-2">
@@ -143,7 +167,7 @@
                                 <label class="block text-sm font-bold text-gray-700 mb-2">
                                     <i class="fas fa-stethoscope mr-2"></i>Chuyên môn *
                                 </label>
-                                <input type="text" name="specialty" value="{{ current_user.specialty or '' }}"
+                                <input type="text" name="specialty" value="{{ current_user.specialty or '' }}" required
                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                        placeholder="VD: Nhi khoa">
                             </div>
@@ -197,7 +221,7 @@
                     </div>
                 </div>
 
-                <!-- EDUCATION & CERTIFICATIONS -->
+                <!-- HỌC VẤN & CHỨNG CHỈ -->
                 <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
                     <div class="bg-gradient-to-r from-green-500 to-teal-600 text-white p-6">
                         <h2 class="text-xl font-bold flex items-center gap-2">
@@ -227,7 +251,7 @@
 
                         <div>
                             <label class="block text-sm font-bold text-gray-700 mb-2">
-                                <i class="fas fa-upload mr-2"></i>Tải lên chứng chỉ mới
+                                <i class="fas fa-upload mr-2"></i>Tải lên chứng chỉ mới (ảnh/PDF)
                             </label>
                             <input type="file" name="certificate_upload" accept="image/*,.pdf" multiple
                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
@@ -236,49 +260,35 @@
                     </div>
                 </div>
 
-                <!-- AVAILABILITY SETTINGS -->
+                <!-- TRẠNG THÁI HOẠT ĐỘNG -->
                 <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
                     <div class="bg-gradient-to-r from-orange-500 to-red-600 text-white p-6">
                         <h2 class="text-xl font-bold flex items-center gap-2">
                             <i class="fas fa-clock"></i>
-                            Cài đặt lịch tư vấn
+                            Trạng thái hoạt động
                         </h2>
                     </div>
                     
-                    <div class="p-6 space-y-6">
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">
-                                <i class="fas fa-signal mr-2"></i>Trạng thái hoạt động
-                            </label>
-                            <select name="availability" 
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent">
-                                <option value="available" {{ 'selected' if current_user.availability == 'available' else '' }}>
-                                    Sẵn sàng tư vấn
-                                </option>
-                                <option value="busy" {{ 'selected' if current_user.availability == 'busy' else '' }}>
-                                    Bận
-                                </option>
-                                <option value="offline" {{ 'selected' if current_user.availability == 'offline' else '' }}>
-                                    Offline
-                                </option>
-                            </select>
-                        </div>
-
-                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                            <h4 class="font-bold text-orange-800 mb-2 flex items-center gap-2">
-                                <i class="fas fa-info-circle"></i>
-                                Lưu ý
-                            </h4>
-                            <ul class="text-sm text-orange-700 space-y-1 list-disc list-inside">
-                                <li>Trạng thái này sẽ hiển thị công khai cho người dùng</li>
-                                <li>Khi "Bận" hoặc "Offline", người dùng không thể đặt lịch mới</li>
-                                <li>Bạn vẫn nhận được tin nhắn khi offline</li>
-                            </ul>
-                        </div>
+                    <div class="p-6">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            <i class="fas fa-signal mr-2"></i>Trạng thái
+                        </label>
+                        <select name="availability" 
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                            <option value="available" {{ 'selected' if current_user.availability == 'available' else '' }}>
+                                Sẵn sàng tư vấn
+                            </option>
+                            <option value="busy" {{ 'selected' if current_user.availability == 'busy' else '' }}>
+                                Bận
+                            </option>
+                            <option value="offline" {{ 'selected' if current_user.availability == 'offline' else '' }}>
+                                Offline
+                            </option>
+                        </select>
                     </div>
                 </div>
 
-                <!-- SUBMIT BUTTON -->
+                <!-- SUBMIT -->
                 <div class="flex gap-4">
                     <button type="submit" 
                             class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-xl font-bold hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-2">
@@ -308,32 +318,31 @@ function previewAvatar(input) {
     }
 }
 
-// Quick Actions
+// Quick Actions (có thể mở rộng sau)
 function changePassword() {
-    alert('Chức năng đổi mật khẩu đang được phát triển!');
+    alert('Chức năng đổi mật khẩu đang phát triển!');
 }
 
 function viewPublicProfile() {
-    window.open(`/user/${{{ current_user.id }}}`, '_blank');
+    window.open("/user/{{ current_user.id }}", "_blank");
 }
 
 function downloadCertificate() {
-    alert('Chức năng tải chứng chỉ đang được phát triển!');
+    alert('Chức năng tải chứng chỉ đang phát triển!');
 }
 
-// Form Validation
+// Form Validation (bắt buộc chuyên môn)
 document.querySelector('form')?.addEventListener('submit', function(e) {
     const specialty = document.querySelector('[name="specialty"]').value.trim();
-    
     if (!specialty) {
         e.preventDefault();
         alert('Vui lòng nhập chuyên môn!');
-        return false;
     }
 });
 </script>
 
 <style>
+/* Giữ style cũ của bạn */
 input[type="file"]::-webkit-file-upload-button {
     background: linear-gradient(135deg, #667eea, #764ba2);
     color: white;

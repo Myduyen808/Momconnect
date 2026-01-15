@@ -5,30 +5,41 @@
 {% block content %}
 <div class="container mx-auto px-4 py-8">
     <!-- Thống kê nhanh -->
-    <div class="expert-stats">
-        <div class="expert-stat-card">
-            <div class="expert-stat-number">{{ stats.total_views or 0 }}</div>
-            <div class="expert-stat-label">
-                <i class="fas fa-eye text-blue-500"></i> Lượt xem
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow-lg p-6">
+            <div class="flex justify-between items-start mb-4">
+                <i class="fas fa-eye text-4xl opacity-80"></i>
+                <span class="text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">Tổng</span>
             </div>
+            <h3 class="text-3xl font-bold mb-1">{{ stats.total_views or 0 }}</h3>
+            <p class="text-blue-100">Lượt xem</p>
         </div>
-        <div class="expert-stat-card">
-            <div class="expert-stat-number">{{ stats.followers_count or 0 }}</div>
-            <div class="expert-stat-label">
-                <i class="fas fa-users text-green-500"></i> Người theo dõi
+
+        <div class="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl shadow-lg p-6">
+            <div class="flex justify-between items-start mb-4">
+                <i class="fas fa-users text-4xl opacity-80"></i>
+                <span class="text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">Người theo dõi</span>
             </div>
+            <h3 class="text-3xl font-bold mb-1">{{ stats.followers_count or 0 }}</h3>
+            <p class="text-green-100">Followers</p>
         </div>
-        <div class="expert-stat-card">
-            <div class="expert-stat-number">{{ stats.posts_count or 0 }}</div>
-            <div class="expert-stat-label">
-                <i class="fas fa-newspaper text-purple-500"></i> Bài viết
+
+        <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl shadow-lg p-6">
+            <div class="flex justify-between items-start mb-4">
+                <i class="fas fa-newspaper text-4xl opacity-80"></i>
+                <span class="text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">Bài viết</span>
             </div>
+            <h3 class="text-3xl font-bold mb-1">{{ stats.posts_count or 0 }}</h3>
+            <p class="text-purple-100">Tư vấn</p>
         </div>
-        <div class="expert-stat-card">
-            <div class="expert-stat-number">{{ stats.consultations_count or 0 }}</div>
-            <div class="expert-stat-label">
-                <i class="fas fa-calendar-check text-orange-500"></i> Tư vấn
+
+        <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl shadow-lg p-6">
+            <div class="flex justify-between items-start mb-4">
+                <i class="fas fa-calendar-check text-4xl opacity-80"></i>
+                <span class="text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">Lịch hẹn</span>
             </div>
+            <h3 class="text-3xl font-bold mb-1">{{ stats.consultations_count or 0 }}</h3>
+            <p class="text-orange-100">Tư vấn</p>
         </div>
     </div>
     
@@ -46,32 +57,34 @@
                         {{ upcoming_consultations|length }} lịch
                     </span>
                 </div>
-                {% if upcoming_consultations %}
+                {% if upcoming_consultations and upcoming_consultations|length > 0 %}
                 <div class="space-y-4">
-                    {% for consultation in upcoming_consultations %}
+                    {% for booking in upcoming_consultations %}
                     <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                         <div class="flex justify-between items-center">
                             <div class="flex items-center space-x-3">
-                                <img src="{{ url_for('static', filename=consultation.user.avatar or 'images/default-avatar.png') }}" 
-                                     alt="{{ consultation.user.name }}" 
+                                <img src="{{ url_for('static', filename=booking.user.avatar or 'images/default-avatar.png') }}" 
+                                     alt="{{ booking.user.name }}" 
                                      class="w-10 h-10 rounded-full object-cover">
                                 <div>
-                                    <h3 class="font-medium text-gray-800">{{ consultation.user.name }}</h3>
+                                    <h3 class="font-medium text-gray-800">{{ booking.user.name }}</h3>
                                     <p class="text-sm text-gray-500 flex items-center">
                                         <i class="far fa-clock mr-1"></i>
-                                        {{ consultation.scheduled_at.strftime('%H:%M %d/%m/%Y') }}
+                                        {{ booking.time_slot.start_time.strftime('%H:%M %d/%m/%Y') }}
                                     </p>
                                 </div>
                             </div>
                             <div class="flex space-x-2">
-                                <button class="px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition-colors">
+                                <a href="/chat/{{ booking.user.id }}" class="px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition-colors">
                                     <i class="fas fa-video mr-1"></i> Bắt đầu
-                                </button>
-                                <button class="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300 transition-colors">
-                                    <i class="fas fa-calendar-alt mr-1"></i> Đổi lịch
-                                </button>
+                                </a>
                             </div>
                         </div>
+                        {% if booking.notes %}
+                        <p class="text-sm text-gray-600 mt-2 border-t pt-2">
+                            <i class="fas fa-comment mr-1"></i>{{ booking.notes }}
+                        </p>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -91,49 +104,42 @@
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-xl font-bold text-gray-800 flex items-center">
                         <i class="fas fa-question-circle mr-2 text-green-500"></i>
-                        Câu hỏi chưa trả lời
+                        Bình luận mới
                     </h2>
                     <span class="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">
-                        {{ unanswered_questions|length }} câu hỏi
+                        {{ unanswered_questions|length }} bình luận
                     </span>
                 </div>
-                {% if unanswered_questions %}
+                {% if unanswered_questions and unanswered_questions|length > 0 %}
                 <div class="space-y-4">
-                    {% for question in unanswered_questions[:5] %}
+                    {% for comment in unanswered_questions[:5] %}
                     <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                         <div class="flex justify-between items-start mb-2">
                             <div class="flex items-center space-x-3">
-                                <img src="{{ url_for('static', filename=question.user.avatar or 'images/default-avatar.png') }}" 
-                                     alt="{{ question.user.name }}" 
+                                <img src="{{ url_for('static', filename=comment.author.avatar or 'images/default-avatar.png') }}" 
+                                     alt="{{ comment.author.name }}" 
                                      class="w-10 h-10 rounded-full object-cover">
                                 <div>
-                                    <h3 class="font-medium text-gray-800">{{ question.user.name }}</h3>
+                                    <h3 class="font-medium text-gray-800">{{ comment.author.name }}</h3>
                                     <p class="text-sm text-gray-500 flex items-center">
                                         <i class="far fa-clock mr-1"></i>
-                                        {{ question.created_at.strftime('%H:%M %d/%m/%Y') }}
+                                        {{ comment.created_at.strftime('%H:%M %d/%m/%Y') }}
                                     </p>
                                 </div>
                             </div>
-                            <a href="{{ url_for('expert_answer', question_id=question.id) }}" 
+                            <a href="{{ url_for('post_detail', post_id=comment.post_id) }}" 
                                class="px-3 py-1 bg-green-500 text-white rounded-md text-sm hover:bg-green-600 transition-colors">
                                 <i class="fas fa-reply mr-1"></i> Trả lời
                             </a>
                         </div>
-                        <p class="text-gray-700">{{ question.content|truncate(100) }}</p>
+                        <p class="text-gray-700">{{ comment.content[:100] }}...</p>
                     </div>
                     {% endfor %}
-                    {% if unanswered_questions|length > 5 %}
-                    <div class="text-center mt-4">
-                        <a href="{{ url_for('expert_questions') }}" class="text-blue-500 hover:text-blue-700 font-medium">
-                            Xem tất cả câu hỏi <i class="fas fa-arrow-right ml-1"></i>
-                        </a>
-                    </div>
-                    {% endif %}
                 </div>
                 {% else %}
                 <div class="text-center py-8 text-gray-500">
                     <i class="fas fa-check-circle text-4xl mb-4 text-gray-300"></i>
-                    <p class="text-lg font-medium">Đã trả lời tất cả câu hỏi</p>
+                    <p class="text-lg font-medium">Chưa có bình luận mới</p>
                 </div>
                 {% endif %}
             </div>
@@ -243,35 +249,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Thêm hiệu ứng animation cho các thẻ thống kê
-    const statCards = document.querySelectorAll('.expert-stat-card');
-    statCards.forEach((card, index) => {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(20px)';
-        
-        setTimeout(() => {
-            card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-            card.style.opacity = '1';
-            card.style.transform = 'translateY(0)';
-        }, 100 * index);
-    });
-    
-    // Thêm hiệu ứng hover cho các nút
-    const buttons = document.querySelectorAll('button, a');
-    buttons.forEach(button => {
-        button.addEventListener('mouseenter', function() {
-            this.style.transform = 'translateY(-2px)';
-        });
-        
-        button.addEventListener('mouseleave', function() {
-            this.style.transform = 'translateY(0)';
-        });
-    });
-});
-</script>
 {% endblock %}

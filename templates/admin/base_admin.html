@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin MomConnect{% endblock %}</title>
+
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .badge-pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1 }
+            50% { opacity: 0.6 }
+        }
+        /* CSS riêng cho Admin Sidebar */
+        .admin-sidebar-link.active {
+            background-color: #f3f4f6;
+            color: #4b5563;
+            border-left: 4px solid #6b7280;
+        }
+        /* Dropdown styling */
+        .dropdown {
+            transition: all 0.3s ease;
+        }
+        .notif-item:hover { background-color: #f8f9fa; }
+        .notif-item.unread {
+            background-color: #eff6ff;
+            border-left: 3px solid #3b82f6;
+        }
+        .notif-link { display: block; text-decoration: none; color: inherit; }
+        .notif-link:hover { text-decoration: none; color: inherit; }
+        .logo-img { transition: transform 0.3s ease; }
+        .logo-img:hover { transform: rotate(5deg) scale(1.05); }
+        .animate-pulse-slow { animation: pulse 3s infinite; }
+        /* Admin Button Hover */
+        .btn-admin:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+
+    <!-- NAV BAR RIÊNG CHO ADMIN -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <!-- Logo -->
+                <a href="{{ url_for('home') }}" class="flex items-center gap-3 group">
+                    <img src="{{ url_for('static', filename='logo.svg') }}" alt="Logo" class="w-10 h-10 logo-img">
+                    <span class="text-2xl font-bold text-gray-800">Admin</span>
+                </a>
+
+                <div class="flex items-center gap-4">
+                    <!-- Nút Quản lý Chuyên Gia (Redirect đến phần chuyên gia trong dashboard) -->
+                    <a href="{{ url_for('admin_dashboard') }}#experts" 
+                       class="text-gray-600 hover:text-purple-600 font-medium flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-purple-50 transition">
+                        <i class="fas fa-users-cog"></i>
+                        <span class="hidden sm:inline">Quản lý Chuyên Gia</span>
+                    </a>
+                    
+                    <a href="{{ url_for('home') }}" class="text-gray-600 hover:text-pink-600 font-medium">
+                        <i class="fas fa-home"></i>
+                        <span class="hidden sm:inline">Trang chủ</span>
+                    </a>
+                    
+                    <a href="{{ url_for('logout') }}" class="text-red-500 hover:text-red-700 font-medium ml-4">
+                        <i class="fas fa-sign-out-alt text-xl"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg shadow-sm border-l-4 border-{{ 'green' if category == 'success' else 'red' }}-500 bg-{{ 'green' if category == 'success' else 'red' }}-50 flex items-center">
+                <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' }} text-xl mr-3"></i>
+                <span class="font-medium text-gray-800">{{ message }}</span>
+            </div>
+            {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Main Block Content -->
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- JS CHUNG -->
+    <script>
+        async function updateNotificationBadge() {
+            try {
+                const res = await fetch('/notifications/count');
+                const data = await res.json();
+                const badge = document.getElementById('notif-count');
+                const list = document.getElementById('notifList');
+
+                if (data.count > 0) {
+                    badge.textContent = data.count > 99 ? '99+' : data.count;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+
+                if (!document.getElementById('notifDropdown').classList.contains('hidden')) {
+                    const notifRes = await fetch('/api/notifications');
+                    const notifs = await notifRes.json();
+
+                    if (notifs.length === 0) {
+                        list.innerHTML = `
+                            <div class="text-center py-12 text-gray-500">
+                                <i class="fas fa-bell-slash text-5xl mb-4 text-gray-300"></i>
+                                <p>Chưa có thông báo nào</p>
+                            </div>`;
+                        return;
+                    }
+
+                    list.innerHTML = notifs.map(n => {
+                        const redirectUrl = n.redirect_url || '/notifications';
+                        return `
+                        <a href="${redirectUrl}" 
+                        class="notif-link block p-4 notif-item transition ${!n.is_read ? 'unread bg-blue-50' : 'hover:bg-gray-50'}"
+                        onclick="handleNotificationClick(event, ${n.id}, '${redirectUrl}')">
+                            <div class="flex gap-4">
+                                <img src="${n.related_user_avatar || '/static/images/default-avatar.png'}"
+                                    class="w-10 h-10 rounded-full ring-2 ring-purple-300 flex-shrink-0">
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-bold text-gray-800 hover:text-pink-600 transition-colors">${n.title}</p>
+                                    <p class="text-sm text-gray-600 mt-1">${n.message}</p>
+                                    <p class="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                                        <i class="far fa-clock"></i> ${n.created_at}
+                                    </p>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    ${n.type === 'like' ? '<i class="fas fa-heart text-red-500 text-xl"></i>' :
+                                    n.type === 'comment' ? '<i class="templates/templates/admin/admin/base_admin.html</i>' : 
+                                    n.type === 'friend_request' ? '<i class="fas fa-user-check text-purple-500 text-xl"></i>' :
+                                        '<i class="fas fa-user-plus text-green-500 text-xl"></i>'}
+                                </div>
+                            </div>
+                        </a>`;
+                    }).join('');
+                }
+            } catch (e) {
+                console.error("Lỗi load thông báo:", e);
+            }
+        }
+
+        async function handleNotificationClick(event, notifId, redirectUrl) {
+            event.preventDefault();
+            try {
+                await fetch(`/api/notifications/${notifId}/read`, { method: "POST" });
+            } catch (e) {
+                console.error('Error marking as read:', e);
+            }
+            document.getElementById('notifDropdown').classList.add('hidden');
+            window.location.href = redirectUrl;
+        }
+
+        function toggleNotif() {
+            const dropdown = document.getElementById('notifDropdown');
+            dropdown.classList.toggle('hidden');
+            if (!dropdown.classList.contains('hidden')) {
+                updateNotificationBadge();
+            }
+        }
+
+        document.addEventListener('click', function (e) {
+            const dropdown = document.getElementById('notifDropdown');
+            const button = e.target.closest('button[onclick="toggleNotif()"]');
+            if (dropdown && !dropdown.contains(e.target) && !button) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateNotificationBadge();
+            setInterval(updateNotificationBadge, 10000);
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>
