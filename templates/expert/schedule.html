@@ -11,7 +11,7 @@
             <p class="text-gray-600">Tạo và quản lý khung giờ tư vấn của bạn</p>
         </div>
         <button onclick="openCreateModal()"
-            class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105 flex items-center gap-2">
+                class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105 flex items-center gap-2">
             <i class="fas fa-plus"></i>
             Tạo khung giờ mới
         </button>
@@ -19,39 +19,57 @@
 
     <!-- DANH SÁCH KHUNG GIỜ -->
     {% if time_slots and time_slots|length > 0 %}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="slotsContainer">
         {% for slot in time_slots %}
-        <div
-            class="bg-white rounded-xl shadow-md overflow-hidden border-l-4 {{ 'border-green-500' if slot.status == 'available' else 'border-orange-500' if slot.status == 'booked' else 'border-gray-400' }}">
+        <div class="slot-card bg-white rounded-xl shadow-md overflow-hidden border-l-4 
+                    {{ 'border-green-500' if slot.status == 'available' else 'border-orange-500' if slot.status == 'booked' else 'border-gray-400' }}"
+             data-slot-id="{{ slot.id }}"
+             data-date="{{ slot.start_time.strftime('%Y-%m-%d') }}"
+             data-start-time="{{ slot.start_time.strftime('%H:%M') }}"
+             data-duration="{{ (slot.end_time - slot.start_time).total_seconds() // 60 }}"
+             data-max-participants="{{ slot.max_participants }}"
+             data-notes="{{ slot.notes or '' }}">
+
             <div class="p-6">
-                <!-- STATUS BADGE -->
+                <!-- STATUS -->
                 <div class="flex justify-between items-start mb-4">
                     {% if slot.status == 'available' %}
                     <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
-                        <i class="fas fa-check-circle mr-1"></i>Còn trống
+                        Còn trống
                     </span>
                     {% elif slot.status == 'booked' %}
                     <span class="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-sm font-medium">
-                        <i class="fas fa-user-check mr-1"></i>Đã đặt
+                        Đã đặt
                     </span>
                     {% else %}
                     <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-                        <i class="fas fa-ban mr-1"></i>Đã hủy
+                        Đã hủy
                     </span>
                     {% endif %}
 
-                    <button onclick="deleteSlot({{ slot.id }})" class="text-red-500 hover:text-red-700 transition">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    <!-- NÚT HÀNH ĐỘNG -->
+                    <div class="flex gap-2">
+                        {% if slot.status == 'available' %}
+                        <button onclick="editSlot({{ slot.id }})"
+                                class="p-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition"
+                                title="Chỉnh sửa">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        {% endif %}
+                        <button onclick="deleteSlot({{ slot.id }})"
+                                class="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition" title="Xóa">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- DATE & TIME -->
+                <!-- NGÀY & GIỜ -->
                 <div class="text-center mb-4">
                     <div class="text-4xl font-bold text-purple-600 mb-1">
                         {{ slot.start_time.strftime('%d') }}
                     </div>
                     <div class="text-sm text-gray-600">
-                        Tháng {{ slot.start_time.strftime('%m/%Y') }}
+                        {{ slot.start_time.strftime('%m/%Y') }}
                     </div>
                 </div>
 
@@ -60,54 +78,25 @@
                         {{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}
                     </div>
                     <div class="text-sm text-gray-500">
-                        {{ ((slot.end_time - slot.start_time).total_seconds() / 60)|int }} phút
+                        {{ ((slot.end_time - slot.start_time).total_seconds() // 60) }} phút
                     </div>
                 </div>
 
-                <!-- BOOKING INFO -->
-                {% if slot.booking %}
-                <div class="bg-blue-50 rounded-lg p-3 mb-4">
-                    <div class="flex items-center gap-3">
-                        <img src="{{ url_for('static', filename=slot.booking.user.avatar or 'images/default-avatar.png') }}"
-                            alt="{{ slot.booking.user.name }}" class="w-10 h-10 rounded-full object-cover">
-                        <div>
-                            <h4 class="font-bold text-gray-800">{{ slot.booking.user.name }}</h4>
-                            <p class="text-sm text-gray-600">Đã đặt lịch</p>
-                        </div>
-                    </div>
-                    {% if slot.booking.notes %}
-                    <p class="text-sm text-gray-700 mt-2 border-t pt-2">
-                        <i class="fas fa-comment mr-1"></i>{{ slot.booking.notes[:50] }}...
-                    </p>
-                    {% endif %}
+                <!-- THÔNG TIN KHÁC -->
+                <div class="text-center text-sm text-gray-600 mb-4">
+                    Số người tối đa: {{ slot.max_participants }}
                 </div>
-                {% endif %}
 
                 {% if slot.notes %}
-                <div class="text-sm text-gray-600 mb-4">
-                    <i class="fas fa-info-circle mr-1"></i>
-                    {{ slot.notes[:50] }}...
-                </div>
+                <p class="text-sm text-gray-600 text-center">
+                    <i class="fas fa-info-circle mr-1"></i>{{ slot.notes }}
+                </p>
                 {% endif %}
-
-                <!-- ACTIONS -->
-                <div class="flex gap-2">
-                    {% if slot.status == 'available' %}
-                    <button onclick="editSlot({{ slot.id }})"
-                        class="flex-1 bg-blue-500 text-white py-2 rounded-lg font-bold hover:bg-blue-600 transition">
-                        <i class="fas fa-edit mr-1"></i>Sửa
-                    </button>
-                    {% elif slot.status == 'booked' %}
-                    <button onclick="cancelBooking({{ slot.id }})"
-                        class="flex-1 bg-red-500 text-white py-2 rounded-lg font-bold hover:bg-red-600 transition">
-                        <i class="fas fa-times mr-1"></i>Hủy lịch
-                    </button>
-                    {% endif %}
-                </div>
             </div>
         </div>
         {% endfor %}
     </div>
+
     {% else %}
     <!-- EMPTY STATE -->
     <div class="bg-white rounded-xl shadow-md p-12 text-center">
@@ -115,143 +104,168 @@
         <h3 class="text-2xl font-bold text-gray-700 mb-2">Chưa có khung giờ nào</h3>
         <p class="text-gray-500 mb-6">Hãy tạo khung giờ tư vấn đầu tiên của bạn</p>
         <button onclick="openCreateModal()"
-            class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
+                class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
             <i class="fas fa-plus mr-2"></i>Tạo khung giờ mới
         </button>
     </div>
     {% endif %}
-</div>
 
-<!-- CREATE/EDIT MODAL -->
-<div id="slotModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6">
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="text-xl font-bold text-gray-800">
-                <span id="modalTitle">Tạo khung giờ mới</span>
-            </h3>
-            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
-                <i class="fas fa-times text-2xl"></i>
-            </button>
+    <!-- CREATE/EDIT MODAL -->
+    <div id="slotModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">
+                    <span id="modalTitle">Tạo khung giờ mới</span>
+                </h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+
+            <form id="slotForm" method="POST" action="{{ url_for('expert_schedule') }}">
+                <input type="hidden" name="slot_id" id="slotId">
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Ngày *</label>
+                        <input type="date" name="date" id="slotDate" required min="{{ min_date }}"
+                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Giờ bắt đầu *</label>
+                        <input type="time" name="start_time" id="slotTime" required
+                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Thời lượng (phút) *</label>
+                        <select name="duration" id="slotDuration" required
+                                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            <option value="30">30 phút</option>
+                            <option value="45">45 phút</option>
+                            <option value="60">60 phút</option>
+                            <option value="90">90 phút</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Số người tối đa</label>
+                        <input type="number" name="max_participants" id="slotMax" value="1" min="1" max="10"
+                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Ghi chú (tùy chọn)</label>
+                        <textarea name="notes" id="slotNotes" rows="3"
+                                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                  placeholder="Mô tả ngắn gọn..."></textarea>
+                    </div>
+                </div>
+
+                <div class="flex gap-4 mt-6">
+                    <button type="submit"
+                            class="flex-1 bg-purple-600 text-white py-2 rounded-lg font-bold hover:bg-purple-700">
+                        <i class="fas fa-save mr-1"></i>Lưu
+                    </button>
+                    <button type="button" onclick="closeModal()"
+                            class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300">
+                        Hủy
+                    </button>
+                </div>
+            </form>
         </div>
-
-        <form id="slotForm" method="POST" action="{{ url_for('expert_schedule') }}">
-            <input type="hidden" name="slot_id" id="slotId">
-
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-2">Ngày *</label>
-                    <!-- ĐÃ SỬA Ở ĐÂY: giới hạn ngày nhỏ nhất -->
-                    <input type="date" name="date" id="slotDate" required min="{{ min_date }}"
-                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-2">Giờ bắt đầu *</label>
-                    <input type="time" name="start_time" id="slotTime" required
-                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-2">Thời lượng (phút) *</label>
-                    <select name="duration" id="slotDuration" required
-                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                        <option value="30">30 phút</option>
-                        <option value="45">45 phút</option>
-                        <option value="60">60 phút</option>
-                        <option value="90">90 phút</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-2">Số người tối đa</label>
-                    <input type="number" name="max_participants" id="slotMax" value="1" min="1" max="10"
-                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-2">Ghi chú (tùy chọn)</label>
-                    <textarea name="notes" id="slotNotes" rows="3"
-                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        placeholder="Mô tả ngắn gọn..."></textarea>
-                </div>
-            </div>
-
-            <div class="flex gap-4 mt-6">
-                <button type="submit"
-                    class="flex-1 bg-purple-600 text-white py-2 rounded-lg font-bold hover:bg-purple-700">
-                    <i class="fas fa-save mr-1"></i>Lưu
-                </button>
-                <button type="button" onclick="closeModal()"
-                    class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300">
-                    Hủy
-                </button>
-            </div>
-        </form>
     </div>
-</div>
 
-<script>
-    // Các hàm JS giữ nguyên
-    function openCreateModal() {
-        document.getElementById('slotModal').classList.remove('hidden');
-        document.getElementById('modalTitle').textContent = 'Tạo khung giờ mới';
-        document.getElementById('slotForm').reset();
-        document.getElementById('slotId').value = '';
-    }
+    <script>
+        // ======================
+        // CHỈNH SỬA KHUNG GIỜ
+        // ======================
+        function editSlot(slotId) {
+            const card = document.querySelector(`.slot-card[data-slot-id="${slotId}"]`);
+            if (!card) return;
 
-    function closeModal() {
-        document.getElementById('slotModal').classList.add('hidden');
-    }
+            const date = card.dataset.date;
+            const startTime = card.dataset.startTime;
+            const duration = card.dataset.duration;
+            const maxParticipants = card.dataset.maxParticipants;
+            const notes = card.dataset.notes;
 
-    function editSlot(slotId) {
-        alert('Chức năng đang phát triển!');
-    }
+            document.getElementById('modalTitle').textContent = 'Chỉnh sửa khung giờ';
+            document.getElementById('slotDate').value = date;
+            document.getElementById('slotTime').value = startTime;
+            document.getElementById('slotDuration').value = duration;
+            document.getElementById('slotMax').value = maxParticipants;
+            document.getElementById('slotNotes').value = notes;
 
-    async function deleteSlot(slotId) {
-        if (!confirm('Bạn có chắc muốn xóa khung giờ này?')) return;
-
-        try {
-            const formData = new FormData();
-            formData.append('action', 'delete');
-            formData.append('slot_id', slotId);
-
-            const response = await fetch('{{ url_for("expert_schedule") }}', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (response.ok) {
-                location.reload();
-            } else {
-                alert('Có lỗi xảy ra!');
+            let hiddenId = document.getElementById('slotId');
+            if (!hiddenId) {
+                hiddenId = document.createElement('input');
+                hiddenId.type = 'hidden';
+                hiddenId.id = 'slotId';
+                hiddenId.name = 'slot_id';
+                document.getElementById('slotForm').appendChild(hiddenId);
             }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Có lỗi xảy ra!');
+            hiddenId.value = slotId;
+
+            document.getElementById('slotModal').classList.remove('hidden');
         }
-    }
 
-    async function cancelBooking(slotId) {
-        if (!confirm('Bạn có chắc muốn hủy lịch này? Người dùng sẽ nhận được thông báo.')) return;
+        // ======================
+        // RESET MODAL KHI ĐÓNG
+        // ======================
+        function closeModal() {
+            document.getElementById('slotModal').classList.add('hidden');
+            document.getElementById('slotForm').reset();
 
-        try {
-            const response = await fetch(`/expert/time-slot/${slotId}/cancel`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
+            const hiddenId = document.getElementById('slotId');
+            if (hiddenId) hiddenId.remove();
 
-            const data = await response.json();
+            document.getElementById('modalTitle').textContent = 'Tạo khung giờ mới';
+        }
 
-            if (data.success) {
-                alert('Đã hủy lịch!');
-                location.reload();
-            } else {
-                alert(data.error || 'Có lỗi xảy ra!');
+        // ======================
+        // XÓA KHUNG GIỜ (không reload trang)
+        // ======================
+        async function deleteSlot(slotId) {
+            if (!confirm('Bạn có chắc muốn xóa khung giờ này?\nNếu đã có người đặt sẽ mất lịch hẹn!')) return;
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'delete');
+                formData.append('slot_id', slotId);
+
+                const res = await fetch('{{ url_for("expert_schedule") }}', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (res.ok) {
+                    const card = document.querySelector(`.slot-card[data-slot-id="${slotId}"]`);
+                    if (card) {
+                        card.style.transition = 'opacity 0.5s';
+                        card.style.opacity = '0';
+                        setTimeout(() => card.remove(), 500);
+                    }
+                    alert('Đã xóa khung giờ thành công!');
+                } else {
+                    alert('Có lỗi xảy ra!');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Lỗi kết nối!');
             }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Có lỗi xảy ra!');
         }
-    }
-</script>
+
+        // ======================
+        // MỞ MODAL TẠO MỚI
+        // ======================
+        function openCreateModal() {
+            document.getElementById('slotModal').classList.remove('hidden');
+            document.getElementById('modalTitle').textContent = 'Tạo khung giờ mới';
+            document.getElementById('slotForm').reset();
+            const hiddenId = document.getElementById('slotId');
+            if (hiddenId) hiddenId.remove();
+        }
+    </script>
 {% endblock %}

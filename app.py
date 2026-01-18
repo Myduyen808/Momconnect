@@ -190,6 +190,13 @@ def notify_all_admins(title, message, type='system', related_user_id=None, relat
         db.session.add(notif)
     db.session.commit()
 
+# Thêm vào context processor
+@app.context_processor
+def utility_processor():
+    def now():
+        return vietnam_now()
+    return dict(now=now)
+
 # === TRANG CHỦ ===
 @app.route('/')
 def home():
@@ -2472,7 +2479,8 @@ def expert_posts():
 def expert_schedule():
     if request.method == 'POST':
         action = request.form.get('action', 'create')
-        
+
+        # XỬ LÝ XÓA (đã có)
         if action == 'delete':
             slot_id = request.form.get('slot_id')
             slot = TimeSlot.query.get_or_404(slot_id)
@@ -2481,7 +2489,7 @@ def expert_schedule():
                 flash('Không có quyền xóa khung giờ này!', 'error')
                 return redirect(url_for('expert_schedule'))
             
-            # Nếu có booking → thông báo cho người đặt
+            # Thông báo cho người đặt nếu có
             if slot.booking:
                 notif = Notification(
                     user_id=slot.booking.user_id,
@@ -2495,39 +2503,40 @@ def expert_schedule():
             db.session.commit()
             flash('Đã xóa khung giờ thành công!', 'success')
             return redirect(url_for('expert_schedule'))
-        
-        # CREATE / UPDATE slot
-        slot_id = request.form.get('slot_id')
+
+        # XỬ LÝ TẠO MỚI hoặc CHỈNH SỬA
+        slot_id = request.form.get('slot_id')  # Nếu có → edit, không có → create
         date_str = request.form.get('date')
         start_time_str = request.form.get('start_time')
         duration_str = request.form.get('duration', '30')
         max_participants_str = request.form.get('max_participants', '1')
         notes = request.form.get('notes', '')
-        
+
         try:
             # Parse ngày + giờ
             start_datetime_naive = datetime.strptime(f"{date_str} {start_time_str}", '%Y-%m-%d %H:%M')
-            # Chuyển sang giờ Việt Nam
             vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
             start_datetime = vn_tz.localize(start_datetime_naive)
             duration = int(duration_str)
             end_datetime = start_datetime + timedelta(minutes=duration)
-            
             max_participants = int(max_participants_str)
             if max_participants < 1:
                 max_participants = 1
-                
+
         except ValueError as e:
             flash(f'Dữ liệu ngày/giờ không hợp lệ: {str(e)}', 'error')
             return redirect(url_for('expert_schedule'))
-        except Exception as e:
-            flash(f'Có lỗi xảy ra khi xử lý: {str(e)}', 'error')
-            return redirect(url_for('expert_schedule'))
-        
-        if slot_id:  # EDIT
+
+        if slot_id:  # === CHỈNH SỬA ===
             slot = TimeSlot.query.get_or_404(slot_id)
+            
             if slot.expert_id != current_user.id:
                 flash('Không có quyền chỉnh sửa khung giờ này!', 'error')
+                return redirect(url_for('expert_schedule'))
+            
+            # Kiểm tra không cho sửa nếu đã có người đặt (tùy chọn - bạn có thể bỏ điều kiện này)
+            if slot.booking:
+                flash('Không thể chỉnh sửa khung giờ đã có người đặt!', 'warning')
                 return redirect(url_for('expert_schedule'))
             
             slot.start_time = start_datetime
@@ -2535,8 +2544,8 @@ def expert_schedule():
             slot.max_participants = max_participants
             slot.notes = notes
             flash('Đã cập nhật khung giờ thành công!', 'success')
-        
-        else:  # CREATE
+
+        else:  # === TẠO MỚI ===
             slot = TimeSlot(
                 expert_id=current_user.id,
                 start_time=start_datetime,
@@ -2547,22 +2556,20 @@ def expert_schedule():
             )
             db.session.add(slot)
             flash('Đã tạo khung giờ mới thành công!', 'success')
-        
+
         db.session.commit()
         return redirect(url_for('expert_schedule'))
 
     # GET - Hiển thị danh sách
     now = vietnam_now()
-    min_date = now.strftime('%Y-%m-%d')  # ← Chuẩn bị giá trị min cho input date
-
-    # Lấy tất cả khung giờ của chuyên gia (không filter >= now để thấy cả lịch cũ)
+    min_date = now.strftime('%Y-%m-%d')
     time_slots = TimeSlot.query.filter_by(expert_id=current_user.id)\
                              .order_by(TimeSlot.start_time).all()
-
+    
     return render_template(
         'expert/schedule.html',
         time_slots=time_slots,
-        min_date=min_date  # ← Truyền biến này để template dùng min="{{ min_date }}"
+        min_date=min_date
     )
 
 # ✅ 2. HỦY KHUNG GIỜ
@@ -2708,29 +2715,46 @@ def my_bookings():
 # ====================================
 # EXPERT ANALYTICS - THỐNG KÊ
 # ====================================
+from datetime import datetime, timedelta
+from sqlalchemy import func
+import pytz
+
 @app.route('/expert/analytics')
 @expert_required
 def expert_analytics():
-    # ✅ LẤY TẤT CẢ BÀI VIẾT CỦA CHUYÊN GIA
+    # Lấy tất cả bài viết chuyên gia
     expert_posts = Post.query.filter_by(
         user_id=current_user.id,
         is_expert_post=True
     ).all()
-    
-    # ✅ TÍNH TOÁN THỐNG KÊ
-    total_views = sum(post.views for post in expert_posts)
-    total_likes = sum(post.likes for post in expert_posts)
-    total_comments = sum(post.comments_count for post in expert_posts)
-    
+
+    # 1. Tổng quan thống kê
     stats = {
-        'total_views': total_views,
-        'total_likes': total_likes,
-        'total_comments': total_comments,
+        'total_views': sum(post.views for post in expert_posts) or 0,
+        'total_likes': sum(post.likes for post in expert_posts) or 0,
+        'total_comments': sum(post.comments_count for post in expert_posts) or 0,
         'followers_count': current_user.followers.count(),
-        'posts_count': len(expert_posts)
+        'posts_count': len(expert_posts),
+        'consultations_count': Booking.query.join(TimeSlot).filter(
+            TimeSlot.expert_id == current_user.id
+        ).count() or 0
     }
-    
-    # ✅ THỐNG KÊ THEO DANH MỤC
+
+    # 2. Dữ liệu 7 ngày gần nhất (cho biểu đồ)
+    now = datetime.now(pytz.timezone('Asia/Ho_Chi_Minh'))
+    days_data = []
+    for i in range(6, -1, -1):  # 7 ngày ngược
+        date = now - timedelta(days=i)
+        day_posts = [p for p in expert_posts if p.created_at.date() == date.date()]
+
+        days_data.append({
+            'date': date.strftime('%d/%m'),
+            'views': sum(p.views for p in day_posts),
+            'likes': sum(p.likes for p in day_posts),
+            'comments': sum(p.comments_count for p in day_posts)
+        })
+
+    # 3. Phân bố danh mục
     category_stats = {}
     for post in expert_posts:
         cat = post.category or 'other'
@@ -2738,17 +2762,21 @@ def expert_analytics():
             category_stats[cat] = {'count': 0, 'views': 0}
         category_stats[cat]['count'] += 1
         category_stats[cat]['views'] += post.views
-    
-    # ✅ TOP BÀI VIẾT
+
+    category_labels = list(category_stats.keys())
+    category_counts = [s['count'] for s in category_stats.values()]
+
+    # 4. Top 5 bài viết nổi bật
     top_posts = sorted(expert_posts, key=lambda x: x.views, reverse=True)[:5]
-    
+
     return render_template(
         'expert/analytics.html',
         stats=stats,
-        category_stats=category_stats,
+        days_data=days_data,
+        category_labels=category_labels,
+        category_counts=category_counts,
         top_posts=top_posts
     )
-
 # ====================================
 # EXPERT PROFILE - HỒ SƠ CHUYÊN GIA
 # ====================================
@@ -2804,32 +2832,32 @@ def expert_profile():
     # GET - Hiển thị form
     return render_template('expert/profile.html')
 
-# ====================================
-# XÓA BÀI VIẾT CHUYÊN GIA
-# ====================================
-@app.route('/expert/post/<int:post_id>/delete', methods=['POST'])
-@expert_required
-def expert_delete_post(post_id):
-    post = Post.query.get_or_404(post_id)
+# # ====================================
+# # XÓA BÀI VIẾT CHUYÊN GIA
+# # ====================================
+# @app.route('/expert/post/<int:post_id>/delete', methods=['POST'])
+# @expert_required
+# def expert_delete_post(post_id):
+#     post = Post.query.get_or_404(post_id)
     
-    if post.user_id != current_user.id:
-        return jsonify({'error': 'Không có quyền xóa bài viết này!'}), 403
+#     if post.user_id != current_user.id:
+#         return jsonify({'error': 'Không có quyền xóa bài viết này!'}), 403
     
-    try:
-        # Xóa dữ liệu liên quan
-        PostLike.query.filter_by(post_id=post_id).delete()
-        PostRating.query.filter_by(post_id=post_id).delete()
-        HiddenPost.query.filter_by(post_id=post_id).delete()
-        Comment.query.filter_by(post_id=post_id).delete()
-        Report.query.filter_by(post_id=post_id).delete()
+#     try:
+#         # Xóa dữ liệu liên quan
+#         PostLike.query.filter_by(post_id=post_id).delete()
+#         PostRating.query.filter_by(post_id=post_id).delete()
+#         HiddenPost.query.filter_by(post_id=post_id).delete()
+#         Comment.query.filter_by(post_id=post_id).delete()
+#         Report.query.filter_by(post_id=post_id).delete()
         
-        db.session.delete(post)
-        db.session.commit()
+#         db.session.delete(post)
+#         db.session.commit()
         
-        return jsonify({'success': True, 'message': 'Đã xóa bài viết!'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+#         return jsonify({'success': True, 'message': 'Đã xóa bài viết!'})
+#     except Exception as e:
+#         db.session.rollback()
+#         return jsonify({'error': str(e)}), 500
 
 
 # ====================================
@@ -3057,6 +3085,126 @@ def expert_public_profile(expert_id):
         recent_posts=recent_posts,
         stats=stats
     )
+
+# ====================================
+# CHAT TƯ VẤN VỚI CHUYÊN GIA (KHÔNG CẦN LÀ BẠN BÈ)
+# ====================================
+@app.route('/expert/<int:expert_id>/consult-chat')
+@login_required
+def expert_consult_chat(expert_id):
+    """Chat tư vấn với chuyên gia (không cần kết bạn)"""
+    expert = User.query.get_or_404(expert_id)
+    
+    if not expert.is_verified_expert:
+        flash('Người này không phải chuyên gia!', 'error')
+        return redirect(url_for('home'))
+    
+    # Kiểm tra đã có booking chưa (tùy chọn - nếu muốn giới hạn chat chỉ khi đã đặt lịch)
+    has_booking = Booking.query.join(TimeSlot).filter(
+        Booking.user_id == current_user.id,
+        TimeSlot.expert_id == expert_id,
+        Booking.status == 'scheduled'
+    ).first()
+    
+    return render_template('expert_consult_chat.html', expert=expert, has_booking=has_booking)
+
+# ====================================
+# EDIT BÀI VIẾT CHUYÊN GIA
+# ====================================
+@app.route('/expert/post/<int:post_id>/edit', methods=['GET', 'POST'])
+@expert_required
+def expert_edit_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    
+    if post.user_id != current_user.id:
+        flash('Bạn không có quyền chỉnh sửa bài viết này!', 'error')
+        return redirect(url_for('expert_posts'))
+    
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        content = request.form.get('content', '').strip()
+        category = request.form.get('category', 'other')
+        
+        if not title or not content:
+            flash('Vui lòng điền đầy đủ tiêu đề và nội dung!', 'error')
+            return redirect(url_for('expert_edit_post', post_id=post_id))
+        
+        # Xử lý upload media mới (nếu có)
+        images_list = post.images.split(',') if post.images else []
+        video_file = post.video
+        
+        if 'media' in request.files:
+            files = request.files.getlist('media')
+            for file in files:
+                if file and file.filename:
+                    filename = secure_filename(f"{int(time.time())}_{file.filename}")
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(filepath)
+                    
+                    if file.mimetype.startswith('video/'):
+                        video_file = filename
+                    else:
+                        images_list.append(filename)
+        
+        # Cập nhật bài viết
+        post.title = title
+        post.content = content
+        post.category = category
+        post.images = ','.join(images_list) if images_list else None
+        post.video = video_file
+        post.updated_at = vietnam_now()
+        
+        db.session.commit()
+        flash('Đã cập nhật bài viết thành công!', 'success')
+        return redirect(url_for('expert_posts'))
+    
+    # GET: trả về dữ liệu để điền vào modal (dùng cho AJAX)
+    if request.args.get('ajax'):
+        return jsonify({
+            'id': post.id,
+            'title': post.title,
+            'content': post.content,
+            'category': post.category,
+            'images': post.get_images_list() if post.images else [],
+            'video': post.video
+        })
+    
+    # Nếu không phải AJAX thì render trang riêng (tùy chọn)
+    return render_template('expert/edit_post.html', post=post)
+
+
+# ====================================
+# XÓA BÀI VIẾT CHUYÊN GIA (đã có rồi, chỉ cần đảm bảo trả JSON)
+# ====================================
+@app.route('/expert/post/<int:post_id>/delete', methods=['POST'])
+@expert_required
+def expert_delete_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    
+    if post.user_id != current_user.id:
+        return jsonify({'success': False, 'message': 'Không có quyền xóa bài viết này!'}), 403
+    
+    try:
+        # Xóa dữ liệu liên quan (đã có trong code cũ của bạn)
+        PostLike.query.filter_by(post_id=post_id).delete()
+        PostRating.query.filter_by(post_id=post_id).delete()
+        HiddenPost.query.filter_by(post_id=post_id).delete()
+        Comment.query.filter_by(post_id=post_id).delete()
+        Report.query.filter_by(post_id=post_id).delete()
+        
+        db.session.delete(post)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Đã xóa bài viết thành công!'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
 
 # === CHẠY APP ===
 if __name__ == '__main__':

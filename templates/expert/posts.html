@@ -10,8 +10,8 @@
             <h1 class="text-3xl font-bold text-gray-800 mb-2">Quản lý Bài viết Tư vấn</h1>
             <p class="text-gray-600">Tạo và quản lý các bài viết chuyên môn của bạn</p>
         </div>
-        <button onclick="openCreateModal()" 
-                class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105 flex items-center gap-2">
+        <button onclick="openCreateModal()"
+            class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105 flex items-center gap-2">
             <i class="fas fa-plus"></i>
             Tạo bài viết mới
         </button>
@@ -24,16 +24,15 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                     <i class="fas fa-search mr-2"></i>Tìm kiếm
                 </label>
-                <input type="text" id="searchInput" 
-                       placeholder="Tìm theo tiêu đề..."
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                <input type="text" id="searchInput" placeholder="Tìm theo tiêu đề..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                     <i class="fas fa-filter mr-2"></i>Danh mục
                 </label>
-                <select id="categoryFilter" 
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                <select id="categoryFilter"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     <option value="all">Tất cả danh mục</option>
                     <option value="health">Sức khỏe</option>
                     <option value="nutrition">Dinh dưỡng</option>
@@ -46,8 +45,8 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                     <i class="fas fa-sort mr-2"></i>Sắp xếp
                 </label>
-                <select id="sortFilter" 
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                <select id="sortFilter"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     <option value="newest">Mới nhất</option>
                     <option value="oldest">Cũ nhất</option>
                     <option value="most_views">Xem nhiều nhất</option>
@@ -58,77 +57,61 @@
     </div>
 
     <!-- POSTS LIST -->
-    <div class="grid grid-cols-1 gap-6" id="postsList">
+    <div class="grid grid-cols-1 gap-6" id="postsContainer">
         {% if posts and posts|length > 0 %}
-            {% for post in posts %}
-            <div class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all overflow-hidden border-l-4 border-purple-500">
-                <div class="p-6">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex-1">
-                            <h3 class="text-xl font-bold text-gray-800 mb-2 hover:text-purple-600 transition">
-                                <a href="{{ url_for('expert_post_detail', post_id=post.id) }}">{{ post.title }}</a>
-                            </h3>
-                            <p class="text-gray-600 line-clamp-2 mb-3">{{ post.content[:150] }}...</p>
-                            <div class="flex flex-wrap gap-2 mb-3">
-                                <span class="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium">
-                                    <i class="fas fa-tag mr-1"></i>{{ post.category or 'Chưa phân loại' }}
-                                </span>
-                                <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                                    <i class="fas fa-eye mr-1"></i>{{ post.views_count or 0 }} lượt xem
-                                </span>
-                                <span class="bg-pink-100 text-pink-700 px-3 py-1 rounded-full text-xs font-medium">
-                                    <i class="fas fa-heart mr-1"></i>{{ post.likes_count or 0 }} lượt thích
-                                </span>
-                                <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
-                                    <i class="fas fa-comments mr-1"></i>{{ post.comments_count or 0 }} bình luận
-                                </span>
-                            </div>
-                        </div>
-                        
-                        <!-- ACTIONS -->
-                        <div class="flex gap-2 ml-4">
-                            <button onclick="viewPost({{ post.id }})" 
-                                    class="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition" 
-                                    title="Xem chi tiết">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button onclick="editPost({{ post.id }})" 
-                                    class="p-2 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200 transition" 
-                                    title="Chỉnh sửa">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="deletePost({{ post.id }})" 
-                                    class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition" 
-                                    title="Xóa">
-                                <i class="fas fa-trash"></i>
-                            </button>
+        {% for post in posts %}
+        <div class="post-card bg-white rounded-xl shadow-md hover:shadow-xl transition-all overflow-hidden border-l-4 border-purple-500"
+            data-post-id="{{ post.id }}">
+            <div class="p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex-1">
+                        <h3 class="text-xl font-bold text-gray-800 mb-2 hover:text-purple-600 transition">
+                            <a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a>
+                        </h3>
+                        <p class="text-gray-600 line-clamp-2 mb-3">{{ post.content[:150] }}...</p>
+                        <div class="flex flex-wrap gap-2 mb-3">
+                            <span class="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium">
+                                {{ post.category or 'Chưa phân loại' }}
+                            </span>
+                            <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                                {{ post.views }} lượt xem
+                            </span>
+                            <span class="bg-pink-100 text-pink-700 px-3 py-1 rounded-full text-xs font-medium">
+                                {{ post.likes }} thích
+                            </span>
                         </div>
                     </div>
-                    
-                    <div class="flex items-center justify-between text-sm text-gray-500 pt-4 border-t border-gray-100">
-                        <span class="flex items-center gap-2">
-                            <i class="far fa-clock"></i>
-                            Đăng lúc: {{ post.created_at.strftime('%H:%M %d/%m/%Y') }}
-                        </span>
-                        <span class="flex items-center gap-2">
-                            <i class="fas fa-{{ 'check-circle text-green-500' if post.is_published else 'times-circle text-gray-400' }}"></i>
-                            {{ 'Đã xuất bản' if post.is_published else 'Bản nháp' }}
-                        </span>
+
+                    <!-- NÚT HÀNH ĐỘNG -->
+                    <div class="flex gap-2 ml-4">
+                        <button onclick="editPost({{ post.id }})"
+                            class="p-2 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200 transition"
+                            title="Chỉnh sửa">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deletePost({{ post.id }})"
+                            class="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition" title="Xóa">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </div>
+
+                <div class="flex items-center justify-between text-sm text-gray-500 pt-4 border-t border-gray-100">
+                    <span><i class="far fa-clock"></i> {{ post.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                </div>
             </div>
-            {% endfor %}
+        </div>
+        {% endfor %}
         {% else %}
-            <!-- EMPTY STATE -->
-            <div class="bg-white rounded-xl shadow-md p-12 text-center">
-                <i class="fas fa-newspaper text-6xl text-gray-300 mb-4"></i>
-                <h3 class="text-2xl font-bold text-gray-700 mb-2">Chưa có bài viết nào</h3>
-                <p class="text-gray-500 mb-6">Hãy tạo bài viết tư vấn đầu tiên của bạn</p>
-                <button onclick="openCreateModal()" 
-                        class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
-                    <i class="fas fa-plus mr-2"></i>Tạo bài viết mới
-                </button>
-            </div>
+        <!-- EMPTY STATE -->
+        <div class="bg-white rounded-xl shadow-md p-12 text-center">
+            <i class="fas fa-newspaper text-6xl text-gray-300 mb-4"></i>
+            <h3 class="text-2xl font-bold text-gray-700 mb-2">Chưa có bài viết nào</h3>
+            <button onclick="openCreateModal()"
+                class="mt-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition">
+                <i class="fas fa-plus mr-2"></i>Tạo bài viết mới
+            </button>
+        </div>
         {% endif %}
     </div>
 </div>
@@ -147,8 +130,9 @@
                 </button>
             </div>
         </div>
-        
-        <form id="postForm" method="POST" action="{{ url_for('expert_posts') }}" enctype="multipart/form-data" class="p-6">
+
+        <form id="postForm" method="POST" action="{{ url_for('expert_posts') }}" enctype="multipart/form-data"
+            class="p-6">
             <div class="space-y-6">
                 <!-- TITLE -->
                 <div>
@@ -156,8 +140,8 @@
                         <i class="fas fa-heading mr-2"></i>Tiêu đề bài viết *
                     </label>
                     <input type="text" name="title" id="postTitle" required
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                           placeholder="Nhập tiêu đề hấp dẫn...">
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="Nhập tiêu đề hấp dẫn...">
                 </div>
 
                 <!-- CATEGORY -->
@@ -166,7 +150,7 @@
                         <i class="fas fa-tag mr-2"></i>Danh mục *
                     </label>
                     <select name="category" id="postCategory" required
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                         <option value="">-- Chọn danh mục --</option>
                         <option value="health">Sức khỏe</option>
                         <option value="nutrition">Dinh dưỡng</option>
@@ -182,8 +166,8 @@
                         <i class="fas fa-align-left mr-2"></i>Nội dung *
                     </label>
                     <textarea name="content" id="postContent" required rows="10"
-                              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                              placeholder="Viết nội dung tư vấn chi tiết..."></textarea>
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="Viết nội dung tư vấn chi tiết..."></textarea>
                 </div>
 
                 <!-- MEDICAL REFERENCES -->
@@ -192,8 +176,8 @@
                         <i class="fas fa-book-medical mr-2"></i>Tài liệu tham khảo y khoa
                     </label>
                     <textarea name="medical_references" id="medicalReferences" rows="4"
-                              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                              placeholder="Liệt kê các nguồn tài liệu tham khảo..."></textarea>
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="Liệt kê các nguồn tài liệu tham khảo..."></textarea>
                 </div>
 
                 <!-- MEDIA UPLOAD -->
@@ -202,18 +186,18 @@
                         <i class="fas fa-image mr-2"></i>Hình ảnh minh họa
                     </label>
                     <input type="file" name="media" accept="image/*,video/*" multiple
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     <p class="text-sm text-gray-500 mt-2">Chấp nhận: JPG, PNG, GIF, MP4 (tối đa 10MB)</p>
                 </div>
 
                 <!-- SUBMIT BUTTONS -->
                 <div class="flex gap-4 pt-4 border-t border-gray-200">
-                    <button type="submit" 
-                            class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
+                    <button type="submit"
+                        class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
                         <i class="fas fa-paper-plane mr-2"></i>Đăng bài
                     </button>
-                    <button type="button" onclick="closeModal()" 
-                            class="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition">
+                    <button type="button" onclick="closeModal()"
+                        class="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition">
                         Hủy
                     </button>
                 </div>
@@ -223,71 +207,153 @@
 </div>
 
 <script>
-// Modal Functions
-function openCreateModal() {
-    document.getElementById('postModal').classList.remove('hidden');
-    document.getElementById('modalTitle').textContent = 'Tạo bài viết mới';
-    document.getElementById('postForm').reset();
-}
+    // Modal Functions
+    function openCreateModal() {
+        document.getElementById('postModal').classList.remove('hidden');
+        document.getElementById('modalTitle').textContent = 'Tạo bài viết mới';
+        document.getElementById('postForm').reset();
+    }
 
-function closeModal() {
-    document.getElementById('postModal').classList.add('hidden');
-}
+    function closeModal() {
+        document.getElementById('postModal').classList.add('hidden');
+    }
 
-function viewPost(postId) {
-    window.location.href = `/expert/post/${postId}`;
-}
+    function viewPost(postId) {
+        window.location.href = `/expert/post/${postId}`;
+    }
 
-function editPost(postId) {
-    // TODO: Load post data and open modal
-    alert('Chức năng đang phát triển!');
-}
+    function editPost(postId) {
+        // TODO: Load post data and open modal
+        alert('Chức năng đang phát triển!');
+    }
 
-async function deletePost(postId) {
-    if (!confirm('Bạn có chắc muốn xóa bài viết này?')) return;
-    
-    try {
-        const response = await fetch(`/expert/post/${postId}/delete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        
-        if (response.ok) {
-            alert('Đã xóa bài viết!');
-            location.reload();
-        } else {
-            alert('Lỗi khi xóa bài viết!');
+    async function deletePost(postId) {
+        if (!confirm('Bạn có chắc muốn xóa bài viết này?')) return;
+
+        try {
+            const response = await fetch(`/expert/post/${postId}/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (response.ok) {
+                alert('Đã xóa bài viết!');
+                location.reload();
+            } else {
+                alert('Lỗi khi xóa bài viết!');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Có lỗi xảy ra!');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Có lỗi xảy ra!');
     }
-}
 
-// Filter & Search Functions
-document.getElementById('searchInput')?.addEventListener('input', filterPosts);
-document.getElementById('categoryFilter')?.addEventListener('change', filterPosts);
-document.getElementById('sortFilter')?.addEventListener('change', filterPosts);
+    // Filter & Search Functions
+    document.getElementById('searchInput')?.addEventListener('input', filterPosts);
+    document.getElementById('categoryFilter')?.addEventListener('change', filterPosts);
+    document.getElementById('sortFilter')?.addEventListener('change', filterPosts);
 
-function filterPosts() {
-    // TODO: Implement filtering logic
-    console.log('Filtering posts...');
-}
-
-// Close modal when clicking outside
-document.getElementById('postModal')?.addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeModal();
+    function filterPosts() {
+        // TODO: Implement filtering logic
+        console.log('Filtering posts...');
     }
-});
+
+    // Close modal when clicking outside
+    document.getElementById('postModal')?.addEventListener('click', function (e) {
+        if (e.target === this) {
+            closeModal();
+        }
+    });
+
+    // ======================
+    // CHỈNH SỬA BÀI VIẾT
+    // ======================
+    async function editPost(postId) {
+        try {
+            const res = await fetch(`/expert/post/${postId}/edit?ajax=1`);
+            const post = await res.json();
+
+            // Điền dữ liệu vào modal tạo mới (tái sử dụng modal)
+            document.getElementById('modalTitle').textContent = 'Chỉnh sửa bài viết';
+            document.getElementById('postTitle').value = post.title;
+            document.getElementById('postContent').value = post.content;
+            document.getElementById('postCategory').value = post.category;
+
+            // Thêm hidden input để biết đây là edit
+            let hiddenId = document.getElementById('editPostId');
+            if (!hiddenId) {
+                hiddenId = document.createElement('input');
+                hiddenId.type = 'hidden';
+                hiddenId.id = 'editPostId';
+                hiddenId.name = 'post_id';
+                document.getElementById('postForm').appendChild(hiddenId);
+            }
+            hiddenId.value = post.id;
+
+            // Mở modal
+            document.getElementById('postModal').classList.remove('hidden');
+        } catch (error) {
+            console.error('Lỗi khi load bài viết:', error);
+            alert('Không thể tải dữ liệu bài viết để chỉnh sửa!');
+        }
+    }
+
+    // ======================
+    // XÓA BÀI VIẾT (không reload trang)
+    // ======================
+    async function deletePost(postId) {
+        if (!confirm('Bạn có chắc chắn muốn xóa bài viết này?\nHành động không thể hoàn tác!')) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/expert/post/${postId}/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                // Xóa card khỏi giao diện
+                const card = document.querySelector(`.post-card[data-post-id="${postId}"]`);
+                if (card) {
+                    card.style.transition = 'opacity 0.5s';
+                    card.style.opacity = '0';
+                    setTimeout(() => card.remove(), 500);
+                }
+
+                alert('Đã xóa bài viết thành công!');
+            } else {
+                alert(data.message || 'Có lỗi xảy ra khi xóa bài viết!');
+            }
+        } catch (error) {
+            console.error('Lỗi xóa bài:', error);
+            alert('Lỗi kết nối!');
+        }
+    }
+
+    // ======================
+    // RESET MODAL KHI ĐÓNG
+    // ======================
+    function closeModal() {
+        document.getElementById('postModal').classList.add('hidden');
+        document.getElementById('postForm').reset();
+
+        // Xóa hidden post_id nếu có
+        const hiddenId = document.getElementById('editPostId');
+        if (hiddenId) hiddenId.remove();
+
+        document.getElementById('modalTitle').textContent = 'Tạo bài viết mới';
+    }
 </script>
 
 <style>
-.line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
 </style>
 {% endblock %}
