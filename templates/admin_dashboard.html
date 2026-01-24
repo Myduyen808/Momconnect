@@ -746,3 +746,62 @@
     </div>
 </div>
 {% endblock %}
+
+<!-- admin_dashboard.html - THÊM VÀO MODAL XEM CHI TIẾT -->
+<button onclick="viewOCRInfo({{ req.id }})" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+    <i class="fas fa-robot mr-2"></i>Xem thông tin tự động
+</button>
+
+<script>
+    async function viewOCRInfo(reqId) {
+        try {
+            const res = await fetch(`/admin/expert-request/${reqId}/ocr-info`);
+            const data = await res.json();
+
+            if (data.success) {
+                const info = data.parsed_info;
+                let html = `
+                <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                    <h4 class="font-bold mb-2">🤖 Thông tin tự động đọc từ chứng chỉ:</h4>
+                    <ul class="space-y-2">
+                        <li><strong>Tên:</strong> ${info.name || 'Không phát hiện'}</li>
+                        <li><strong>Số chứng chỉ:</strong> ${info.cert_number || 'Không phát hiện'}</li>
+                        <li><strong>Chuyên môn:</strong> ${info.specialty || 'Không phát hiện'}</li>
+                        <li><strong>Cơ quan cấp:</strong> ${info.issue_org || 'Không phát hiện'}</li>
+                        <li><strong>Ngày cấp:</strong> ${info.issue_date || 'Không phát hiện'}</li>
+                        <li><strong>Ngày hết hạn:</strong> ${info.expiry_date || 'Không phát hiện'}</li>
+                    </ul>
+                </div>
+                
+                <details class="mt-4">
+                    <summary class="cursor-pointer font-bold text-gray-700">Xem text gốc</summary>
+                    <pre class="mt-2 p-4 bg-gray-100 rounded text-xs overflow-auto max-h-60">${data.raw_text}</pre>
+                </details>
+            `;
+
+                // Hiển thị trong modal hoặc alert
+                showModal('Thông tin OCR', html);
+            } else {
+                alert('Không thể đọc thông tin từ chứng chỉ');
+            }
+        } catch (error) {
+            alert('Lỗi kết nối!');
+        }
+    }
+
+    function showModal(title, content) {
+        // Tạo modal động
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+        modal.innerHTML = `
+        <div class="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-t-xl flex justify-between items-center">
+                <h3 class="text-xl font-bold">${title}</h3>
+                <button onclick="this.closest('.fixed').remove()" class="text-2xl">&times;</button>
+            </div>
+            <div class="p-6">${content}</div>
+        </div>
+    `;
+        document.body.appendChild(modal);
+    }
+</script>

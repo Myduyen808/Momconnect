@@ -73,6 +73,7 @@ class User(UserMixin, db.Model):
     avatar = db.Column(db.String(200), default='default.jpg')
     bio = db.Column(db.Text)
     phone = db.Column(db.String(15), unique=True)  # Số điện thoại
+    rating = db.Column(db.Float, default=0.0)  # Trung bình sao (0-5)
     
     # ===== THÔNG TIN GIA ĐÌNH =====
     children_count = db.Column(db.Integer, default=0)
@@ -415,7 +416,7 @@ class Message(db.Model):
     sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    type = db.Column(db.String(20), default='text')
+    type = db.Column(db.String(20), default='text')  # text, image, file,...
     timestamp = db.Column(db.DateTime, default=vietnam_now)
     is_read = db.Column(db.Boolean, default=False)
 
@@ -511,6 +512,24 @@ class Consultation(db.Model):
     # Sửa relationship để chỉ định rõ foreign_key
     expert = db.relationship('User', foreign_keys=[expert_id], backref='expert_consultations')
     user = db.relationship('User', foreign_keys=[user_id], backref='user_consultations')
+
+class ConsultationFeedback(db.Model):
+    __tablename__ = 'consultation_feedback'
+
+    id = db.Column(db.Integer, primary_key=True)
+    booking_id = db.Column(db.Integer, db.ForeignKey('bookings.id'), nullable=False, unique=True)
+    from_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Người đánh giá
+    to_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)   # Người bị đánh giá
+    rating = db.Column(db.Integer, nullable=False)  # 1-5 sao
+    comment = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+
+    booking = db.relationship('Booking', backref='feedback', uselist=False)
+    from_user = db.relationship('User', foreign_keys=[from_user_id], backref='given_feedbacks')
+    to_user = db.relationship('User', foreign_keys=[to_user_id], backref='received_feedbacks')
+
+    def __repr__(self):
+        return f'<Feedback {self.rating} sao từ {self.from_user.name} cho {self.to_user.name}>'
 
 # ✅ 1. KHUNG GIỜ - Chuyên gia tạo ra (Expert-owned slots)
 class TimeSlot(db.Model):

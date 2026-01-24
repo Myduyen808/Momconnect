@@ -4,7 +4,7 @@
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 py-8">
     <!-- HEADER -->
-    <div class="text-center mb-12">
+    <div class="text-center mb-8">
         <h1 class="text-4xl font-bold text-gray-800 mb-4">
             <i class="fas fa-user-md text-purple-600"></i>
             Đội ngũ chuyên gia
@@ -12,9 +12,27 @@
         <p class="text-gray-600 text-lg">Tìm kiếm và đặt lịch tư vấn với các chuyên gia hàng đầu</p>
     </div>
 
+    <!-- ✅ NÚT XEM LỊCH HẸN CỦA TÔI -->
+    {% if current_user.is_authenticated %}
+    <div class="mb-8 flex justify-center">
+        <a href="{{ url_for('my_bookings') }}"
+            class="group bg-gradient-to-r from-pink-500 to-purple-600 text-white px-8 py-4 rounded-2xl font-bold hover:shadow-2xl transition-all transform hover:scale-105 flex items-center gap-3 shadow-lg">
+            <div class="bg-white/20 p-3 rounded-xl group-hover:bg-white/30 transition">
+                <i class="fas fa-calendar-check text-2xl"></i>
+            </div>
+            <div class="text-left">
+                <p class="text-sm opacity-90">Xem lịch hẹn đã đặt</p>
+                <p class="text-lg font-bold">Lịch hẹn của tôi</p>
+            </div>
+            <i class="fas fa-arrow-right ml-4 group-hover:translate-x-2 transition-transform"></i>
+        </a>
+    </div>
+    {% endif %}
+
     <!-- BỘ LỌC (TÙY CHỌN) -->
     <div class="flex flex-wrap gap-3 mb-8 justify-center">
-        <button class="px-6 py-3 rounded-full font-medium bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg">
+        <button
+            class="px-6 py-3 rounded-full font-medium bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg">
             Tất cả
         </button>
         <button class="px-6 py-3 rounded-full font-medium bg-white text-gray-700 hover:shadow-md transition">
@@ -31,14 +49,16 @@
     <!-- DANH SÁCH CHUYÊN GIA -->
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
         {% for expert in experts %}
-        <div class="bg-white rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-all transform hover:scale-105">
+        <div
+            class="bg-white rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-all transform hover:scale-105">
             <!-- AVATAR + BADGE -->
             <div class="relative h-48 bg-gradient-to-br from-purple-500 to-indigo-600">
                 <img src="{{ url_for('static', filename=expert.avatar or 'images/default-avatar.png') }}"
-                     class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 w-32 h-32 rounded-full object-cover border-8 border-white shadow-2xl">
-                
+                    class="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 w-32 h-32 rounded-full object-cover border-8 border-white shadow-2xl">
+
                 <!-- BADGE CHUYÊN GIA -->
-                <span class="absolute top-4 right-4 bg-white text-purple-600 px-4 py-2 rounded-full text-sm font-bold shadow-lg">
+                <span
+                    class="absolute top-4 right-4 bg-white text-purple-600 px-4 py-2 rounded-full text-sm font-bold shadow-lg">
                     <i class="fas fa-stethoscope"></i> Chuyên gia
                 </span>
             </div>
@@ -46,18 +66,18 @@
             <!-- THÔNG TIN -->
             <div class="pt-20 pb-8 px-6 text-center">
                 <h3 class="text-2xl font-bold text-gray-800 mb-2">{{ expert.name }}</h3>
-                
+
                 <!-- CHUYÊN NGÀNH -->
                 <p class="text-purple-600 font-semibold mb-1">
                     <i class="fas fa-briefcase-medical"></i>
                     {{ expert.expert_category or 'Chuyên gia' }}
                 </p>
-                
+
                 <!-- CHUYÊN MÔN CỤ THỂ -->
                 {% if expert.specialty %}
                 <p class="text-sm text-gray-600 mb-4">{{ expert.specialty }}</p>
                 {% endif %}
-                
+
                 <!-- KINH NGHIỆM -->
                 {% if expert.experience_years %}
                 <p class="text-sm text-gray-500 mb-4">
@@ -90,12 +110,14 @@
                 <!-- BUTTONS -->
                 <div class="flex gap-3">
                     <a href="{{ url_for('expert_public_profile', expert_id=expert.id) }}"
-                       class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-full font-bold hover:shadow-lg transition flex items-center justify-center gap-2">
+                        class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-full font-bold hover:shadow-lg transition flex items-center justify-center gap-2">
                         <i class="fas fa-calendar-check"></i>
                         Đặt lịch tư vấn
                     </a>
-                    <a href="{{ url_for('user_profile', user_id=expert.id) }}"
-                       class="px-4 py-3 bg-gray-200 text-gray-700 rounded-full font-bold hover:bg-gray-300 transition">
+                    <!-- Nút XEM PROFILE CHI TIẾT -->
+                    <a href="{{ url_for('expert_full_profile', expert_id=expert.id) }}"
+                        class="px-4 py-3 bg-gray-200 text-gray-700 rounded-full font-bold hover:bg-gray-300 transition"
+                        title="Xem hồ sơ chi tiết">
                         <i class="fas fa-user"></i>
                     </a>
                 </div>
@@ -114,11 +136,11 @@
 </div>
 
 <style>
-.line-clamp-3 {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
+    .line-clamp-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
 </style>
 {% endblock %}

@@ -17,100 +17,210 @@
         </button>
     </div>
 
-    <!-- DANH SÁCH KHUNG GIỜ -->
-    {% if time_slots and time_slots|length > 0 %}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="slotsContainer">
-        {% for slot in time_slots %}
-        <div class="slot-card bg-white rounded-xl shadow-md overflow-hidden border-l-4 
-                    {{ 'border-green-500' if slot.status == 'available' else 'border-orange-500' if slot.status == 'booked' else 'border-gray-400' }}"
-             data-slot-id="{{ slot.id }}"
-             data-date="{{ slot.start_time.strftime('%Y-%m-%d') }}"
-             data-start-time="{{ slot.start_time.strftime('%H:%M') }}"
-             data-duration="{{ (slot.end_time - slot.start_time).total_seconds() // 60 }}"
-             data-max-participants="{{ slot.max_participants }}"
-             data-notes="{{ slot.notes or '' }}">
-
-            <div class="p-6">
-                <!-- STATUS -->
-                <div class="flex justify-between items-start mb-4">
-                    {% if slot.status == 'available' %}
-                    <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
-                        Còn trống
-                    </span>
-                    {% elif slot.status == 'booked' %}
-                    <span class="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-sm font-medium">
-                        Đã đặt
-                    </span>
-                    {% else %}
-                    <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-                        Đã hủy
-                    </span>
-                    {% endif %}
-
-                    <!-- NÚT HÀNH ĐỘNG -->
-                    <div class="flex gap-2">
-                        {% if slot.status == 'available' %}
-                        <button onclick="editSlot({{ slot.id }})"
-                                class="p-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition"
-                                title="Chỉnh sửa">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        {% endif %}
-                        <button onclick="deleteSlot({{ slot.id }})"
-                                class="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition" title="Xóa">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- NGÀY & GIỜ -->
-                <div class="text-center mb-4">
-                    <div class="text-4xl font-bold text-purple-600 mb-1">
-                        {{ slot.start_time.strftime('%d') }}
-                    </div>
-                    <div class="text-sm text-gray-600">
-                        {{ slot.start_time.strftime('%m/%Y') }}
-                    </div>
-                </div>
-
-                <div class="text-center mb-4">
-                    <div class="text-2xl font-bold text-gray-800">
-                        {{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}
-                    </div>
-                    <div class="text-sm text-gray-500">
-                        {{ ((slot.end_time - slot.start_time).total_seconds() // 60) }} phút
-                    </div>
-                </div>
-
-                <!-- THÔNG TIN KHÁC -->
-                <div class="text-center text-sm text-gray-600 mb-4">
-                    Số người tối đa: {{ slot.max_participants }}
-                </div>
-
-                {% if slot.notes %}
-                <p class="text-sm text-gray-600 text-center">
-                    <i class="fas fa-info-circle mr-1"></i>{{ slot.notes }}
-                </p>
-                {% endif %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-
-    {% else %}
-    <!-- EMPTY STATE -->
-    <div class="bg-white rounded-xl shadow-md p-12 text-center">
-        <i class="fas fa-calendar-times text-6xl text-gray-300 mb-4"></i>
-        <h3 class="text-2xl font-bold text-gray-700 mb-2">Chưa có khung giờ nào</h3>
-        <p class="text-gray-500 mb-6">Hãy tạo khung giờ tư vấn đầu tiên của bạn</p>
-        <button onclick="openCreateModal()"
-                class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
-            <i class="fas fa-plus mr-2"></i>Tạo khung giờ mới
+    <!-- TAB NAVIGATION -->
+    <div class="flex border-b border-gray-200 mb-8">
+        <button onclick="showTab('upcoming')" 
+                class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 focus:border-purple-600 active-tab">
+            Sắp tới
+        </button>
+        <button onclick="showTab('old')" 
+                class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 focus:border-purple-600">
+            Lịch cũ
         </button>
     </div>
-    {% endif %}
 
-    <!-- CREATE/EDIT MODAL -->
+    <!-- TAB SẮP TỚI -->
+    <div id="upcoming-tab" class="tab-content">
+        {% if upcoming_slots and upcoming_slots|length > 0 %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="slotsContainer">
+            {% for slot in upcoming_slots %}
+            <div class="slot-card bg-white rounded-xl shadow-md overflow-hidden border-l-4 
+                        {{ 'border-green-500' if slot.status == 'available' else 'border-orange-500' if slot.status == 'booked' else 'border-gray-400' }}"
+                 data-slot-id="{{ slot.id }}"
+                 data-date="{{ slot.start_time.strftime('%Y-%m-%d') }}"
+                 data-start-time="{{ slot.start_time.strftime('%H:%M') }}"
+                 data-duration="{{ (slot.end_time - slot.start_time).total_seconds() // 60 }}"
+                 data-max-participants="{{ slot.max_participants }}"
+                 data-notes="{{ slot.notes or '' }}">
+
+                <div class="p-6">
+                    <!-- STATUS -->
+                    <div class="flex justify-between items-start mb-4">
+                        {% if slot.status == 'available' %}
+                        <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+                            Còn trống
+                        </span>
+                        {% elif slot.status == 'booked' %}
+                        <span class="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-sm font-medium">
+                            Đã đặt
+                        </span>
+                        {% else %}
+                        <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+                            Đã hủy
+                        </span>
+                        {% endif %}
+
+                        <!-- NÚT HÀNH ĐỘNG -->
+                        <div class="flex gap-2">
+                            {% if slot.status == 'available' %}
+                            <button onclick="editSlot({{ slot.id }})"
+                                    class="p-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition"
+                                    title="Chỉnh sửa">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            {% endif %}
+                            <button onclick="deleteSlot({{ slot.id }})"
+                                    class="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition" title="Xóa">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- NGÀY & GIỜ -->
+                    <div class="text-center mb-4">
+                        <div class="text-4xl font-bold text-purple-600 mb-1">
+                            {{ slot.start_time.strftime('%d') }}
+                        </div>
+                        <div class="text-sm text-gray-600">
+                            {{ slot.start_time.strftime('%m/%Y') }}
+                        </div>
+                    </div>
+
+                    <div class="text-center mb-4">
+                        <div class="text-2xl font-bold text-gray-800">
+                            {{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            {{ ((slot.end_time - slot.start_time).total_seconds() // 60) }} phút
+                        </div>
+                    </div>
+
+                    <!-- THÔNG TIN KHÁC -->
+                    <div class="text-center text-sm text-gray-600 mb-4">
+                        Số người tối đa: {{ slot.max_participants }}
+                    </div>
+
+                    {% if slot.notes %}
+                    <p class="text-sm text-gray-600 text-center">
+                        <i class="fas fa-info-circle mr-1"></i>{{ slot.notes }}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-white rounded-xl shadow-md p-12 text-center">
+            <i class="fas fa-calendar-times text-6xl text-gray-300 mb-4"></i>
+            <h3 class="text-2xl font-bold text-gray-700 mb-2">Chưa có khung giờ sắp tới</h3>
+            <p class="text-gray-500 mb-6">Hãy tạo khung giờ tư vấn đầu tiên của bạn</p>
+            <button onclick="openCreateModal()"
+                    class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
+                <i class="fas fa-plus mr-2"></i>Tạo khung giờ mới
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- TAB LỊCH CŨ (đã qua, hủy, hoàn thành) -->
+    <div id="old-tab" class="tab-content hidden">
+        {% if old_slots and old_slots|length > 0 %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for slot in old_slots %}
+            <div class="slot-card bg-white rounded-xl shadow-md overflow-hidden border-l-4
+                        {{ 'border-gray-400' if slot.status in ['cancelled', 'completed'] else 'border-orange-500' }}"
+                 data-slot-id="{{ slot.id }}">
+
+                <div class="p-6">
+                    <!-- STATUS -->
+                    <div class="flex justify-between items-start mb-4">
+                        {% if slot.status == 'cancelled' %}
+                        <span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
+                            Đã hủy
+                        </span>
+                        {% elif slot.status == 'completed' %}
+                        <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+                            Đã hoàn thành
+                        </span>
+                        {% else %}
+                        <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+                            Đã qua
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- NGÀY & GIỜ -->
+                    <div class="text-center mb-4">
+                        <div class="text-4xl font-bold text-gray-600 mb-1">
+                            {{ slot.start_time.strftime('%d') }}
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            {{ slot.start_time.strftime('%m/%Y') }}
+                        </div>
+                    </div>
+
+                    <div class="text-center mb-4">
+                        <div class="text-2xl font-bold text-gray-600">
+                            {{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            {{ ((slot.end_time - slot.start_time).total_seconds() // 60) }} phút
+                        </div>
+                    </div>
+
+                    {% if slot.notes %}
+                    <p class="text-sm text-gray-600 text-center">
+                        <i class="fas fa-info-circle mr-1"></i>{{ slot.notes }}
+                    </p>
+                    {% endif %}
+
+                    <!-- PHẦN ĐÁNH GIÁ KHÁCH HÀNG (CHỈ HIỆN KHI ĐÃ BOOKED) -->
+                    {% if slot.status == 'booked' and slot.booking %}
+                    {% set booking = slot.booking %}
+                    {% set feedback = booking.feedback %}
+                    {% if not feedback %}
+                    <form action="{{ url_for('submit_feedback', booking_id=booking.id) }}" method="POST" class="mt-6 border-t pt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Đánh giá khách hàng</label>
+                        <div class="flex gap-1 mb-3">
+                            {% for i in range(1,6) %}
+                            <input type="radio" name="rating" value="{{ i }}" id="star_expert_{{ slot.id }}_{{ i }}" class="hidden" required>
+                            <label for="star_expert_{{ slot.id }}_{{ i }}" 
+                                   class="cursor-pointer text-3xl text-gray-300 hover:text-yellow-400 transition">
+                                ★
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <textarea name="comment" rows="3" 
+                                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                  placeholder="Nhận xét về khách hàng..."></textarea>
+                        <button type="submit" 
+                                class="mt-3 bg-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-purple-700 transition">
+                            Gửi đánh giá
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <p class="text-sm font-medium text-gray-700">Bạn đã đánh giá khách hàng: {{ feedback.rating }} sao</p>
+                        {% if feedback.comment %}
+                        <p class="text-sm text-gray-600 mt-2 italic">"{{ feedback.comment }}"</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-white rounded-xl shadow-md p-12 text-center">
+            <i class="fas fa-history text-6xl text-gray-300 mb-4"></i>
+            <h3 class="text-2xl font-bold text-gray-700 mb-2">Chưa có lịch cũ</h3>
+            <p class="text-gray-500">Các khung giờ đã qua hoặc bị hủy sẽ hiển thị ở đây</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- CREATE/EDIT MODAL (giữ nguyên) -->
     <div id="slotModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-md w-full p-6">
             <div class="flex justify-between items-center mb-6">
@@ -179,7 +289,25 @@
 
     <script>
         // ======================
-        // CHỈNH SỬA KHUNG GIỜ
+        // CHUYỂN TAB
+        // ======================
+        function showTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(tab + '-tab').classList.remove('hidden');
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-purple-600', 'text-purple-600', 'active-tab');
+            });
+            event.target.classList.add('border-purple-600', 'text-purple-600', 'active-tab');
+        }
+
+        // Mặc định mở tab Sắp tới
+        document.addEventListener('DOMContentLoaded', () => {
+            showTab('upcoming');
+        });
+
+        // ======================
+        // CÁC HÀM CŨ (editSlot, closeModal, deleteSlot, openCreateModal)
         // ======================
         function editSlot(slotId) {
             const card = document.querySelector(`.slot-card[data-slot-id="${slotId}"]`);
@@ -211,9 +339,6 @@
             document.getElementById('slotModal').classList.remove('hidden');
         }
 
-        // ======================
-        // RESET MODAL KHI ĐÓNG
-        // ======================
         function closeModal() {
             document.getElementById('slotModal').classList.add('hidden');
             document.getElementById('slotForm').reset();
@@ -224,9 +349,6 @@
             document.getElementById('modalTitle').textContent = 'Tạo khung giờ mới';
         }
 
-        // ======================
-        // XÓA KHUNG GIỜ (không reload trang)
-        // ======================
         async function deleteSlot(slotId) {
             if (!confirm('Bạn có chắc muốn xóa khung giờ này?\nNếu đã có người đặt sẽ mất lịch hẹn!')) return;
 
@@ -257,9 +379,6 @@
             }
         }
 
-        // ======================
-        // MỞ MODAL TẠO MỚI
-        // ======================
         function openCreateModal() {
             document.getElementById('slotModal').classList.remove('hidden');
             document.getElementById('modalTitle').textContent = 'Tạo khung giờ mới';

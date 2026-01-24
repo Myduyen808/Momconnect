@@ -18,7 +18,8 @@
                 <i class="fas fa-inbox"></i>
                 Yêu cầu chờ duyệt
                 {% if expert_requests %}
-                <span class="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{{ expert_requests | length }}</span>
+                <span class="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{{ expert_requests | length
+                    }}</span>
                 {% endif %}
             </button>
             <button onclick="switchTab('experts')" id="tab-experts"
@@ -26,7 +27,8 @@
                 <i class="fas fa-users-cog"></i>
                 Chuyên gia đã duyệt
                 {% if verified_experts %}
-                <span class="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full">{{ verified_experts | length }}</span>
+                <span class="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full">{{ verified_experts |
+                    length }}</span>
                 {% endif %}
             </button>
         </div>
@@ -59,10 +61,10 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    {% for req in expert_requests %}
-                    {% set total_posts = req.user.posts.count() %}
-                    {% set total_comments = Comment.query.filter_by(user_id=req.user.id).count() %}
-                    {% set avg_likes = db.session.query(func.avg(Post.likes)).filter(Post.user_id == req.user.id).scalar() or 0 %}
+                    {% for req in expert_requests_json %}
+                    {% set total_posts = req.total_posts %}
+                    {% set total_comments = req.total_comments %}
+                    {% set avg_likes = req.avg_likes %}
 
                     <tr class="hover:bg-gray-50 transition">
                         <td class="px-6 py-4">
@@ -99,7 +101,8 @@
                                 </div>
                                 <div class="flex items-center justify-between">
                                     <span class="text-gray-600">Nội dung:</span>
-                                    <span class="font-bold {% if (total_posts + total_comments) >= 50 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    <span
+                                        class="font-bold {% if (total_posts + total_comments) >= 50 %}text-green-600{% else %}text-red-600{% endif %}">
                                         {{ total_posts + total_comments }}
                                         {% if (total_posts + total_comments) >= 50 %}
                                         <i class="fas fa-check-circle ml-1"></i>
@@ -110,7 +113,8 @@
                                 </div>
                                 <div class="flex items-center justify-between">
                                     <span class="text-gray-600">TB like:</span>
-                                    <span class="font-bold {% if avg_likes >= 5 %}text-green-600{% else %}text-red-600{% endif %}">
+                                    <span
+                                        class="font-bold {% if avg_likes >= 5 %}text-green-600{% else %}text-red-600{% endif %}">
                                         {{ "%.1f"|format(avg_likes) }}
                                         {% if avg_likes >= 5 %}
                                         <i class="fas fa-check-circle ml-1"></i>
@@ -137,8 +141,8 @@
 
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             <i class="far fa-calendar-alt mr-1"></i>
-                            {{ req.created_at.strftime('%d/%m/%Y') }}
-                            <div class="text-xs text-gray-400 mt-1">{{ req.created_at.strftime('%H:%M') }}</div>
+                            {{ req.created_at }}
+                            <div class="text-xs text-gray-400 mt-1">{{ req.created_at_time }}</div>
                         </td>
 
                         <td class="px-6 py-4 text-center">
@@ -146,6 +150,10 @@
                                 <button onclick="viewRequestDetail({{ req.id }})"
                                     class="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition text-sm font-medium">
                                     <i class="fas fa-eye mr-1"></i> Xem chi tiết
+                                </button>
+                                <button onclick="viewOCRInfo({{ req.id }})"
+                                    class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition text-sm font-medium">
+                                    <i class="fas fa-robot mr-1"></i> Thông tin tự động (OCR)
                                 </button>
                                 <div class="flex gap-2">
                                     <button onclick="approveExpert({{ req.id }}, '{{ req.user.name }}')"
@@ -199,7 +207,12 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    {% for expert in verified_experts %}
+                    {% for expert_data in verified_experts_data %}
+                    {% set expert = expert_data.expert %}
+                    {% set expert_posts_count = expert_data.expert_posts_count %}
+                    {% set total_views = expert_data.total_views %}
+                    {% set expert_cert = expert_data.certificate %}
+
 
                     <!-- ✅ LOGIC XỬ LÝ TÊN VÀ MÀU SẮC LĨNH VỰC -->
                     {% set expert_cat = expert.expert_category or 'other' %}
@@ -207,19 +220,19 @@
                     {% set expert_cat_color = 'bg-gray-100 text-gray-800' %}
 
                     {% if expert_cat == 'dinh_duong' %}
-                        {% set expert_cat_name = 'Dinh dưỡng' %}
-                        {% set expert_cat_color = 'bg-green-100 text-green-800' %}
+                    {% set expert_cat_name = 'Dinh dưỡng' %}
+                    {% set expert_cat_color = 'bg-green-100 text-green-800' %}
                     {% elif expert_cat == 'suc_khoe' %}
-                        {% set expert_cat_name = 'Sức khỏe' %}
-                        {% set expert_cat_color = 'bg-blue-100 text-blue-800' %}
+                    {% set expert_cat_name = 'Sức khỏe' %}
+                    {% set expert_cat_color = 'bg-blue-100 text-blue-800' %}
                     {% elif expert_cat == 'tam_ly' %}
-                        {% set expert_cat_name = 'Tâm lý trẻ em' %}
-                        {% set expert_cat_color = 'bg-purple-100 text-purple-800' %}
+                    {% set expert_cat_name = 'Tâm lý trẻ em' %}
+                    {% set expert_cat_color = 'bg-purple-100 text-purple-800' %}
                     {% elif expert_cat == 'giao_duc' %}
-                        {% set expert_cat_name = 'Giáo dục sớm' %}
-                        {% set expert_cat_color = 'bg-yellow-100 text-yellow-800' %}
+                    {% set expert_cat_name = 'Giáo dục sớm' %}
+                    {% set expert_cat_color = 'bg-yellow-100 text-yellow-800' %}
                     {% elif expert_cat %}
-                        {% set expert_cat_name = expert_cat | replace('_', ' ') | title %}
+                    {% set expert_cat_name = expert_cat | replace('_', ' ') | title %}
                     {% endif %}
 
                     <!-- ✅ LẤY ẢNH BẰNG CẤP TỪ MAP GỬI TỪ APP.PY -->
@@ -235,7 +248,8 @@
                                     <div class="text-sm font-bold text-gray-900">{{ expert.name }}</div>
                                     <div class="text-sm text-gray-500">{{ expert.email }}</div>
                                     <div class="flex items-center gap-2 mt-1">
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                        <span
+                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
                                             <i class="fas fa-check-circle mr-1"></i> Đã xác minh
                                         </span>
                                     </div>
@@ -245,7 +259,8 @@
 
                         <td class="px-6 py-4">
                             <!-- ✅ SỬ DỤNG BIẾN ĐÃ CẤU HÌNH -->
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ expert_cat_color }}">
+                            <span
+                                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ expert_cat_color }}">
                                 {{ expert_cat_name }}
                             </span>
                         </td>
@@ -254,20 +269,27 @@
                             <div class="space-y-1 text-sm">
                                 <div class="flex items-center justify-between">
                                     <span class="text-gray-600">Bài viết chuyên môn:</span>
-                                    <span class="font-bold text-green-600">{{ expert.posts.filter_by(is_expert_post=True).count() }}</span>
+                                    <span class="font-bold text-green-600">
+                                        {{ expert_posts_count }}
+                                    </span>
                                 </div>
+
                                 <div class="flex items-center justify-between">
                                     <span class="text-gray-600">Lượt xem:</span>
                                     <span class="font-semibold text-gray-700">
-                                        {{ expert.posts.filter(Post.views != None).all() | sum(attribute='views') if expert.posts.count() > 0 else 0 }}
+                                        {{ total_views }}
                                     </span>
                                 </div>
+
                                 <div class="flex items-center justify-between">
                                     <span class="text-gray-600">Điểm uy tín:</span>
-                                    <span class="font-semibold text-purple-600">{{ expert.points }} pts</span>
+                                    <span class="font-semibold text-purple-600">
+                                        {{ expert.points }} pts
+                                    </span>
                                 </div>
                             </div>
                         </td>
+
 
                         <!-- ✅ CỘT BẰNG CẤP (MỚI THÊM) -->
                         <td class="px-6 py-4 text-center">
@@ -384,7 +406,7 @@
             // Active Tab 1
             reqTab.classList.add('bg-white', 'text-purple-700', 'shadow-sm');
             reqTab.classList.remove('text-gray-600');
-            
+
             expTab.classList.remove('bg-white', 'text-purple-700', 'shadow-sm');
             expTab.classList.add('text-gray-600');
 
@@ -394,7 +416,7 @@
             // Active Tab 2
             expTab.classList.add('bg-white', 'text-purple-700', 'shadow-sm');
             expTab.classList.remove('text-gray-600');
-            
+
             reqTab.classList.remove('bg-white', 'text-purple-700', 'shadow-sm');
             reqTab.classList.add('text-gray-600');
 
@@ -543,7 +565,7 @@
 
     function approveExpert(reqId, userName) {
         const note = prompt(`✅ PHÊ DUYỆT CHUYÊN GIA: ${userName}\n\nGhi chú cho user (không bắt buộc):`);
-        if (note === null) return; 
+        if (note === null) return;
 
         const form = document.createElement('form');
         form.method = 'POST';
@@ -561,11 +583,11 @@
 
     function rejectExpert(reqId, userName) {
         const note = prompt(`❌ TỪ CHỐI YÊU CẦU: ${userName}\n\nLý do từ chối (BẮT BUỘC):`);
-        if (note === null) return; 
+        if (note === null) return;
 
         if (!note || note.trim() === '') {
             alert('⚠️ Vui lòng nhập lý do từ chối!');
-            return rejectExpert(reqId, userName); 
+            return rejectExpert(reqId, userName);
         }
 
         const form = document.createElement('form');
@@ -585,12 +607,12 @@
     // --- XỬ LÝ HỦY TƯ CÁNG CHUYÊN GIA (TAB 2) ---
     function revokeExpert(userId, userName) {
         const reason = prompt(`❌ HỦY TƯ CÁNG CHUYÊN GIA: ${userName}\n\nLý do hủy bỏ (BẮT BUỘC):`);
-        
-        if (reason === null) return; 
+
+        if (reason === null) return;
 
         if (!reason || reason.trim() === '') {
             alert('⚠️ Vui lòng nhập lý do để hủy tư cách chuyên gia!');
-            return revokeExpert(userId, userName); 
+            return revokeExpert(userId, userName);
         }
 
         if (confirm(`Bạn có chắc chắn muốn hủy tư cách chuyên gia của ${userName}? Hành động này không thể hoàn tác.`)) {

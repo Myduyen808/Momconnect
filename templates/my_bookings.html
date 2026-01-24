@@ -1,341 +1,156 @@
 {% extends "base.html" %}
-{% block title %}Lịch tư vấn của tôi{% endblock %}
+
+{% block title %}Lịch hẹn của tôi{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold text-gray-800 mb-8">
-        <i class="fas fa-calendar-check text-purple-600"></i>
-        Lịch tư vấn của tôi
-    </h1>
+<div class="container mx-auto px-4 py-8 max-w-5xl">
+    <h1 class="text-3xl font-bold text-gray-800 mb-8">Lịch hẹn tư vấn của tôi</h1>
 
-    <!-- TABS -->
-    <div class="flex gap-4 mb-8">
-        <button onclick="showTab('upcoming')" id="tab-upcoming"
-            class="px-6 py-3 rounded-full font-medium bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg">
-            Sắp tới ({{ upcoming|length }})
+    <!-- Tab Navigation -->
+    <div class="flex border-b border-gray-200 mb-8">
+        <button onclick="showTab('upcoming')"
+            class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 focus:border-purple-600 focus:text-purple-600 active-tab">
+            Sắp tới
         </button>
-        <button onclick="showTab('past')" id="tab-past"
-            class="px-6 py-3 rounded-full font-medium bg-white text-gray-700 hover:shadow-md transition">
-            Đã qua ({{ past|length }})
+        <button onclick="showTab('old')"
+            class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 focus:border-purple-600 focus:text-purple-600">
+            Lịch cũ
         </button>
     </div>
 
-    <!-- LỊCH SẮP TỚI -->
-    <div id="upcoming-bookings" class="space-y-6">
+    <!-- Tab Sắp tới -->
+    <div id="upcoming-tab" class="tab-content">
         {% if upcoming %}
-        {% for booking in upcoming %}
-        <div class="bg-white rounded-3xl shadow-xl p-6 border-l-4 border-green-500">
-            <div class="flex items-start gap-6">
-                <!-- AVATAR CHUYÊN GIA -->
-                <img src="{{ url_for('static', filename=booking.time_slot.expert.avatar or 'images/default-avatar.png') }
-                }" class="w-24 h-24 rounded-full object-cover ring-4 ring-purple-200">
-
-                <div class="flex-1">
-                    <!-- TÊN CHUYÊN GIA -->
-                    <div class="flex items-center justify-between mb-3">
-                        <div>
-                            <h3 class="text-xl font-bold text-gray-800">
-                                {{ booking.time_slot.expert.name }}
-                            </h3>
-                            <p class="text-purple-600">
-                                <i class="fas fa-stethoscope"></i>
-                                {{ booking.time_slot.expert.expert_category }}
-                            </p>
-                        </div>
-                        <span class="bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-bold">
-                            <i class="fas fa-check-circle"></i> Đã đặt
-                        </span>
-                    </div>
-
-                    <!-- THỜI GIAN -->
-                    <div class="grid md:grid-cols-2 gap-4 mb-4">
-                        <div class="flex items-center gap-3 text-gray-700">
-                            <i class="far fa-calendar text-purple-600 text-xl"></i>
-                            <div>
-                                <p class="text-sm text-gray-500">Ngày</p>
-                                <p class="font-bold">{{ booking.time_slot.start_time.strftime('%A, %d/%m/%Y') }}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3 text-gray-700">
-                            <i class="far fa-clock text-purple-600 text-xl"></i>
-                            <div>
-                                <p class="text-sm text-gray-500">Giờ</p>
-                                <p class="font-bold">
-                                    {{ booking.time_slot.start_time.strftime('%H:%M') }} -
-                                    {{ booking.time_slot.end_time.strftime('%H:%M') }}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- GHI CHÚ -->
-                    {% if booking.notes %}
-                    <div class="bg-gray-50 rounded-xl p-4 mb-4">
-                        <p class="text-sm text-gray-600 mb-1">
-                            <i class="fas fa-sticky-note text-purple-600"></i> Ghi chú của bạn:
-                        </p>
-                        <p class="text-gray-800">{{ booking.notes }}</p>
-                    </div>
-                    {% endif %}
-
-                    <!-- THỜI GIAN CÒN LẠI -->
-                    <div class="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-3 mb-4">
-                        <p class="text-sm text-blue-700">
-                            <i class="fas fa-info-circle"></i>
-                            Còn {{ ((booking.time_slot.start_time - now()).total_seconds() / 3600)|int }} giờ nữa
-                        </p>
-                    </div>
-
-                    <!-- ACTIONS -->
-                    <div class="flex gap-3">
-                        <a href="{{ url_for('expert_public_profile', expert_id=booking.time_slot.expert_id) }}"
-                            class="px-6 py-2 bg-purple-600 text-white rounded-full font-bold hover:bg-purple-700 transition flex items-center gap-2">
-                            <i class="fas fa-user"></i> Xem hồ sơ
-                        </a>
-                        <a href="{{ url_for('chat', user_id=booking.time_slot.expert_id) }}"
-                            class="px-6 py-2 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition flex items-center gap-2">
-                            <i class="fas fa-comment"></i> Nhắn tin
-                        </a>
-                        <button onclick="cancelBooking({{ booking.id }})"
-                            class="px-6 py-2 bg-red-600 text-white rounded-full font-bold hover:bg-red-700 transition flex items-center gap-2">
-                            <i class="fas fa-times"></i> Hủy lịch
-                        </button>
-                    </div>
-                </div>
+        <div class="grid md:grid-cols-2 gap-6">
+            {% for booking in upcoming %}
+            <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
+                <h3 class="text-xl font-bold text-gray-800 mb-2">{{ booking.time_slot.expert.name }}</h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    {{ booking.time_slot.start_time.strftime('%d/%m/%Y %H:%M') }} -
+                    {{ booking.time_slot.end_time.strftime('%H:%M') }}
+                </p>
+                <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">
+                    Sắp diễn ra
+                </span>
+                <a href="{{ url_for('expert_consult_chat', expert_id=booking.time_slot.expert.id) }}"
+                    class="mt-4 block w-full bg-green-600 text-white py-3 rounded-xl text-center font-bold hover:bg-green-700">
+                    Bắt đầu chat tư vấn
+                </a>
             </div>
+            {% endfor %}
         </div>
-        {% endfor %}
         {% else %}
-        <div class="text-center py-20 bg-white rounded-3xl shadow-xl">
-            <i class="fas fa-calendar-times text-8xl text-gray-200 mb-6"></i>
-            <p class="text-2xl text-gray-500 font-medium mb-4">Chưa có lịch tư vấn nào</p>
-            <p class="text-gray-400 mb-6">Hãy tìm chuyên gia phù hợp và đặt lịch tư vấn ngay!</p>
-            <a href="{{ url_for('experts_list') }}"
-                class="inline-block px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-full font-bold hover:shadow-lg transition transform hover:scale-105">
-                <i class="fas fa-search mr-2"></i>
-                Tìm chuyên gia
-            </a>
+        <div class="text-center py-12 bg-gray-50 rounded-xl">
+            <i class="fas fa-calendar-times text-6xl text-gray-300 mb-4"></i>
+            <h3 class="text-xl font-bold text-gray-700">Chưa có lịch hẹn sắp tới</h3>
         </div>
         {% endif %}
     </div>
 
-    <!-- LỊCH ĐÃ QUA -->
-    <div id="past-bookings" class="hidden space-y-6">
-        {% if past %}
-        {% for booking in past %}
-        <div class="bg-white rounded-3xl shadow-xl p-6 border-l-4 border-gray-400 opacity-75">
-            <div class="flex items-start gap-6">
-                <img src="{{ url_for('static', filename=booking.time_slot.expert.avatar or 'images/default-avatar.png') }}"
-                    class="w-24 h-24 rounded-full object-cover ring-4 ring-gray-200">
+    <!-- Tab Lịch cũ (đã hủy + đã hoàn thành + đã qua) -->
+    <div id="old-tab" class="tab-content hidden">
+        {% if old_bookings %}
+        <div class="grid md:grid-cols-2 gap-6">
+            {% for booking in old_bookings %}
+            <div class="bg-white rounded-xl shadow-md p-6 opacity-80">
 
-                <div class="flex-1">
-                    <div class="flex items-center justify-between mb-3">
-                        <div>
-                            <h3 class="text-xl font-bold text-gray-800">{{ booking.time_slot.expert.name }}</h3>
-                            <p class="text-gray-600">
-                                <i class="fas fa-stethoscope"></i>
-                                {{ booking.time_slot.expert.expert_category }}
-                            </p>
-                        </div>
-                        <span class="bg-gray-100 text-gray-600 px-4 py-2 rounded-full text-sm font-bold">
-                            <i class="fas fa-history"></i> Đã qua
+                <h3 class="text-xl font-bold text-gray-800 mb-2">
+                    {{ booking.time_slot.expert.name }}
+                </h3>
+
+                <p class="text-sm text-gray-600 mb-2">
+                    {{ booking.time_slot.start_time.strftime('%d/%m/%Y %H:%M') }} -
+                    {{ booking.time_slot.end_time.strftime('%H:%M') }}
+                </p>
+
+                <span class="inline-block mb-4 px-3 py-1 rounded-full text-sm font-medium
+                {% if booking.status == 'cancelled' %}bg-red-100 text-red-700
+                {% elif booking.status == 'completed' %}bg-green-100 text-green-700
+                {% else %}bg-gray-100 text-gray-700{% endif %}">
+                    {% if booking.status == 'cancelled' %}Đã hủy
+                    {% elif booking.status == 'completed' %}Đã hoàn thành
+                    {% else %}Đã qua{% endif %}
+                </span>
+
+                <!-- ===== ĐÁNH GIÁ SAO ===== -->
+                {% if booking.status == 'completed' %}
+                {% set feedback = booking.feedback %}
+
+                {% if not feedback %}
+                <!-- FORM ĐÁNH GIÁ -->
+                <form action="{{ url_for('submit_feedback', booking_id=booking.id) }}" method="POST" class="mt-4">
+
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Đánh giá buổi tư vấn
+                    </label>
+
+                    <!-- SAO -->
+                    <div class="flex gap-1 mb-3">
+                        {% for i in range(1,6) %}
+                        <input type="radio" name="rating" id="star{{ booking.id }}_{{ i }}" value="{{ i }}"
+                            class="hidden" required>
+                        <label for="star{{ booking.id }}_{{ i }}"
+                            class="cursor-pointer text-2xl text-gray-300 hover:text-yellow-400">
+                            ★
+                        </label>
+                        {% endfor %}
+                    </div>
+
+                    <textarea name="comment" rows="3"
+                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                        placeholder="Nhận xét của bạn..."></textarea>
+
+                    <button type="submit"
+                        class="mt-3 bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700">
+                        Gửi đánh giá
+                    </button>
+                </form>
+
+                {% else %}
+                <!-- ĐÃ ĐÁNH GIÁ -->
+                <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <p class="text-sm font-medium text-gray-700">
+                        Bạn đã đánh giá:
+                        <span class="text-yellow-500 font-bold">
+                            {{ feedback.rating }} ★
                         </span>
-                    </div>
-
-                    <div class="grid md:grid-cols-2 gap-4 mb-4">
-                        <div class="flex items-center gap-3 text-gray-600">
-                            <i class="far fa-calendar text-gray-400 text-xl"></i>
-                            <div>
-                                <p class="text-sm">Ngày</p>
-                                <p class="font-bold">{{ booking.time_slot.start_time.strftime('%d/%m/%Y') }}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3 text-gray-600">
-                            <i class="far fa-clock text-gray-400 text-xl"></i>
-                            <div>
-                                <p class="text-sm">Giờ</p>
-                                <p class="font-bold">
-                                    {{ booking.time_slot.start_time.strftime('%H:%M') }} -
-                                    {{ booking.time_slot.end_time.strftime('%H:%M') }}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {% if booking.notes %}
-                    <div class="bg-gray-50 rounded-xl p-4 mb-4">
-                        <p class="text-sm text-gray-500 mb-1">Ghi chú:</p>
-                        <p class="text-gray-700">{{ booking.notes }}</p>
-                    </div>
+                    </p>
+                    {% if feedback.comment %}
+                    <p class="text-sm text-gray-600 mt-1">
+                        "{{ feedback.comment }}"
+                    </p>
                     {% endif %}
-
-                    <!-- ĐÁNH GIÁ (TÙY CHỌN - CÓ THỂ THÊM SAU) -->
-                    <div class="flex gap-3">
-                        <a href="{{ url_for('expert_public_profile', expert_id=booking.time_slot.expert_id) }}"
-                            class="px-6 py-2 bg-gray-600 text-white rounded-full font-bold hover:bg-gray-700 transition flex items-center gap-2">
-                            <i class="fas fa-user"></i> Xem hồ sơ
-                        </a>
-                        <button onclick="rateExpert({{ booking.time_slot.expert_id }})"
-                            class="px-6 py-2 bg-yellow-500 text-white rounded-full font-bold hover:bg-yellow-600 transition flex items-center gap-2">
-                            <i class="fas fa-star"></i> Đánh giá
-                        </button>
-                    </div>
                 </div>
+                {% endif %}
+                {% endif %}
+
             </div>
+            {% endfor %}
         </div>
-        {% endfor %}
         {% else %}
-        <div class="text-center py-20 bg-white rounded-3xl shadow-xl">
-            <i class="fas fa-history text-8xl text-gray-200 mb-6"></i>
-            <p class="text-2xl text-gray-500 font-medium">Chưa có lịch tư vấn nào</p>
+        <div class="text-center py-12 bg-gray-50 rounded-xl">
+            <i class="fas fa-history text-6xl text-gray-300 mb-4"></i>
+            <h3 class="text-xl font-bold text-gray-700">Chưa có lịch hẹn cũ</h3>
         </div>
         {% endif %}
     </div>
 </div>
 
-<!-- TOAST THÔNG BÁO -->
-<div id="toast"
-    class="hidden fixed top-20 right-4 bg-white border-l-4 border-green-500 shadow-2xl rounded-lg p-4 z-50 animate-slide-in">
-    <div class="flex items-center gap-3">
-        <i class="fas fa-check-circle text-green-500 text-2xl"></i>
-        <span id="toast-message" class="font-medium text-gray-800"></span>
-    </div>
-</div>
-
-<style>
-    @keyframes slide-in {
-        from {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    .animate-slide-in {
-        animation: slide-in 0.3s ease-out;
-    }
-</style>
-
+<!-- JavaScript chuyển tab -->
 <script>
-    // CHUYỂN ĐỔI TAB
     function showTab(tab) {
-        const upcomingBookings = document.getElementById('upcoming-bookings');
-        const pastBookings = document.getElementById('past-bookings');
-        const tabUpcoming = document.getElementById('tab-upcoming');
-        const tabPast = document.getElementById('tab-past');
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.getElementById(tab + '-tab').classList.remove('hidden');
 
-        if (tab === 'upcoming') {
-            upcomingBookings.classList.remove('hidden');
-            pastBookings.classList.add('hidden');
-
-            tabUpcoming.classList.add('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white', 'shadow-lg');
-            tabUpcoming.classList.remove('bg-white', 'text-gray-700');
-
-            tabPast.classList.remove('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white', 'shadow-lg');
-            tabPast.classList.add('bg-white', 'text-gray-700');
-        } else {
-            upcomingBookings.classList.add('hidden');
-            pastBookings.classList.remove('hidden');
-
-            tabPast.classList.add('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white', 'shadow-lg');
-            tabPast.classList.remove('bg-white', 'text-gray-700');
-
-            tabUpcoming.classList.remove('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white', 'shadow-lg');
-            tabUpcoming.classList.add('bg-white', 'text-gray-700');
-        }
-    }
-
-    // HỦY LỊCH HẸN
-    async function cancelBooking(bookingId) {
-        if (!confirm('Bạn có chắc muốn hủy lịch tư vấn này?\n\nChuyên gia sẽ nhận được thông báo.')) return;
-
-        try {
-            const res = await fetch(`/cancel-booking/${bookingId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const data = await res.json();
-
-            if (data.success) {
-                showToast('Đã hủy lịch thành công!', true);
-                setTimeout(() => {
-                    location.reload();
-                }, 1500);
-            } else {
-                showToast(data.error || 'Có lỗi xảy ra!', false);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            showToast('Lỗi kết nối!', false);
-        }
-    }
-
-    // ĐÁNH GIÁ CHUYÊN GIA (TÙY CHỌN - CÓ THỂ PHÁT TRIỂN SAU)
-    function rateExpert(expertId) {
-        // TODO: Mở modal đánh giá
-        alert('Tính năng đánh giá sẽ được phát triển trong phiên bản tiếp theo!');
-    }
-
-    // HIỂN THỊ TOAST THÔNG BÁO
-    function showToast(message, isSuccess = true) {
-        const toast = document.getElementById('toast');
-        const toastMessage = document.getElementById('toast-message');
-        const icon = toast.querySelector('i');
-
-        toastMessage.textContent = message;
-
-        if (isSuccess) {
-            toast.classList.remove('border-red-500');
-            toast.classList.add('border-green-500');
-            icon.classList.remove('fa-exclamation-circle', 'text-red-500');
-            icon.classList.add('fa-check-circle', 'text-green-500');
-        } else {
-            toast.classList.remove('border-green-500');
-            toast.classList.add('border-red-500');
-            icon.classList.remove('fa-check-circle', 'text-green-500');
-            icon.classList.add('fa-exclamation-circle', 'text-red-500');
-        }
-
-        toast.classList.remove('hidden');
-
-        setTimeout(() => {
-            toast.classList.add('hidden');
-        }, 3000);
-    }
-
-    // TỰ ĐỘNG CẬP NHẬT THỜI GIAN CÒN LẠI (TÙY CHỌN)
-    function updateTimeRemaining() {
-        const timeElements = document.querySelectorAll('[data-booking-time]');
-
-        timeElements.forEach(element => {
-            const bookingTime = new Date(element.dataset.bookingTime);
-            const now = new Date();
-            const diffMs = bookingTime - now;
-
-            if (diffMs > 0) {
-                const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-                const diffDays = Math.floor(diffHours / 24);
-
-                if (diffDays > 0) {
-                    element.textContent = `Còn ${diffDays} ngày ${diffHours % 24} giờ`;
-                } else {
-                    element.textContent = `Còn ${diffHours} giờ`;
-                }
-            }
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('border-purple-600', 'text-purple-600', 'active-tab');
         });
+        event.target.classList.add('border-purple-600', 'text-purple-600', 'active-tab');
     }
 
-    // CẬP NHẬT MỖI PHÚT
-    setInterval(updateTimeRemaining, 60000);
-
-    // LOG
-    console.log('✅ My Bookings page loaded successfully!');
+    // Mặc định mở tab Sắp tới
+    document.addEventListener('DOMContentLoaded', () => {
+        showTab('upcoming');
+    });
 </script>
 {% endblock %}

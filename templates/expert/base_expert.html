@@ -379,6 +379,13 @@
                     <span>Lịch tư vấn</span>
                 </a>
 
+                <!-- ✅ THÊM LINK LỊCH HẸN CỦA TÔI Ở ĐÂY -->
+                <a href="{{ url_for('my_bookings') }}"
+                    class="expert-nav-item {{ 'active' if request.endpoint == 'my_bookings' else '' }}">
+                    <i class="fas fa-calendar-check"></i>
+                    <span>Lịch hẹn của tôi</span>
+                </a>
+
                 <a href="{{ url_for('expert_analytics') }}"
                     class="expert-nav-item {{ 'active' if request.endpoint == 'expert_analytics' else '' }}">
                     <i class="fas fa-chart-line"></i>

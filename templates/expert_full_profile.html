@@ -1,0 +1,530 @@
+{% extends "base.html" %}
+{% block title %}{{ expert.name }} - Hồ Sơ Chuyên Gia{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 py-8">
+    <div class="max-w-7xl mx-auto px-4">
+
+        <!-- BACK BUTTON -->
+        <a href="{{ url_for('experts_list') }}"
+            class="inline-flex items-center gap-2 text-purple-600 hover:text-purple-800 font-semibold mb-6 group">
+            <i class="fas fa-arrow-left group-hover:-translate-x-1 transition-transform"></i>
+            Quay lại danh sách chuyên gia
+        </a>
+
+        <!-- HEADER PROFILE CARD -->
+        <div class="bg-white rounded-3xl shadow-2xl overflow-hidden mb-8">
+            <!-- Cover Photo -->
+            <div class="relative h-80 bg-gradient-to-r from-purple-600 via-pink-500 to-indigo-600">
+                <div class="absolute inset-0 bg-black opacity-20"></div>
+
+                <!-- Decorative Elements -->
+                <div class="absolute top-10 right-20 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl animate-pulse">
+                </div>
+                <div class="absolute bottom-10 left-20 w-48 h-48 bg-white opacity-10 rounded-full blur-3xl animate-pulse"
+                    style="animation-delay: 1s"></div>
+
+                <!-- Status Badge -->
+                <div class="absolute top-6 right-6">
+                    {% if expert.availability == 'available' %}
+                    <span class="flex items-center gap-2 bg-white/90 backdrop-blur-sm px-5 py-3 rounded-full shadow-xl">
+                        <span class="w-4 h-4 bg-green-500 rounded-full animate-pulse"></span>
+                        <span class="font-bold text-green-700">Sẵn sàng tư vấn</span>
+                    </span>
+                    {% elif expert.availability == 'busy' %}
+                    <span class="flex items-center gap-2 bg-white/90 backdrop-blur-sm px-5 py-3 rounded-full shadow-xl">
+                        <span class="w-4 h-4 bg-yellow-500 rounded-full"></span>
+                        <span class="font-bold text-yellow-700">Đang bận</span>
+                    </span>
+                    {% else %}
+                    <span class="flex items-center gap-2 bg-white/90 backdrop-blur-sm px-5 py-3 rounded-full shadow-xl">
+                        <span class="w-4 h-4 bg-gray-400 rounded-full"></span>
+                        <span class="font-bold text-gray-700">Offline</span>
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Profile Content -->
+            <div class="relative px-8 pb-8">
+                <!-- Avatar -->
+                <div class="absolute -top-32 left-8">
+                    <div class="relative group">
+                        <img src="{{ url_for('static', filename=expert.avatar or 'images/default-avatar.png') }}" class="w-64 h-64 rounded-3xl object-cover border-8 border-white shadow-2xl 
+                                    transform group-hover:scale-105 transition-transform duration-300">
+
+                        <!-- Verified Badge -->
+                        {% if expert.is_verified_expert %}
+                        <div class="absolute -bottom-4 -right-4 bg-gradient-to-r from-blue-500 to-cyan-500 
+                                    text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2">
+                            <i class="fas fa-shield-check text-2xl"></i>
+                            <span class="font-bold text-lg">Đã xác minh</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Info Section -->
+                <div class="pt-36 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Left: Name & Bio -->
+                    <div class="lg:col-span-2 space-y-6">
+                        <div>
+                            <h1 class="text-5xl font-bold text-gray-900 mb-3 flex items-center gap-4">
+                                {{ expert.name }}
+                                <span class="text-3xl">👨‍⚕️</span>
+                            </h1>
+
+                            <div class="flex flex-wrap gap-4 mb-6">
+                                <!-- Chuyên môn -->
+                                <span class="bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 
+                                           px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-md">
+                                    <i class="fas fa-stethoscope"></i>
+                                    {{ expert.specialty or 'Chuyên gia' }}
+                                </span>
+
+                                <!-- Kinh nghiệm -->
+                                {% if expert.experience_years %}
+                                <span class="bg-gradient-to-r from-orange-100 to-red-100 text-orange-700 
+                                           px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-md">
+                                    <i class="fas fa-award"></i>
+                                    {{ expert.experience_years }} năm kinh nghiệm
+                                </span>
+                                {% endif %}
+
+                                <!-- Workplace -->
+                                {% if expert.workplace %}
+                                <span class="bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 
+                                           px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-md">
+                                    <i class="fas fa-hospital"></i>
+                                    {{ expert.workplace }}
+                                </span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Rating -->
+                            <div class="flex items-center gap-6 mb-6">
+                                <div class="flex items-center gap-2">
+                                    {% if expert.rating %}
+                                    {% for i in range(1, 6) %}
+                                    {% if i <= expert.rating|round(0) %} <i
+                                        class="fas fa-star text-yellow-400 text-3xl"></i>
+                                        {% elif i == expert.rating|round(0) + 1 and expert.rating % 1 >= 0.5 %}
+                                        <i class="fas fa-star-half-alt text-yellow-400 text-3xl"></i>
+                                        {% else %}
+                                        <i class="far fa-star text-gray-300 text-3xl"></i>
+                                        {% endif %}
+                                        {% endfor %}
+                                        {% else %}
+                                        <i class="far fa-star text-gray-300 text-3xl"></i>
+                                        <i class="far fa-star text-gray-300 text-3xl"></i>
+                                        <i class="far fa-star text-gray-300 text-3xl"></i>
+                                        <i class="far fa-star text-gray-300 text-3xl"></i>
+                                        <i class="far fa-star text-gray-300 text-3xl"></i>
+                                        {% endif %}
+                                </div>
+                                <div class="text-2xl font-bold text-gray-800">
+                                    {{ expert.rating|round(1) if expert.rating else 'Chưa có đánh giá' }}
+                                </div>
+                                <div class="text-lg text-gray-500">
+                                    ({{ expert.received_feedbacks|length if expert.received_feedbacks else 0 }} đánh
+                                    giá)
+                                </div>
+                            </div>
+
+                            <!-- Bio -->
+                            {% if expert.bio %}
+                            <div
+                                class="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl border-l-4 border-purple-500">
+                                <h3 class="text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-quote-left text-purple-600"></i>
+                                    Giới thiệu
+                                </h3>
+                                <p class="text-gray-700 text-lg leading-relaxed">{{ expert.bio }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Stats Grid -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <!-- Bài viết -->
+                            <div
+                                class="bg-gradient-to-br from-purple-500 to-indigo-600 p-6 rounded-2xl text-white text-center transform hover:scale-105 transition shadow-xl">
+                                <i class="fas fa-newspaper text-4xl mb-3 opacity-80"></i>
+                                <p class="text-4xl font-bold mb-1">{{ expert.total_posts }}</p>
+                                <p class="text-sm opacity-90">Bài viết</p>
+                            </div>
+
+                            <!-- Tư vấn -->
+                            <div
+                                class="bg-gradient-to-br from-green-500 to-emerald-600 p-6 rounded-2xl text-white text-center transform hover:scale-105 transition shadow-xl">
+                                <i class="fas fa-user-md text-4xl mb-3 opacity-80"></i>
+                                <p class="text-4xl font-bold mb-1">{{ expert.total_consultations }}</p>
+                                <p class="text-sm opacity-90">Tư vấn</p>
+                            </div>
+
+                            <!-- Người theo dõi -->
+                            <div
+                                class="bg-gradient-to-br from-blue-500 to-cyan-600 p-6 rounded-2xl text-white text-center transform hover:scale-105 transition shadow-xl">
+                                <i class="fas fa-users text-4xl mb-3 opacity-80"></i>
+                                <p class="text-4xl font-bold mb-1">{{ expert.followers.count() }}</p>
+                                <p class="text-sm opacity-90">Theo dõi</p>
+                            </div>
+
+                            <!-- Điểm uy tín -->
+                            <div
+                                class="bg-gradient-to-br from-yellow-500 to-orange-600 p-6 rounded-2xl text-white text-center transform hover:scale-105 transition shadow-xl">
+                                <i class="fas fa-trophy text-4xl mb-3 opacity-80"></i>
+                                <p class="text-4xl font-bold mb-1">{{ expert.credibility_score or 0 }}</p>
+                                <p class="text-sm opacity-90">Uy tín</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Action Buttons -->
+                    <div class="space-y-4">
+                        <!-- Đặt lịch tư vấn -->
+                        <a href="{{ url_for('expert_public_profile', expert_id=expert.id) }}" class="block w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white 
+                                  py-5 rounded-2xl font-bold text-center text-xl hover:shadow-2xl 
+                                  transition transform hover:scale-105 flex items-center justify-center gap-3">
+                            <i class="fas fa-calendar-check text-2xl"></i>
+                            Đặt lịch tư vấn
+                        </a>
+
+                        <!-- Phí tư vấn -->
+                        {% if expert.consultation_fee %}
+                        <div
+                            class="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 p-6 rounded-2xl text-center shadow-lg">
+                            <p class="text-sm text-gray-600 mb-2">Phí tư vấn</p>
+                            <p class="text-4xl font-bold text-green-600 mb-1">
+                                {{ "{:,}".format(expert.consultation_fee) }} đ
+                            </p>
+                            <p class="text-sm text-gray-500">/ buổi</p>
+                        </div>
+                        {% else %}
+                        <div
+                            class="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-300 p-6 rounded-2xl text-center shadow-lg">
+                            <i class="fas fa-gift text-5xl text-blue-600 mb-3"></i>
+                            <p class="text-3xl font-bold text-blue-600">Miễn phí</p>
+                            <p class="text-sm text-gray-600 mt-2">Tư vấn không mất phí</p>
+                        </div>
+                        {% endif %}
+
+                        <!-- Theo dõi -->
+                        {% if current_user.is_authenticated and current_user.id != expert.id %}
+                        <button onclick="toggleFollow({{ expert.id }})" class="w-full bg-white border-2 border-purple-600 text-purple-600 
+                                       py-4 rounded-2xl font-bold hover:bg-purple-50 transition 
+                                       flex items-center justify-center gap-2 text-lg">
+                            <i class="fas fa-user-plus"></i>
+                            Theo dõi
+                        </button>
+                        {% endif %}
+
+                        <!-- Chat tư vấn -->
+                        {% if current_user.is_authenticated and current_user.id != expert.id %}
+                        <button
+                            onclick="window.location.href='{{ url_for('expert_consult_chat', expert_id=expert.id) }}'"
+                            class="w-full bg-gradient-to-r from-green-500 to-teal-600 text-white 
+                                       py-4 rounded-2xl font-bold hover:shadow-xl transition 
+                                       flex items-center justify-center gap-2 text-lg">
+                            <i class="fas fa-comments"></i>
+                            Chat tư vấn
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABS SECTION -->
+        <div class="bg-white rounded-3xl shadow-2xl overflow-hidden">
+            <!-- Tab Headers -->
+            <div class="border-b border-gray-200 bg-gray-50">
+                <div class="flex overflow-x-auto">
+                    <button onclick="showTab('about')" class="tab-btn flex-1 px-8 py-5 font-bold text-gray-600 hover:text-purple-600 
+                                   border-b-4 border-transparent hover:border-purple-600 transition whitespace-nowrap
+                                   flex items-center justify-center gap-2" data-tab="about">
+                        <i class="fas fa-info-circle text-xl"></i>
+                        <span>Thông tin chi tiết</span>
+                    </button>
+                    <button onclick="showTab('education')" class="tab-btn flex-1 px-8 py-5 font-bold text-gray-600 hover:text-purple-600 
+                                   border-b-4 border-transparent hover:border-purple-600 transition whitespace-nowrap
+                                   flex items-center justify-center gap-2" data-tab="education">
+                        <i class="fas fa-graduation-cap text-xl"></i>
+                        <span>Học vấn & Chứng chỉ</span>
+                    </button>
+                    <button onclick="showTab('posts')" class="tab-btn flex-1 px-8 py-5 font-bold text-gray-600 hover:text-purple-600 
+                                   border-b-4 border-transparent hover:border-purple-600 transition whitespace-nowrap
+                                   flex items-center justify-center gap-2" data-tab="posts">
+                        <i class="fas fa-newspaper text-xl"></i>
+                        <span>Bài viết</span>
+                    </button>
+                    <button onclick="showTab('reviews')" class="tab-btn flex-1 px-8 py-5 font-bold text-gray-600 hover:text-purple-600 
+                                   border-b-4 border-transparent hover:border-purple-600 transition whitespace-nowrap
+                                   flex items-center justify-center gap-2" data-tab="reviews">
+                        <i class="fas fa-star text-xl"></i>
+                        <span>Đánh giá</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Contents -->
+            <div class="p-8">
+                <!-- THÔNG TIN CHI TIẾT -->
+                <div id="tab-about" class="tab-content">
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <!-- Chứng chỉ hành nghề -->
+                        {% if expert.license_number %}
+                        <div
+                            class="bg-gradient-to-br from-purple-50 to-indigo-50 p-8 rounded-2xl border-2 border-purple-200 shadow-lg">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="bg-purple-600 p-4 rounded-xl">
+                                    <i class="fas fa-id-card text-white text-2xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-600">Số chứng chỉ hành nghề</p>
+                                    <p class="text-2xl font-bold text-gray-800">{{ expert.license_number }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Giá trị đến -->
+                        {% if expert.license_expiry %}
+                        <div
+                            class="bg-gradient-to-br from-green-50 to-emerald-50 p-8 rounded-2xl border-2 border-green-200 shadow-lg">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="bg-green-600 p-4 rounded-xl">
+                                    <i class="fas fa-calendar-check text-white text-2xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-600">Chứng chỉ có giá trị đến</p>
+                                    <p class="text-2xl font-bold text-gray-800">{{
+                                        expert.license_expiry.strftime('%d/%m/%Y') }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Email -->
+                        <div
+                            class="bg-gradient-to-br from-blue-50 to-cyan-50 p-8 rounded-2xl border-2 border-blue-200 shadow-lg">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="bg-blue-600 p-4 rounded-xl">
+                                    <i class="fas fa-envelope text-white text-2xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-600">Email liên hệ</p>
+                                    <p class="text-xl font-bold text-gray-800">{{ expert.email }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Điện thoại -->
+                        {% if expert.phone %}
+                        <div
+                            class="bg-gradient-to-br from-orange-50 to-red-50 p-8 rounded-2xl border-2 border-orange-200 shadow-lg">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="bg-orange-600 p-4 rounded-xl">
+                                    <i class="fas fa-phone text-white text-2xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-600">Số điện thoại</p>
+                                    <p class="text-xl font-bold text-gray-800">{{ expert.phone }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- HỌC VẤN & CHỨNG CHỈ -->
+                <div id="tab-education" class="tab-content hidden">
+                    {% if expert.education %}
+                    <div class="mb-8">
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 rounded-xl">
+                                <i class="fas fa-university text-white text-3xl"></i>
+                            </div>
+                            <h3 class="text-3xl font-bold text-gray-800">Trình độ học vấn</h3>
+                        </div>
+                        <div
+                            class="bg-gradient-to-br from-gray-50 to-gray-100 p-8 rounded-2xl border-l-4 border-purple-600">
+                            <p class="text-gray-700 text-lg whitespace-pre-line leading-relaxed">{{ expert.education }}
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if expert.certifications %}
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="bg-gradient-to-r from-green-600 to-emerald-600 p-4 rounded-xl">
+                                <i class="fas fa-certificate text-white text-3xl"></i>
+                            </div>
+                            <h3 class="text-3xl font-bold text-gray-800">Chứng chỉ chuyên môn</h3>
+                        </div>
+                        <div
+                            class="bg-gradient-to-br from-gray-50 to-gray-100 p-8 rounded-2xl border-l-4 border-green-600">
+                            <p class="text-gray-700 text-lg whitespace-pre-line leading-relaxed">{{
+                                expert.certifications }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if not expert.education and not expert.certifications %}
+                    <div class="text-center py-20">
+                        <i class="fas fa-graduation-cap text-9xl text-gray-200 mb-6"></i>
+                        <p class="text-2xl text-gray-500 font-medium">Chưa cập nhật thông tin học vấn</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- BÀI VIẾT -->
+                <div id="tab-posts" class="tab-content hidden">
+                    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {% for post in expert.posts if post.is_expert_post %}
+                        <a href="{{ url_for('post_detail', post_id=post.id) }}"
+                            class="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden 
+                                  hover:shadow-2xl hover:border-purple-300 transition-all transform hover:scale-105 group">
+                            {% if post.images %}
+                            <img src="{{ url_for('static', filename='uploads/' + post.images.split(',')[0]) }}"
+                                class="w-full h-56 object-cover group-hover:scale-110 transition-transform duration-300">
+                            {% else %}
+                            <div
+                                class="w-full h-56 bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center">
+                                <i class="fas fa-newspaper text-white text-6xl opacity-50"></i>
+                            </div>
+                            {% endif %}
+                            <div class="p-6">
+                                <h4
+                                    class="font-bold text-xl text-gray-800 mb-3 group-hover:text-purple-600 transition line-clamp-2">
+                                    {{ post.title }}
+                                </h4>
+                                <p class="text-gray-600 mb-4 line-clamp-3">{{ post.content[:150] }}...</p>
+                                <div class="flex items-center gap-6 text-sm text-gray-500">
+                                    <span class="flex items-center gap-1">
+                                        <i class="fas fa-eye"></i> {{ post.views }}
+                                    </span>
+                                    <span class="flex items-center gap-1">
+                                        <i class="fas fa-heart"></i> {{ post.likes }}
+                                    </span>
+                                    <span class="flex items-center gap-1">
+                                        <i class="fas fa-comment"></i> {{ post.comments_count }}
+                                    </span>
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+
+                    {% if expert.posts.filter_by(is_expert_post=True).count() == 0 %}
+                    <div class="text-center py-20">
+                        <i class="fas fa-newspaper text-9xl text-gray-200 mb-6"></i>
+                        <p class="text-2xl text-gray-500 font-medium">Chưa có bài viết nào</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- ĐÁNH GIÁ -->
+                <div id="tab-reviews" class="tab-content hidden">
+                    <div class="space-y-6">
+                        {% if expert.received_feedbacks %}
+                        {% for feedback in expert.received_feedbacks[:20] %}
+                        <div
+                            class="bg-gradient-to-br from-gray-50 to-gray-100 p-8 rounded-2xl shadow-lg border-l-4 border-yellow-400">
+                            <div class="flex items-start gap-6">
+                                <img src="{{ url_for('static', filename=feedback.from_user.avatar or 'images/default-avatar.png') }}"
+                                    class="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg">
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h5 class="font-bold text-xl text-gray-800">{{ feedback.from_user.name }}</h5>
+                                        <div class="flex gap-1">
+                                            {% for i in range(5) %}
+                                            <i
+                                                class="fas fa-star {{ 'text-yellow-400 text-2xl' if i < feedback.rating else 'text-gray-300 text-2xl' }}"></i>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <p class="text-gray-700 text-lg mb-3">{{ feedback.comment }}</p>
+                                    <p class="text-sm text-gray-500">
+                                        <i class="far fa-clock"></i>
+                                        {{ feedback.created_at.strftime('%H:%M %d/%m/%Y') }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="text-center py-20">
+                            <i class="fas fa-star text-9xl text-gray-200 mb-6"></i>
+                            <p class="text-2xl text-gray-500 font-medium">Chưa có đánh giá nào</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.add('hidden');
+        });
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('text-purple-600', 'border-purple-600');
+            btn.classList.add('text-gray-600', 'border-transparent');
+        });
+
+        document.getElementById('tab-' + tabName).classList.remove('hidden');
+
+        const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
+        activeBtn.classList.remove('text-gray-600', 'border-transparent');
+        activeBtn.classList.add('text-purple-600', 'border-purple-600');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        showTab('about');
+    });
+
+    async function toggleFollow(expertId) {
+        try {
+            const response = await fetch(`/follow/${expertId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success || data.following !== undefined) {
+                location.reload();
+            } else {
+                alert(data.message || 'Có lỗi xảy ra');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Không thể kết nối server');
+        }
+    }
+</script>
+
+<style>
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .line-clamp-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+</style>
+{% endblock %}

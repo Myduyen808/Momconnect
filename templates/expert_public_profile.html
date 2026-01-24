@@ -6,7 +6,7 @@
 
     <!-- BACK -->
     <a href="{{ url_for('experts_list') }}"
-       class="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-6 font-medium">
+        class="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-6 font-medium">
         <i class="fas fa-arrow-left"></i> Quay lại danh sách chuyên gia
     </a>
 
@@ -18,7 +18,7 @@
 
                 <div class="h-32 bg-gradient-to-br from-purple-500 to-indigo-600 relative">
                     <img src="{{ url_for('static', filename=expert.avatar or 'images/default-avatar.png') }}"
-                         class="absolute -bottom-16 left-1/2 -translate-x-1/2 w-32 h-32 rounded-full object-cover border-8 border-white shadow-2xl">
+                        class="absolute -bottom-16 left-1/2 -translate-x-1/2 w-32 h-32 rounded-full object-cover border-8 border-white shadow-2xl">
                 </div>
 
                 <div class="pt-20 pb-6 px-6 text-center">
@@ -34,17 +34,45 @@
                     </p>
 
                     {% if expert.specialty %}
-                        <p class="text-gray-600 mt-2">{{ expert.specialty }}</p>
+                    <p class="text-gray-600 mt-2">{{ expert.specialty }}</p>
                     {% endif %}
 
                     {% if expert.consultation_fee %}
-                        <div class="bg-green-50 border border-green-200 rounded-xl p-4 mt-4">
-                            <p class="text-2xl font-bold text-green-600">
-                                {{ "{:,.0f}".format(expert.consultation_fee) }} VNĐ
-                            </p>
-                        </div>
+                    <div class="bg-green-50 border border-green-200 rounded-xl p-4 mt-4">
+                        <p class="text-2xl font-bold text-green-600">
+                            {{ "{:,.0f}".format(expert.consultation_fee) }} VNĐ
+                        </p>
+                    </div>
                     {% endif %}
                 </div>
+            </div>
+        </div>
+
+        <!-- THÊM PHẦN ĐÁNH GIÁ SAO -->
+        <div class="mt-6 flex flex-col items-center gap-2">
+            <div class="flex items-center gap-1">
+                {% if expert.rating %}
+                <!-- Hiển thị sao đầy (rating) -->
+                {% for i in range(1, 6) %}
+                {% if i <= expert.rating|round(0) %} <span class="text-3xl text-yellow-400">★</span>
+                    {% elif i == expert.rating|round(0) + 1 and expert.rating % 1 >= 0.5 %}
+                    <span class="text-3xl text-yellow-400">½</span>
+                    {% else %}
+                    <span class="text-3xl text-gray-300">★</span>
+                    {% endif %}
+                    {% endfor %}
+                    {% else %}
+                    <span class="text-3xl text-gray-300">★★★★★</span>
+                    {% endif %}
+            </div>
+
+            <div class="text-xl font-bold text-gray-800">
+                {{ expert.rating|round(1) if expert.rating else 'Chưa có đánh giá' }}
+            </div>
+
+            <div class="text-sm text-gray-500">
+                ({{ expert.received_feedbacks | length }}
+                đánh giá)
             </div>
         </div>
 
@@ -61,43 +89,57 @@
                 <!-- DANH SÁCH SLOT -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {% if available_slots %}
-                        {% for slot in available_slots %}
-                        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
-                            <div class="text-center mb-4">
-                                <div class="text-4xl font-bold text-purple-600">
-                                    {{ slot.start_time.strftime('%d') }}
-                                </div>
-                                <div class="text-sm text-gray-600">
-                                    {{ slot.start_time.strftime('%m/%Y') }}
-                                </div>
+                    {% for slot in available_slots %}
+                    <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
+                        <div class="text-center mb-4">
+                            <div class="text-4xl font-bold text-purple-600">
+                                {{ slot.start_time.strftime('%d') }}
                             </div>
-
-                            <div class="text-center text-xl font-bold mb-2">
-                                {{ slot.start_time.strftime('%H:%M') }} -
-                                {{ slot.end_time.strftime('%H:%M') }}
+                            <div class="text-sm text-gray-600">
+                                {{ slot.start_time.strftime('%m/%Y') }}
                             </div>
+                        </div>
 
-                            <p class="text-center text-sm text-gray-600 mb-4">
-                                {{ slot.duration_minutes }} phút
-                            </p>
+                        <div class="text-center text-xl font-bold mb-2">
+                            {{ slot.start_time.strftime('%H:%M') }} -
+                            {{ slot.end_time.strftime('%H:%M') }}
+                        </div>
 
-                            <button
-                                onclick="openBookModal(
+                        <p class="text-center text-sm text-gray-600 mb-4">
+                            {{ slot.duration_minutes }} phút
+                        </p>
+
+                        <button onclick="openBookModal(
                                     {{ slot.id }},
                                     '{{ slot.start_time.strftime('%d/%m/%Y') }}',
                                     '{{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}',
                                     {{ slot.duration_minutes }}
-                                )"
-                                class="w-full bg-gradient-to-r from-purple-600 to-indigo-600
+                                )" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600
                                        text-white py-3 rounded-xl font-bold hover:shadow-lg">
-                                <i class="fas fa-calendar-plus mr-2"></i> Đặt lịch ngay
-                            </button>
-                        </div>
-                        {% endfor %}
+                            <i class="fas fa-calendar-plus mr-2"></i> Đặt lịch ngay
+                        </button>
+                        <!-- Nút Chat tư vấn - Chỉ hiện nếu đã có lịch đặt -->
+                        {% if has_booking %}
+                        <button
+                            onclick="window.location.href='{{ url_for('expert_consult_chat', expert_id=expert.id) }}'"
+                            class="mt-6 w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition flex items-center justify-center gap-2">
+                            <i class="fas fa-comments"></i> Chat tư vấn ngay
+                        </button>
+                        {% else %}
+                        <button disabled
+                            class="mt-6 w-full bg-gray-400 text-white py-3 rounded-xl font-medium cursor-not-allowed flex items-center justify-center gap-2">
+                            <i class="fas fa-comments mr-2"></i> Chat tư vấn (đặt lịch trước)
+                        </button>
+                        <p class="text-sm text-gray-500 mt-2 text-center">
+                            Bạn cần đặt lịch tư vấn để chat trực tiếp với chuyên gia
+                        </p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
                     {% else %}
-                        <div class="col-span-full text-center py-12 text-gray-500">
-                            Chưa có khung giờ trống
-                        </div>
+                    <div class="col-span-full text-center py-12 text-gray-500">
+                        Chưa có khung giờ trống
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -106,11 +148,11 @@
 </div>
 
 <!-- ================= MODAL ĐẶT LỊCH ================= -->
-<div id="bookModal"
-     class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
+<div id="bookModal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
 
     <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl">
-        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-t-2xl flex justify-between">
+        <div
+            class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-t-2xl flex justify-between">
             <h3 class="text-xl font-bold">Đặt lịch với {{ expert.name }}</h3>
             <button onclick="closeBookModal()" class="text-2xl">&times;</button>
         </div>
@@ -123,18 +165,16 @@
                     Chưa chọn khung giờ
                 </div>
 
-                <textarea name="notes" rows="4"
-                          class="w-full mt-4 px-4 py-3 border rounded-lg"
-                          placeholder="Ghi chú cho chuyên gia..."></textarea>
+                <textarea name="notes" rows="4" class="w-full mt-4 px-4 py-3 border rounded-lg"
+                    placeholder="Ghi chú cho chuyên gia..."></textarea>
             </form>
         </div>
 
         <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-            <button onclick="closeBookModal()"
-                    class="px-6 py-2 bg-gray-200 rounded-lg">Hủy</button>
+            <button onclick="closeBookModal()" class="px-6 py-2 bg-gray-200 rounded-lg">Hủy</button>
 
             <button id="bookBtn" onclick="bookSlot()" disabled
-                    class="px-6 py-2 bg-purple-600 text-white rounded-lg disabled:opacity-50">
+                class="px-6 py-2 bg-purple-600 text-white rounded-lg disabled:opacity-50">
                 Đặt lịch
             </button>
         </div>
@@ -143,44 +183,44 @@
 
 <!-- ================= JS ================= -->
 <script>
-function openBookModal(id, date, time, duration) {
-    document.getElementById('selectedSlotId').value = id;
-    document.getElementById('selectedSlotInfo').innerHTML =
-        `<b>${date}</b><br>${time} (${duration} phút)`;
-    document.getElementById('bookBtn').disabled = false;
-    document.getElementById('bookModal').classList.remove('hidden');
-}
-
-function closeBookModal() {
-    document.getElementById('bookModal').classList.add('hidden');
-    document.getElementById('bookForm').reset();
-    document.getElementById('bookBtn').disabled = true;
-}
-
-async function bookSlot() {
-    const btn = document.getElementById('bookBtn');
-    btn.disabled = true;
-    btn.innerText = 'Đang đặt...';
-
-    const formData = new FormData(document.getElementById('bookForm'));
-    const slotId = formData.get('slot_id');
-
-    try {
-        const res = await fetch(`/book-slot/${slotId}`, {
-            method: 'POST',
-            body: formData
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            alert('Đặt lịch thành công!');
-            location.reload();
-        } else {
-            alert(data.error || 'Có lỗi');
-        }
-    } catch {
-        alert('Lỗi kết nối');
+    function openBookModal(id, date, time, duration) {
+        document.getElementById('selectedSlotId').value = id;
+        document.getElementById('selectedSlotInfo').innerHTML =
+            `<b>${date}</b><br>${time} (${duration} phút)`;
+        document.getElementById('bookBtn').disabled = false;
+        document.getElementById('bookModal').classList.remove('hidden');
     }
-}
+
+    function closeBookModal() {
+        document.getElementById('bookModal').classList.add('hidden');
+        document.getElementById('bookForm').reset();
+        document.getElementById('bookBtn').disabled = true;
+    }
+
+    async function bookSlot() {
+        const btn = document.getElementById('bookBtn');
+        btn.disabled = true;
+        btn.innerText = 'Đang đặt...';
+
+        const formData = new FormData(document.getElementById('bookForm'));
+        const slotId = formData.get('slot_id');
+
+        try {
+            const res = await fetch(`/book-slot/${slotId}`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert('Đặt lịch thành công!');
+                location.reload();
+            } else {
+                alert(data.error || 'Có lỗi');
+            }
+        } catch {
+            alert('Lỗi kết nối');
+        }
+    }
 </script>
 {% endblock %}

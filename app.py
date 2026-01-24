@@ -197,6 +197,37 @@ def utility_processor():
         return vietnam_now()
     return dict(now=now)
 
+# Trong app.py - Hàm kiểm tra lịch sắp bắt đầu
+def notify_upcoming_bookings():
+    now = vietnam_now()
+    soon = now + timedelta(minutes=15)  # 15 phút trước
+    
+    upcoming = Booking.query.filter_by(status='scheduled')\
+                           .join(TimeSlot)\
+                           .filter(TimeSlot.start_time.between(now, soon))\
+                           .all()
+    
+    for booking in upcoming:
+        # Thông báo user
+        notif_user = Notification(
+            user_id=booking.user_id,
+            title="Lịch tư vấn sắp bắt đầu!",
+            message=f"Buổi tư vấn với {booking.time_slot.expert.name} sẽ bắt đầu trong 15 phút nữa.",
+            type='booking_reminder'
+        )
+        db.session.add(notif_user)
+        
+        # Thông báo chuyên gia
+        notif_expert = Notification(
+            user_id=booking.time_slot.expert_id,
+            title="Khách sắp đến giờ hẹn!",
+            message=f"{booking.user.name} sẽ bắt đầu buổi tư vấn trong 15 phút nữa.",
+            type='booking_reminder'
+        )
+        db.session.add(notif_expert)
+    
+    db.session.commit()
+
 # === TRANG CHỦ ===
 @app.route('/')
 def home():
@@ -952,36 +983,29 @@ def mark_notification_read(notif_id):
 def post_detail(post_id):
     post = Post.query.get_or_404(post_id)
     
-    # Tăng thêm 1 lượt xem khi người dùng xem chi tiết
-    # Kiểm tra xem người dùng đã xem bài viết này trong phiên hiện tại chưa
+    # Tăng view count (logic cũ giữ nguyên)
     if current_user.is_authenticated:
-        # Lấy danh sách các bài viết đã xem chi tiết trong phiên của người dùng
         detail_viewed_posts = session.get('detail_viewed_posts', [])
-        
-        # Chỉ tăng lượt xem nếu người dùng không phải là tác giả và chưa xem bài viết này trong phiên hiện tại
         if current_user.id != post.user_id and post_id not in detail_viewed_posts:
-            post.views += 1  # Tăng thêm 1 lượt xem
+            post.views += 1
             db.session.commit()
-            
-            # Thêm bài viết vào danh sách đã xem chi tiết
             detail_viewed_posts.append(post_id)
             session['detail_viewed_posts'] = detail_viewed_posts
     else:
-        # Đối với người dùng chưa đăng nhập, sử dụng cookie để theo dõi
         detail_viewed_posts = request.cookies.get('detail_viewed_posts', '').split(',')
         detail_viewed_posts = [int(p) for p in detail_viewed_posts if p.isdigit()]
-        
         if post_id not in detail_viewed_posts:
-            post.views += 1  # Tăng thêm 1 lượt xem
+            post.views += 1
             db.session.commit()
-            
-            # Thêm bài viết vào cookie
             detail_viewed_posts.append(post_id)
-            response = make_response(render_template('post_detail.html', post=post, comments=comments))
-            response.set_cookie('detail_viewed_posts', ','.join(map(str, detail_viewed_posts)), max_age=3600) # 1 giờ
+            response = make_response(render_template('post_detail.html', post=post, comments=[]))  # ← fix ở đây
+            response.set_cookie('detail_viewed_posts', ','.join(map(str, detail_viewed_posts)), max_age=3600)
             return response
-    
+
+    # Lấy comments (định nghĩa ở đây cho cả hai nhánh)
     comments = Comment.query.filter_by(post_id=post_id).order_by(Comment.created_at.desc()).all()
+    
+    # Trả template (giờ comments luôn có giá trị)
     return render_template('post_detail.html', post=post, comments=comments)
 
 # app.py – THÊM ROUTE TÌM KIẾM
@@ -1076,17 +1100,16 @@ def expert_post():
     
     return render_template('expert_post.html')
 
-# app.py – THÊM VÀO PHẦN ROUTES
+# app.py - CẬP NHẬT ROUTE EXPERT REQUEST
+from ocr_service import ocr_service
 
 @app.route('/expert/request', methods=['GET', 'POST'])
 @login_required
 def expert_request():
-    # ✅ ĐÃ LÀ CHUYÊN GIA
     if current_user.is_verified_expert:
         flash('Bạn đã là chuyên gia!', 'info')
         return redirect(url_for('home'))
     
-    # ✅ KIỂM TRA ĐÃ CÓ YÊU CẦU PENDING
     pending_request = ExpertRequest.query.filter_by(
         user_id=current_user.id,
         status='pending'
@@ -1096,7 +1119,6 @@ def expert_request():
         flash('Bạn đã gửi yêu cầu trước đó. Vui lòng chờ admin duyệt!', 'warning')
         return redirect(url_for('profile'))
     
-    # ✅ BỎ KIỂM TRA ĐIỀU KIỆN ĐIỂM - AI CŨNG ĐƯỢC GỬI
     if request.method == 'POST':
         reason = request.form.get('reason', '').strip()
         category = request.form.get('category')
@@ -1106,24 +1128,37 @@ def expert_request():
             flash('Vui lòng điền đầy đủ thông tin!', 'danger')
             return render_template('expert_request.html')
 
-        # Xử lý upload ảnh chứng chỉ
+        # Upload file
         filename = None
+        extracted_info = None  # ← THÊM BIẾN NÀY
+        
         if file and file.filename:
             filename = secure_filename(f"{current_user.id}_{int(time.time())}_{file.filename}")
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
+            
+            # ✅ THỰC HIỆN OCR TỰ ĐỘNG
+            try:
+                text = ocr_service.extract_text(filepath)
+                extracted_info = ocr_service.parse_certificate(text)
+                print(f"✅ OCR thành công: {extracted_info}")
+            except Exception as e:
+                print(f"⚠️ OCR lỗi: {e}")
+                extracted_info = None
+            
             filename = f'uploads/{filename}'
         else:
             flash('Vui lòng tải lên ảnh chứng chỉ!', 'danger')
             return render_template('expert_request.html')
 
-        # Tạo yêu cầu
+        # Tạo yêu cầu (lưu thông tin OCR vào notes tạm thời)
         req = ExpertRequest(
             user_id=current_user.id,
             reason=reason,
             category=category,
             certificate=filename,
-            status='pending'
+            status='pending',
+            admin_note=str(extracted_info) if extracted_info else None  # ← LƯU TẠM
         )
         db.session.add(req)
         
@@ -1136,10 +1171,43 @@ def expert_request():
         )
         
         db.session.commit()
-        flash('Đã gửi yêu cầu! Admin sẽ xem xét trong 3-5 ngày.', 'success')
+        
+        # ✅ HIỂN THỊ THÔNG TIN ĐÃ ĐỌCĐƯỢC
+        if extracted_info and extracted_info.get('name'):
+            flash(f'✅ Đã gửi yêu cầu! Hệ thống phát hiện tên: {extracted_info["name"]}', 'success')
+        else:
+            flash('Đã gửi yêu cầu! Admin sẽ xem xét trong 3-5 ngày.', 'success')
+        
         return redirect(url_for('profile'))
 
     return render_template('expert_request.html')
+
+#Tạo API để Admin xem thông tin OCR
+@app.route('/admin/expert-request/<int:req_id>/ocr-info')
+@login_required
+def get_ocr_info(req_id):
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Không có quyền!'}), 403
+    
+    req = ExpertRequest.query.get_or_404(req_id)
+    
+    # Đọc lại OCR từ file
+    if req.certificate:
+        cert_path = os.path.join(app.config['UPLOAD_FOLDER'], req.certificate.replace('uploads/', ''))
+        
+        try:
+            text = ocr_service.extract_text(cert_path)
+            info = ocr_service.parse_certificate(text)
+            
+            return jsonify({
+                'success': True,
+                'raw_text': text,
+                'parsed_info': info
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    return jsonify({'error': 'Không có file chứng chỉ'}), 404
 
 @app.route('/admin/user/<int:user_id>/<action>', methods=['GET', 'POST'])
 @login_required
@@ -1417,6 +1485,7 @@ from sqlalchemy.orm import joinedload
 @app.route('/admin')
 @login_required
 def admin_dashboard():
+    # --- 0. PHÂN QUYỀN ---
     if current_user.role != 'admin':
         flash('Bạn không có quyền truy cập trang quản trị!', 'error')
         return redirect(url_for('home'))
@@ -1429,99 +1498,130 @@ def admin_dashboard():
         'total_points': db.session.query(func.sum(User.points)).scalar() or 0,
     }
 
-    # --- 2. THỐNG KÊ THEO NGƯÒI DÙNG ---
-    user_stats = db.session.query(
-        User.id,
-        User.name,
-        User.email,
-        User.role,
-        User.is_verified_expert,
-        User.points,
-        User.avatar,
-        User.is_active,
-        func.count(Post.id).label('post_count'),
-        func.coalesce(func.sum(Post.views), 0).label('total_views'),
-        func.coalesce(func.sum(Post.likes), 0).label('total_likes'),
-        func.coalesce(func.sum(Post.comments_count), 0).label('total_comments')
-    ).outerjoin(Post, User.id == Post.user_id)\
-     .group_by(User.id)\
-     .order_by(func.count(Post.id).desc())\
-     .limit(20).all()
+    # --- 2. THỐNG KÊ THEO NGƯỜI DÙNG ---
+    user_stats = (
+        db.session.query(
+            User.id,
+            User.name,
+            User.email,
+            User.role,
+            User.is_verified_expert,
+            User.points,
+            User.avatar,
+            User.is_active,
+            func.count(Post.id).label('post_count'),
+            func.coalesce(func.sum(Post.views), 0).label('total_views'),
+            func.coalesce(func.sum(Post.likes), 0).label('total_likes'),
+            func.coalesce(func.sum(Post.comments_count), 0).label('total_comments')
+        )
+        .outerjoin(Post, User.id == Post.user_id)
+        .group_by(User.id)
+        .order_by(func.count(Post.id).desc())
+        .limit(20)
+        .all()
+    )
 
-    # --- 3. TÍNH TOẢN THEO CHU ĐỀ ---
-    topic_stats = db.session.query(
-        Post.category,
-        func.count(Post.id).label('count')
-    ).group_by(Post.category).all()
-
+    # --- 3. THỐNG KÊ THEO CHỦ ĐỀ ---
+    topic_stats = (
+        db.session.query(
+            Post.category,
+            func.count(Post.id)
+        )
+        .group_by(Post.category)
+        .all()
+    )
     topic_dict = {cat: count for cat, count in topic_stats}
 
-    # --- 4. DỮ LIỆU DATA ---
+    # --- 4. DỮ LIỆU CHUNG ---
     users = User.query.all()
-    expert_requests = ExpertRequest.query.filter_by(status='pending').all()
     reports = Report.query.all()
     posts = Post.query.order_by(Post.created_at.desc()).limit(20).all()
 
-    # --- 5. TÍNH TOÁN DỮ LIỆU DATA JSON CHO YÊU CẦU ---
+    # --- 5. YÊU CẦU CHUYÊN GIA (PENDING) ---
+    expert_requests = ExpertRequest.query.filter_by(status='pending').all()
+
     expert_requests_data = []
-    for req in ExpertRequest.query.filter_by(status='pending').all():
+    for req in expert_requests:
         user = req.user
+
         total_posts = user.posts.count()
         total_comments = Comment.query.filter_by(user_id=user.id).count()
-        
-        avg_likes = 0
-        if total_posts > 0:
-            avg_result = db.session.query(func.avg(Post.likes))\
-                                  .filter(Post.user_id == user.id)\
-                                  .scalar()
-            avg_likes = round(avg_result or 0, 1)
-        
+
+        avg_likes = (
+            db.session.query(func.avg(Post.likes))
+            .filter(Post.user_id == user.id)
+            .scalar()
+            or 0
+        )
+
         expert_requests_data.append({
             'id': req.id,
+            'category': req.category,
+            'reason': req.reason,
+            'certificate': req.certificate,
+            'created_at': req.created_at.strftime('%d/%m/%Y'), 
+            'created_at_time': req.created_at.strftime('%H:%M'), 
+            'status': req.status,
+
+            'total_posts': total_posts,
+            'total_comments': total_comments,
+            'avg_likes': round(avg_likes, 1),
+
             'user': {
                 'id': user.id,
                 'name': user.name,
                 'email': user.email,
                 'points': user.points,
                 'avatar': user.avatar or 'images/default-avatar.png'
-            },
-            'category': req.category,
-            'reason': req.reason,
-            'certificate': req.certificate,
-            'created_at': req.created_at.isoformat(),
-            'status': req.status,
-            'total_posts': total_posts,
-            'total_comments': total_comments,
-            'avg_likes': avg_likes
+            }
         })
 
-    # --- 6. TÍNH TOÁN DỮ LIỆU DÀNH SÁCH CHUYÊN GIA + ẢNH BẰNG CẤP ---
-    # Lấy danh sách các yêu cầu đã được duyệt để lấy ảnh bằng cấp
+    # --- 6. CHUYÊN GIA ĐÃ DUYỆT + MAP BẰNG CẤP ---
     approved_requests = ExpertRequest.query.filter_by(status='approved').all()
-    expert_cert_map = {req.user_id: req.certificate for req in approved_requests}
-    
-    # Lấy danh sách chuyên gia (✅ QUAN TRỌNG ADMIN KHỎI KHÔNG HIỆN THỂ NÀY)
+    expert_cert_map = {
+        req.user_id: req.certificate
+        for req in approved_requests
+        if req.certificate
+    }
+
     verified_experts = User.query.filter(
-        User.is_verified_expert == True,
-        User.role != 'admin' # ✅ LOẠI BỎ ADMIN KHỎI KHÔI CÁI CHUYÊN GIA VÀO ADMIN
+        User.is_verified_expert.is_(True),
+        User.role != 'admin'   # ❗ loại admin
     ).all()
 
-    # --- 7. RETURN TEMPLATE (DÙNG ADMIN RIÊNG) ---
+    # ✅ THÊM: Tính toán thống kê cho mỗi chuyên gia
+    verified_experts_data = []
+    for expert in verified_experts:
+        expert_posts_count = expert.posts.filter_by(is_expert_post=True).count()
+        
+        # Tính tổng views
+        total_views = db.session.query(func.sum(Post.views)).filter(
+            Post.user_id == expert.id,
+            Post.views != None
+        ).scalar() or 0
+        
+        verified_experts_data.append({
+            'expert': expert,
+            'expert_posts_count': expert_posts_count,
+            'total_views': total_views,
+            'certificate': expert_cert_map.get(expert.id)
+        })
+
+    # --- 7. RENDER ---
     return render_template(
         'admin_dashboard.html',
         stats=stats,
         user_stats=user_stats,
         topic_stats=topic_dict,
         users=users,
-        expert_requests=ExpertRequest.query.filter_by(status='pending').all(), # Giữ nguyên cho loop Jinja
-        expert_requests_json=expert_requests_data,  # ← BIẾN JSON
+        expert_requests=expert_requests,              # dùng cho loop Jinja
+        expert_requests_json=expert_requests_data,    # dùng cho JS / modal
         reports=reports,
         posts=posts,
-        Comment=Comment,
-        Post=Post, 
-        verified_experts=verified_experts, # ← TRUYỀN DANH SÁCH CHUYÊN GIA (LOẠI BỎ ADMIN)
-        expert_cert_map=expert_cert_map  # ← TRUYỀN ẢNH BẰNG CẤP
+        verified_experts_data=verified_experts_data,
+        expert_cert_map=expert_cert_map
     )
+
 
 # Hàm admin hủy tư cách chuyên gia 
 @app.route('/admin/expert/<int:user_id>/revoke', methods=['POST'])
@@ -2126,6 +2226,57 @@ def handle_call_ended(data):
             'from': from_user
         }, room=to_socket)
 
+# Chat tư vấn chuyên gia (không cần bạn bè)
+@socketio.on('send_consult_message')
+def handle_consult_message(data):
+    sender_id = data['sender_id']
+    receiver_id = data['receiver_id']
+    
+    # Check lại realtime (an toàn hơn)
+    has_booking = Booking.query.join(TimeSlot).filter(
+        Booking.user_id == sender_id,
+        TimeSlot.expert_id == receiver_id,
+        Booking.status == 'scheduled'
+    ).first() is not None
+    
+    if not has_booking:
+        emit('chat_error', {'message': 'Bạn cần đặt lịch để tiếp tục chat!'}, room=request.sid)
+        return
+    
+    # Lưu vào DB
+    msg = Message(
+        sender_id=sender_id,
+        receiver_id=receiver_id,
+        content=content,
+        type='text'
+    )
+    db.session.add(msg)
+    db.session.commit()
+    
+    # Gửi realtime cho cả hai
+    message_data = {
+        'sender_id': sender_id,
+        'content': content,
+        'timestamp': vietnam_now().strftime('%H:%M')
+    }
+    
+    # Gửi cho người nhận
+    emit('receive_consult_message', message_data, room=online_users.get(receiver_id))
+    # Gửi lại cho người gửi (để hiển thị ngay)
+    emit('receive_consult_message', message_data, room=request.sid)
+
+@socketio.on('typing')
+def handle_typing(data):
+    emit('user_typing', {
+        'sender_id': data['sender_id']
+    }, room=online_users.get(data['receiver_id']))
+
+@socketio.on('stop_typing')
+def handle_stop_typing(data):
+    emit('user_stop_typing', {
+        'sender_id': data['sender_id']
+    }, room=online_users.get(data['receiver_id']))
+
 # ============================================
 # CẬP NHẬT CHAT HISTORY API
 # ============================================
@@ -2479,8 +2630,7 @@ def expert_posts():
 def expert_schedule():
     if request.method == 'POST':
         action = request.form.get('action', 'create')
-
-        # XỬ LÝ XÓA (đã có)
+        
         if action == 'delete':
             slot_id = request.form.get('slot_id')
             slot = TimeSlot.query.get_or_404(slot_id)
@@ -2503,17 +2653,16 @@ def expert_schedule():
             db.session.commit()
             flash('Đã xóa khung giờ thành công!', 'success')
             return redirect(url_for('expert_schedule'))
-
-        # XỬ LÝ TẠO MỚI hoặc CHỈNH SỬA
-        slot_id = request.form.get('slot_id')  # Nếu có → edit, không có → create
+        
+        # Xử lý tạo/sửa (giữ nguyên code cũ của em)
+        slot_id = request.form.get('slot_id')
         date_str = request.form.get('date')
         start_time_str = request.form.get('start_time')
         duration_str = request.form.get('duration', '30')
         max_participants_str = request.form.get('max_participants', '1')
         notes = request.form.get('notes', '')
-
+        
         try:
-            # Parse ngày + giờ
             start_datetime_naive = datetime.strptime(f"{date_str} {start_time_str}", '%Y-%m-%d %H:%M')
             vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
             start_datetime = vn_tz.localize(start_datetime_naive)
@@ -2522,19 +2671,15 @@ def expert_schedule():
             max_participants = int(max_participants_str)
             if max_participants < 1:
                 max_participants = 1
-
         except ValueError as e:
             flash(f'Dữ liệu ngày/giờ không hợp lệ: {str(e)}', 'error')
             return redirect(url_for('expert_schedule'))
-
-        if slot_id:  # === CHỈNH SỬA ===
+        
+        if slot_id:  # Chỉnh sửa
             slot = TimeSlot.query.get_or_404(slot_id)
-            
             if slot.expert_id != current_user.id:
-                flash('Không có quyền chỉnh sửa khung giờ này!', 'error')
+                flash('Không có quyền chỉnh sửa!', 'error')
                 return redirect(url_for('expert_schedule'))
-            
-            # Kiểm tra không cho sửa nếu đã có người đặt (tùy chọn - bạn có thể bỏ điều kiện này)
             if slot.booking:
                 flash('Không thể chỉnh sửa khung giờ đã có người đặt!', 'warning')
                 return redirect(url_for('expert_schedule'))
@@ -2544,8 +2689,7 @@ def expert_schedule():
             slot.max_participants = max_participants
             slot.notes = notes
             flash('Đã cập nhật khung giờ thành công!', 'success')
-
-        else:  # === TẠO MỚI ===
+        else:  # Tạo mới
             slot = TimeSlot(
                 expert_id=current_user.id,
                 start_time=start_datetime,
@@ -2556,19 +2700,28 @@ def expert_schedule():
             )
             db.session.add(slot)
             flash('Đã tạo khung giờ mới thành công!', 'success')
-
+        
         db.session.commit()
         return redirect(url_for('expert_schedule'))
 
     # GET - Hiển thị danh sách
     now = vietnam_now()
     min_date = now.strftime('%Y-%m-%d')
-    time_slots = TimeSlot.query.filter_by(expert_id=current_user.id)\
-                             .order_by(TimeSlot.start_time).all()
+    
+    # Lịch sắp tới (future + available/booked)
+    upcoming_slots = TimeSlot.query.filter_by(expert_id=current_user.id)\
+                                  .filter(TimeSlot.start_time >= now)\
+                                  .order_by(TimeSlot.start_time).all()
+    
+    # Lịch cũ (đã qua, cancelled, booked cũ)
+    old_slots = TimeSlot.query.filter_by(expert_id=current_user.id)\
+                             .filter(TimeSlot.start_time < now)\
+                             .order_by(TimeSlot.start_time.desc()).all()
     
     return render_template(
         'expert/schedule.html',
-        time_slots=time_slots,
+        upcoming_slots=upcoming_slots,
+        old_slots=old_slots,
         min_date=min_date
     )
 
@@ -2699,17 +2852,22 @@ def cancel_booking(booking_id):
 def my_bookings():
     now = vietnam_now()
     
+    # Lịch sắp tới
     upcoming = Booking.query.filter_by(user_id=current_user.id, status='scheduled')\
                            .join(TimeSlot)\
                            .filter(TimeSlot.start_time >= now)\
                            .order_by(TimeSlot.start_time).all()
     
-    past = Booking.query.filter_by(user_id=current_user.id)\
-                       .join(TimeSlot)\
-                       .filter(TimeSlot.start_time < now)\
-                       .order_by(TimeSlot.start_time.desc()).all()
+    # Lịch cũ (đã qua, đã hủy, đã hoàn thành)
+    old_bookings = Booking.query.filter_by(user_id=current_user.id)\
+                               .join(TimeSlot)\
+                               .filter(TimeSlot.start_time < now)\
+                               .order_by(TimeSlot.start_time.desc()).all()
     
-    return render_template('my_bookings.html', upcoming=upcoming, past=past)
+    return render_template('my_bookings.html', 
+                          upcoming=upcoming, 
+                          old_bookings=old_bookings,
+                          now=now)
 
 
 # ====================================
@@ -3036,23 +3194,19 @@ def experts_list():
 # ====================================
 @app.route('/expert/<int:expert_id>/profile')
 def expert_public_profile(expert_id):
-    """Xem hồ sơ công khai của chuyên gia + lịch tư vấn"""
     expert = User.query.get_or_404(expert_id)
     
     if not expert.is_verified_expert:
         flash('Người này không phải chuyên gia!', 'error')
         return redirect(url_for('home'))
     
-    # Lấy khung giờ còn trống trong tương lai
     now = vietnam_now()
     available_slots = TimeSlot.query.filter_by(
         expert_id=expert_id,
         status='available'
-    ).filter(
-        TimeSlot.start_time >= now
-    ).order_by(TimeSlot.start_time).all()
+    ).filter(TimeSlot.start_time >= now).order_by(TimeSlot.start_time).all()
     
-    # Nhóm theo ngày
+    # Nhóm theo ngày (giữ nguyên)
     slots_by_date = {}
     for slot in available_slots:
         date_key = slot.start_time.strftime('%Y-%m-%d')
@@ -3060,13 +3214,21 @@ def expert_public_profile(expert_id):
             slots_by_date[date_key] = []
         slots_by_date[date_key].append(slot)
     
-    # Lấy bài viết tư vấn gần đây
+    # Kiểm tra user hiện tại đã đặt lịch chưa
+    has_booking = False
+    if current_user.is_authenticated:
+        has_booking = Booking.query.join(TimeSlot).filter(
+            Booking.user_id == current_user.id,
+            TimeSlot.expert_id == expert_id,
+            Booking.status == 'scheduled',
+            TimeSlot.start_time > now
+        ).first() is not None
+    
     recent_posts = Post.query.filter_by(
         user_id=expert_id,
         is_expert_post=True
     ).order_by(Post.created_at.desc()).limit(5).all()
     
-    # Thống kê
     stats = {
         'total_posts': expert.posts.filter_by(is_expert_post=True).count(),
         'total_consultations': TimeSlot.query.filter_by(
@@ -3074,7 +3236,7 @@ def expert_public_profile(expert_id):
             status='booked'
         ).count(),
         'followers': expert.followers.count(),
-        'rating': 4.8  # Tạm thời hardcode, sau có thể tính từ feedback
+        'rating': 4.8
     }
     
     return render_template(
@@ -3083,7 +3245,8 @@ def expert_public_profile(expert_id):
         available_slots=available_slots,
         slots_by_date=slots_by_date,
         recent_posts=recent_posts,
-        stats=stats
+        stats=stats,
+        has_booking=has_booking  # ← Truyền biến này
     )
 
 # ====================================
@@ -3092,21 +3255,37 @@ def expert_public_profile(expert_id):
 @app.route('/expert/<int:expert_id>/consult-chat')
 @login_required
 def expert_consult_chat(expert_id):
-    """Chat tư vấn với chuyên gia (không cần kết bạn)"""
     expert = User.query.get_or_404(expert_id)
     
     if not expert.is_verified_expert:
         flash('Người này không phải chuyên gia!', 'error')
-        return redirect(url_for('home'))
+        return redirect(url_for('experts_list'))
     
-    # Kiểm tra đã có booking chưa (tùy chọn - nếu muốn giới hạn chat chỉ khi đã đặt lịch)
-    has_booking = Booking.query.join(TimeSlot).filter(
+    # Kiểm tra trạng thái chuyên gia
+    if expert.availability == 'busy':
+        flash('Chuyên gia hiện đang bận. Hãy thử lại sau!', 'warning')
+        return redirect(url_for('expert_public_profile', expert_id=expert_id))
+    
+    # KIỂM TRA ĐÃ ĐẶT LỊCH CHƯA (đây là phần mới)
+
+    has_active_booking = Booking.query.join(TimeSlot).filter(
         Booking.user_id == current_user.id,
         TimeSlot.expert_id == expert_id,
-        Booking.status == 'scheduled'
-    ).first()
+        Booking.status == 'scheduled',
+        TimeSlot.start_time > vietnam_now()
+    ).first() is not None
+
+    if not has_active_booking:
+        flash('Bạn cần đặt lịch tư vấn trước để chat trực tiếp với chuyên gia!', 'warning')
+        return redirect(url_for('expert_public_profile', expert_id=expert_id))
     
-    return render_template('expert_consult_chat.html', expert=expert, has_booking=has_booking)
+    # OK → cho vào chat
+    messages = Message.query.filter(
+        ((Message.sender_id == current_user.id) & (Message.receiver_id == expert_id)) |
+        ((Message.sender_id == expert_id) & (Message.receiver_id == current_user.id))
+    ).order_by(Message.timestamp.asc()).all()
+    
+    return render_template('expert_consult_chat.html', expert=expert, messages=messages)
 
 # ====================================
 # EDIT BÀI VIẾT CHUYÊN GIA
@@ -3205,6 +3384,137 @@ def expert_delete_post(post_id):
             'success': False,
             'message': str(e)
         }), 500
+
+@app.route('/upload_chat_image', methods=['POST'])
+@login_required
+def upload_chat_image():
+    if 'image' not in request.files:
+        return jsonify({'success': False, 'error': 'Không có file'})
+
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'Chưa chọn file'})
+
+    if file:
+        filename = secure_filename(f"chat_{int(time.time())}_{file.filename}")
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
+        image_url = url_for('static', filename=f'uploads/{filename}')
+        return jsonify({'success': True, 'image_url': image_url})
+
+    return jsonify({'success': False, 'error': 'Lỗi upload'})
+
+#user/chuyên gia gửi đánh giá:
+@app.route('/feedback/<int:booking_id>', methods=['POST'])
+@login_required
+def submit_feedback(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    
+    # Kiểm tra quyền: chỉ người tham gia buổi tư vấn mới đánh giá được
+    if current_user.id not in [booking.user_id, booking.time_slot.expert_id]:
+        flash('Bạn không có quyền đánh giá buổi tư vấn này!', 'error')
+        return redirect(url_for('my_bookings') if current_user.id == booking.user_id else url_for('expert_schedule'))
+    
+    # Kiểm tra buổi đã kết thúc chưa
+    if booking.time_slot.start_time > vietnam_now():
+        flash('Buổi tư vấn chưa kết thúc, không thể đánh giá!', 'warning')
+        return redirect(url_for('my_bookings') if current_user.id == booking.user_id else url_for('expert_schedule'))
+    
+    # Kiểm tra đã đánh giá chưa
+    existing = ConsultationFeedback.query.filter_by(booking_id=booking_id, from_user_id=current_user.id).first()
+    if existing:
+        flash('Bạn đã đánh giá buổi này rồi!', 'info')
+        return redirect(url_for('my_bookings') if current_user.id == booking.user_id else url_for('expert_schedule'))
+    
+    rating = request.form.get('rating')
+    comment = request.form.get('comment', '').strip()
+    
+    if not rating or not 1 <= int(rating) <= 5:
+        flash('Vui lòng chọn số sao từ 1 đến 5!', 'error')
+        return redirect(url_for('my_bookings') if current_user.id == booking.user_id else url_for('expert_schedule'))
+    
+    feedback = ConsultationFeedback(
+        booking_id=booking_id,
+        from_user_id=current_user.id,
+        to_user_id=booking.time_slot.expert_id if current_user.id == booking.user_id else booking.user_id,
+        rating=int(rating),
+        comment=comment
+    )
+    db.session.add(feedback)
+    db.session.commit()
+    
+    flash('Cảm ơn bạn đã đánh giá!', 'success')
+    
+    # Cập nhật trung bình sao cho chuyên gia (nếu đánh giá cho chuyên gia)
+    if feedback.to_user_id == booking.time_slot.expert_id:
+        expert = booking.time_slot.expert
+        feedbacks = ConsultationFeedback.query.filter_by(to_user_id=expert.id)
+        total = sum(f.rating for f in feedbacks)
+        count = feedbacks.count()
+        expert.rating = total / count if count > 0 else 0
+        db.session.commit()
+    
+    return redirect(url_for('my_bookings') if current_user.id == booking.user_id else url_for('expert_schedule'))
+
+from ocr_service import ocr_service
+from werkzeug.utils import secure_filename
+import os
+
+@app.route('/api/scan-certificate', methods=['POST'])
+@login_required
+def scan_certificate():
+    """API để scan chứng chỉ và trả về thông tin đã parse"""
+    if not current_user.is_verified_expert:
+        return jsonify({'error': 'Chỉ chuyên gia mới sử dụng được'}), 403
+    
+    file = request.files.get('certificate')
+    
+    if not file or not file.filename:
+        return jsonify({'error': 'Vui lòng tải lên file chứng chỉ'}), 400
+    
+    try:
+        # Lưu file tạm
+        filename = secure_filename(f"temp_{current_user.id}_{file.filename}")
+        temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(temp_path)
+        
+        # Thực hiện OCR
+        raw_text = ocr_service.extract_text(temp_path)
+        parsed_info = ocr_service.parse_certificate(raw_text)
+        
+        # Xóa file tạm (tùy chọn)
+        # os.remove(temp_path)
+        
+        return jsonify({
+            'success': True,
+            'raw_text': raw_text,
+            'parsed_info': parsed_info
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Lỗi xử lý: {str(e)}'}), 500
+
+# ====================================
+# PROFILE CHI TIẾT CHUYÊN GIA (TRANG MỚI)
+# ====================================
+@app.route('/expert/<int:expert_id>/full-profile')
+def expert_full_profile(expert_id):
+    """Trang profile chi tiết đầy đủ của chuyên gia"""
+    expert = User.query.get_or_404(expert_id)
+    
+    if not expert.is_verified_expert:
+        flash('Người này không phải chuyên gia!', 'error')
+        return redirect(url_for('home'))
+    
+    # Lấy thống kê
+    expert.total_posts = expert.posts.filter_by(is_expert_post=True).count()
+    expert.total_consultations = TimeSlot.query.filter_by(
+        expert_id=expert_id,
+        status='booked'
+    ).count()
+    
+    return render_template('expert_full_profile.html', expert=expert)
 
 # === CHẠY APP ===
 if __name__ == '__main__':
