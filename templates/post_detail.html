@@ -317,6 +317,23 @@
         </div>
     </div>
 
+    <!-- ✨ BÀI VIẾT TƯƠNG TỰ (AI GỢI Ý) - GIỐNG FACEBOOK -->
+    <div class="mt-10 bg-white rounded-2xl shadow-lg p-6 border border-purple-100">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+            <i class="fas fa-thumbs-up text-purple-600 text-3xl"></i>
+            Bài viết tương tự
+            <span class="text-sm bg-purple-600 text-white px-3 py-1 rounded-full">AI gợi ý</span>
+        </h2>
+
+        <div id="similar-posts-container" class="grid md:grid-cols-3 gap-6">
+            <!-- JS sẽ load dữ liệu vào đây -->
+            <div class="col-span-3 text-center py-10 text-gray-500">
+                <i class="fas fa-spinner fa-spin text-4xl text-purple-600"></i>
+                <p class="mt-4 text-lg">Đang tải gợi ý bài viết liên quan...</p>
+            </div>
+        </div>
+    </div>
+
     <!-- ✨ NÚT QUAY LẠI -->
     <div class="text-center mt-8">
         <a href="{{ url_for('home') }}"
@@ -527,6 +544,62 @@
         loadUserRating({{ post.id }});
     loadComments({{ post.id }});
     });
+
+    document.addEventListener('DOMContentLoaded', async function () {
+        const postId = {{ post.id }}
+    });
+    const container = document.getElementById('similar-posts-container');
+
+    try {
+        const response = await fetch(`/api/similar-posts/${postId}`);
+        const data = await response.json();
+
+        if (!data || data.length === 0) {
+            container.innerHTML = `
+                <div class="col-span-3 text-center py-10 text-gray-500">
+                    <i class="fas fa-search text-5xl text-gray-300 mb-4"></i>
+                    <p class="text-lg">Chưa có bài viết tương tự nào</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Xóa loading
+        container.innerHTML = '';
+
+        // Render các bài gợi ý
+        data.forEach(post => {
+            const card = document.createElement('a');
+            card.href = `/post/${post.id}`;
+            card.className = 'block bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition transform hover:scale-[1.02] border border-gray-100';
+
+            card.innerHTML = `
+                <div class="p-5">
+                    <h3 class="font-bold text-gray-800 mb-2 line-clamp-2">${post.title}</h3>
+                    <p class="text-sm text-gray-600 line-clamp-3 mb-4">${post.content || 'Không có mô tả'}</p>
+                    <div class="flex items-center gap-4 text-sm text-gray-500">
+                        <span><i class="fas fa-heart text-red-500"></i> ${post.likes}</span>
+                        <span><i class="fas fa-eye text-blue-500"></i> ${post.views}</span>
+                        ${post.category ? `<span class="ml-2 px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">${post.category}</span>` : ''}
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500">
+                        Độ tương đồng: ${post.similarity}%
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(card);
+        });
+    } catch (error) {
+        console.error('Lỗi tải gợi ý:', error);
+        container.innerHTML = `
+            <div class="col-span-3 text-center py-10 text-red-500">
+                <i class="fas fa-exclamation-triangle text-5xl mb-4"></i>
+                <p class="text-lg">Không thể tải gợi ý lúc này</p>
+            </div>
+        `;
+    }
+});
 
     function toggleMenu(postId) {
         const menu = document.getElementById(`menu-${postId}`);
@@ -1516,6 +1589,9 @@
         }
     });
 
+
+
     console.log('🎉 Post detail page with Facebook-style comment system loaded!');
+
 </script>
 {% endblock %}

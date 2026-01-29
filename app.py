@@ -22,6 +22,8 @@ import pytz
 # Decorator kiểm tra quyền chuyên gia
 from functools import wraps
 from flask_login import current_user
+# ===== THÊM DÒNG NÀY ĐỂ IMPORT RECOMMENDER =====
+from recommendation_system import recommender
 
 # ✅ THÊM DÒNG NÀY - Import model CommentLike
 from models import (
@@ -234,7 +236,7 @@ def home():
     category = request.args.get('category', 'all')
     query = Post.query
     
-    # Lọc bỏ các bài đã ẩn
+    # Lọc bỏ bài đã ẩn
     if current_user.is_authenticated:
         hidden_post_ids = [h.post_id for h in HiddenPost.query.filter_by(user_id=current_user.id).all()]
         if hidden_post_ids:
@@ -246,39 +248,66 @@ def home():
         query = query.filter_by(category=category)
     
     posts = query.limit(20).all()
-
-    # Thêm thông tin like cho mỗi bài
+    
+    # Thêm info like + likers cho mỗi bài
     for post in posts:
         if current_user.is_authenticated:
             post.is_liked_by_user = PostLike.query.filter_by(
-                user_id=current_user.id, 
+                user_id=current_user.id,
                 post_id=post.id
             ).first() is not None
             
-            # Lấy danh sách người thích (top 3)
             post.likers = [like.user for like in PostLike.query.filter_by(post_id=post.id).limit(3).all()]
         else:
             post.is_liked_by_user = False
             post.likers = []
         
-        # Đảm bảo có giá trị views
-        if not hasattr(post, 'views') or post.views is None:
+        # Đảm bảo views không None
+        if post.views is None:
             post.views = 0
-
+    
     categories = ['all', 'health', 'nutrition', 'story', 'tips', 'other']
     category_names = {
         'all': 'Tất cả', 'health': 'Sức khỏe', 'nutrition': 'Dinh dưỡng',
         'story': 'Tâm sự', 'tips': 'Mẹo hay', 'other': 'Khác'
     }
-
-    # Sử dụng cùng hàm với trang bạn bè
+    
     friends = get_friends(current_user) if current_user.is_authenticated else []
-    suggested_users = get_suggested_users(current_user, limit=5) if current_user.is_authenticated else []
+    suggested_users = get_suggested_users(current_user) if current_user.is_authenticated else []
+    
+    # ================== PHẦN GỢI Ý AI ==================
+    recommended_posts = []
+    hot_posts = Post.query.order_by(Post.likes.desc()).limit(5).all()
 
+    if current_user.is_authenticated:
+        liked_post_ids = [like.post_id for like in PostLike.query.filter_by(user_id=current_user.id).limit(20).all()]
+        
+        print(f"DEBUG HOME: User {current_user.id} - {current_user.name} | Đã like {len(liked_post_ids)} bài | liked_ids = {liked_post_ids[:5]}...")
+        
+        if liked_post_ids and hasattr(recommender, 'post_ids') and recommender.post_ids:
+            try:
+                recommended_ids = recommender.recommend_for_user(liked_post_ids, top_n=5)
+                recommended_posts = Post.query.filter(Post.id.in_(recommended_ids)).all()
+                print(f"DEBUG HOME: Gợi ý thành công {len(recommended_posts)} bài cho user {current_user.id}")
+            except Exception as e:
+                print(f"LỖI GỢI Ý: {e}")
+                recommended_posts = []
+        else:
+            print(f"DEBUG HOME: User {current_user.id} chưa like bài nào hoặc model chưa load → fallback hot posts")
+    
+    if not recommended_posts:
+        recommended_posts = hot_posts
+    
     return render_template(
-        'home.html', posts=posts, selected_category=category,
-        categories=categories, category_names=category_names,
-        friends=friends, suggested_users=suggested_users
+        'home.html',
+        posts=posts,
+        selected_category=category,
+        categories=categories,
+        category_names=category_names,
+        friends=friends,
+        suggested_users=suggested_users,
+        recommended_posts=recommended_posts,  # luôn có dữ liệu
+        hot_posts=hot_posts  # giữ nguyên để template dùng nếu cần
     )
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -289,21 +318,28 @@ def login():
         user = User.query.filter_by(email=email).first()
         
         if user and check_password_hash(user.password, password):
+            # XÓA TOÀN BỘ SESSION CŨ TRƯỚC KHI LOGIN USER MỚI
+            session.clear()
+            
             login_user(user)
             
-            # Lưu thông tin chuyên gia vào session
+            # Lưu thông tin chuyên gia (nếu có)
             session['is_expert'] = user.is_verified_expert
             if user.is_verified_expert:
                 session['expert_category'] = user.expert_category
             
+            print(f"DEBUG: Đăng nhập thành công user {user.id} - {user.name}")
             return redirect(url_for('home'))
         
         flash('Email hoặc mật khẩu sai!', 'danger')
     return render_template('login.html')
 
+
 @app.route('/logout')
 @login_required
 def logout():
+    print(f"DEBUG: Đăng xuất user {current_user.id} - {current_user.name}")
+    session.clear()           # ← XÓA HẾT SESSION
     logout_user()
     return redirect(url_for('home'))
 
@@ -791,9 +827,19 @@ def create_post():
         else:
             flash('Bài viết đã được đăng thành công!', 'success')
 
+        # 🔥 TỰ ĐỘNG TRAIN LẠI MODEL AI KHI CÓ BÀI MỚI
+        try:
+            from train_model import train_recommendation_model
+            print(f"🔄 Bài viết mới ID={post.id}, đang cập nhật AI model...")
+            train_recommendation_model()
+            print("✅ Model AI đã được cập nhật!")
+        except Exception as e:
+            print(f"⚠️ Không thể train model: {e}")
+            # Không làm gián đoạn flow chính nếu train lỗi
+
         return redirect(url_for('home'))
 
-    # 🔥 THÊM DÒNG NÀY: XỬ LÝ KHI MỞ TRANG ĐĂNG BÀI (GET)
+    # 🔥 XỬ LÝ KHI MỞ TRANG ĐĂNG BÀI (GET)
     return render_template('post.html')
 
 # ĐĂNG KÝ
@@ -3495,6 +3541,76 @@ def scan_certificate():
     except Exception as e:
         return jsonify({'error': f'Lỗi xử lý: {str(e)}'}), 500
 
+#AI gợi ý bài viết 
+@app.route('/api/similar-posts/<int:post_id>')
+def get_similar_posts(post_id):
+    try:
+        post = Post.query.get_or_404(post_id)
+        
+        # Lấy text đầy đủ của bài hiện tại
+        current_text = (post.title or "") + " " + (post.content or "")
+        current_text = current_text.lower().strip()
+        
+        if not current_text:
+            return jsonify([])  # Không có nội dung → không gợi ý
+        
+        # Load model
+        model_path = 'models/recommendation_model.pkl'
+        if not os.path.exists(model_path):
+            return jsonify([])  # Model chưa train
+        
+        with open(model_path, 'rb') as f:
+            model_data = pickle.load(f)
+        
+        vectorizer = model_data['vectorizer']
+        tfidf_matrix = model_data['tfidf_matrix']
+        post_ids = model_data['post_ids']
+        
+        if post_id not in post_ids:
+            # Fallback: bài cùng category + nhiều like
+            similar_posts = Post.query.filter(
+                Post.category == post.category,
+                Post.id != post_id
+            ).order_by(Post.likes.desc()).limit(5).all()
+        else:
+            # Vector hóa bài hiện tại
+            current_vector = vectorizer.transform([current_text])
+            
+            # Tính cosine similarity
+            from sklearn.metrics.pairwise import cosine_similarity
+            similarities = cosine_similarity(current_vector, tfidf_matrix).flatten()
+            
+            # Lấy top 5 (loại bỏ chính nó)
+            similar_indices = similarities.argsort()[-6:-1][::-1]  # top 5
+            similar_post_ids = [post_ids[i] for i in similar_indices if post_ids[i] != post_id]
+            
+            similar_posts = Post.query.filter(Post.id.in_(similar_post_ids)).all()
+        
+        # Chuẩn bị kết quả
+        results = []
+        for p in similar_posts:
+            # Tính lại similarity để hiển thị %
+            p_text = (p.title or "") + " " + (p.content or "")
+            p_vector = vectorizer.transform([p_text.lower().strip()])
+            sim_score = cosine_similarity(current_vector, p_vector)[0][0]
+            
+            results.append({
+                'id': p.id,
+                'title': p.title,
+                'author': p.user.name if p.user else 'Ẩn danh',
+                'category': p.category,
+                'likes': p.likes,
+                'views': p.views or 0,
+                'similarity': round(sim_score * 100, 1),
+                'content': (p.content[:150] + '...') if p.content else ''
+            })
+        
+        return jsonify(results)
+    
+    except Exception as e:
+        print(f"Lỗi gợi ý tương tự: {str(e)}")
+        return jsonify([])
+
 # ====================================
 # PROFILE CHI TIẾT CHUYÊN GIA (TRANG MỚI)
 # ====================================
@@ -3516,11 +3632,31 @@ def expert_full_profile(expert_id):
     
     return render_template('expert_full_profile.html', expert=expert)
 
-# === CHẠY APP ===
+# ===== TỰ ĐỘNG TRAIN MODEL KHI KHỞI ĐỘNG =====
+def auto_train_model():
+    """Tự động train model nếu chưa có hoặc quá cũ"""
+    model_path = 'models/recommendation_model.pkl'
+    
+    # Nếu chưa có model → train ngay
+    if not os.path.exists(model_path):
+        print("⚠️ Chưa có model, đang huấn luyện...")
+        from train_model import train_recommendation_model
+        train_recommendation_model()
+    else:
+        # Kiểm tra model cũ hơn 7 ngày → train lại
+        import time
+        file_time = os.path.getmtime(model_path)
+        days_old = (time.time() - file_time) / (60 * 60 * 24)
+        
+        if days_old > 7:
+            print(f"⚠️ Model đã {int(days_old)} ngày tuổi, đang cập nhật...")
+            from train_model import train_recommendation_model
+            train_recommendation_model()
+
+# ===== CHẠY APP =====
 if __name__ == '__main__':
     with app.app_context():
-        # Đảm bảo tất cả các bảng được tạo
         db.create_all()
-
+        auto_train_model()  # ← Tự động train nếu cần
+    
     socketio.run(app, debug=True, port=5000, use_reloader=False)
-    # KHÔNG DÙNG app.run()!
