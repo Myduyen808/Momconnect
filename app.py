@@ -3544,73 +3544,171 @@ def scan_certificate():
 #AI gợi ý bài viết 
 @app.route('/api/similar-posts/<int:post_id>')
 def get_similar_posts(post_id):
+    """API trả về bài viết tương tự - VERSION DEBUG"""
     try:
-        post = Post.query.get_or_404(post_id)
+        print(f"\n{'='*70}")
+        print(f"🔍 API SIMILAR POSTS - POST_ID={post_id}")
+        print(f"{'='*70}")
         
-        # Lấy text đầy đủ của bài hiện tại
+        # 1. Lấy bài viết hiện tại
+        post = Post.query.get(post_id)
+        if not post:
+            print(f"❌ Không tìm thấy post_id={post_id}")
+            return jsonify([])
+        
+        print(f"✅ Bài hiện tại: '{post.title}'")
+        print(f"   Category: {post.category}")
+        print(f"   Content length: {len(post.content or '')}")
+        
+        # 2. Kiểm tra model
+        model_path = 'models/recommendation_model.pkl'
+        if not os.path.exists(model_path):
+            print(f"❌ Model không tồn tại tại: {model_path}")
+            return jsonify([])
+        
+        print(f"✅ Model file tồn tại")
+        
+        # 3. Load model
+        import pickle
+        from sklearn.metrics.pairwise import cosine_similarity
+        
+        try:
+            with open(model_path, 'rb') as f:
+                model_data = pickle.load(f)
+            
+            vectorizer = model_data.get('vectorizer')
+            tfidf_matrix = model_data.get('tfidf_matrix')
+            post_ids = model_data.get('post_ids', [])
+            
+            if not vectorizer or tfidf_matrix is None or not post_ids:
+                print(f"❌ Model data bị thiếu!")
+                return jsonify([])
+            
+            print(f"✅ Model loaded thành công")
+            print(f"   Số bài trong model: {len(post_ids)}")
+            print(f"   Post IDs: {post_ids}")
+            print(f"   Post {post_id} trong model: {post_id in post_ids}")
+            
+        except Exception as e:
+            print(f"❌ Lỗi load model: {e}")
+            return jsonify([])
+        
+        # 4. Kết hợp text
         current_text = (post.title or "") + " " + (post.content or "")
         current_text = current_text.lower().strip()
         
         if not current_text:
-            return jsonify([])  # Không có nội dung → không gợi ý
+            print(f"❌ Bài viết không có nội dung!")
+            return jsonify([])
         
-        # Load model
-        model_path = 'models/recommendation_model.pkl'
-        if not os.path.exists(model_path):
-            return jsonify([])  # Model chưa train
+        print(f"✅ Text content (100 chars): {current_text[:100]}...")
         
-        with open(model_path, 'rb') as f:
-            model_data = pickle.load(f)
-        
-        vectorizer = model_data['vectorizer']
-        tfidf_matrix = model_data['tfidf_matrix']
-        post_ids = model_data['post_ids']
-        
-        if post_id not in post_ids:
-            # Fallback: bài cùng category + nhiều like
-            similar_posts = Post.query.filter(
-                Post.category == post.category,
-                Post.id != post_id
-            ).order_by(Post.likes.desc()).limit(5).all()
-        else:
-            # Vector hóa bài hiện tại
+        # 5. Vector hóa
+        try:
             current_vector = vectorizer.transform([current_text])
-            
-            # Tính cosine similarity
-            from sklearn.metrics.pairwise import cosine_similarity
-            similarities = cosine_similarity(current_vector, tfidf_matrix).flatten()
-            
-            # Lấy top 5 (loại bỏ chính nó)
-            similar_indices = similarities.argsort()[-6:-1][::-1]  # top 5
-            similar_post_ids = [post_ids[i] for i in similar_indices if post_ids[i] != post_id]
-            
-            similar_posts = Post.query.filter(Post.id.in_(similar_post_ids)).all()
+            print(f"✅ Vector hóa thành công, shape: {current_vector.shape}")
+        except Exception as e:
+            print(f"❌ Lỗi vector hóa: {e}")
+            return jsonify([])
         
-        # Chuẩn bị kết quả
+        # 6. Tính similarity
+        try:
+            similarities = cosine_similarity(current_vector, tfidf_matrix).flatten()
+            print(f"✅ Tính similarity thành công, shape: {similarities.shape}")
+            
+            # Loại bỏ chính nó
+            if post_id in post_ids:
+                self_idx = post_ids.index(post_id)
+                similarities[self_idx] = -1
+                print(f"✅ Đã loại bỏ chính nó (index {self_idx})")
+            
+            # In ra ALL scores
+            print(f"\n📊 Top 10 similarity scores:")
+            sorted_indices = similarities.argsort()[::-1]
+            for idx, i in enumerate(sorted_indices[:10]):
+                if similarities[i] > -0.5:
+                    pid = post_ids[i]
+                    p = Post.query.get(pid)
+                    print(f"   {idx+1}. Post {pid}: {similarities[i]:.4f} ({similarities[i]*100:.1f}%) - {p.title[:50] if p else 'N/A'}")
+            
+        except Exception as e:
+            print(f"❌ Lỗi tính similarity: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify([])
+        
+        # 7. Lọc bài tương tự (threshold THẤP)
+        threshold = 0.01  # 1%
+        top_indices = similarities.argsort()[-10:][::-1]
+        similar_post_ids = [
+            post_ids[i] for i in top_indices
+            if similarities[i] > threshold and post_ids[i] != post_id
+        ][:5]
+        
+        print(f"\n🎯 Sau khi lọc (threshold={threshold*100}%):")
+        print(f"   Tìm được {len(similar_post_ids)} bài: {similar_post_ids}")
+        
+        # 8. Fallback nếu không đủ
+        if len(similar_post_ids) < 3:
+            print(f"\n⚠️ Chỉ có {len(similar_post_ids)} bài, fallback sang category...")
+            
+            # Lấy thêm từ cùng category
+            fallback = Post.query.filter(
+                Post.category == post.category,
+                Post.id != post_id,
+                ~Post.id.in_(similar_post_ids)  # Loại trừ đã có
+            ).order_by(Post.likes.desc()).limit(5 - len(similar_post_ids)).all()
+            
+            print(f"✅ Thêm {len(fallback)} bài từ category '{post.category}'")
+            
+            for fb in fallback:
+                similar_post_ids.append(fb.id)
+        
+        # 9. Lấy chi tiết
+        similar_posts = Post.query.filter(Post.id.in_(similar_post_ids)).all()
+        
         results = []
         for p in similar_posts:
-            # Tính lại similarity để hiển thị %
+            # Tính lại similarity chính xác
             p_text = (p.title or "") + " " + (p.content or "")
             p_vector = vectorizer.transform([p_text.lower().strip()])
             sim_score = cosine_similarity(current_vector, p_vector)[0][0]
             
+            # ✅ FIX: Kiểm tra author an toàn
+            try:
+                author_name = p.author.name if hasattr(p, 'author') and p.author else 'Ẩn danh'
+            except:
+                author_name = 'Ẩn danh'
+            
             results.append({
                 'id': p.id,
                 'title': p.title,
-                'author': p.user.name if p.user else 'Ẩn danh',
+                'author': author_name,  # ✅ ĐÃ FIX
                 'category': p.category,
                 'likes': p.likes,
                 'views': p.views or 0,
                 'similarity': round(sim_score * 100, 1),
-                'content': (p.content[:150] + '...') if p.content else ''
+                'content': (p.content[:100] + '...') if p.content else ''
             })
+        
+        # Sắp xếp
+        results = sorted(results, key=lambda x: x['similarity'], reverse=True)
+        
+        print(f"\n✅ TRẢ VỀ {len(results)} BÀI:")
+        for r in results:
+            print(f"   #{r['id']}: {r['title'][:40]}... | {r['similarity']}% | {r['category']}")
+        
+        print(f"{'='*70}\n")
         
         return jsonify(results)
     
     except Exception as e:
-        print(f"Lỗi gợi ý tương tự: {str(e)}")
+        print(f"\n💥 LỖI NGHIÊM TRỌNG:")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*70}\n")
         return jsonify([])
-
+    
 # ====================================
 # PROFILE CHI TIẾT CHUYÊN GIA (TRANG MỚI)
 # ====================================

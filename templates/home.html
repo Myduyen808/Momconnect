@@ -879,6 +879,7 @@
         }
     }
     // ✅ HÀM MỚI - LOAD GỢI Ý BÀI TƯƠNG TỰ
+    // ✅ HÀM MỚI - LOAD GỢI Ý BÀI TƯƠNG TỰ
     async function loadSimilarPosts(postId) {
         console.log('🔍 Loading similar posts for:', postId);
 
@@ -898,26 +899,18 @@
 
             console.log('📡 API status:', res.status);
 
-            // ✅ KIỂM TRA STATUS TRƯỚC KHI PARSE JSON
             if (!res.ok) {
                 throw new Error(`API returned ${res.status}`);
             }
 
             const data = await res.json();
-
             console.log('📦 API data:', data);
 
-            // ✅ KIỂM TRA DATA CÓ PHẢI LÀ ARRAY KHÔNG
-            if (!Array.isArray(data)) {
-                console.error('❌ Data không phải array:', data);
-                throw new Error(data.error || 'Invalid response format');
-            }
-
-            if (data.length === 0) {
+            if (!Array.isArray(data) || data.length === 0) {
                 container.innerHTML = `
                 <div class="col-span-3 text-center py-4 text-gray-500">
-                    <i class="fas fa-search text-3xl text-gray-300 mb-2"></i>
-                    <p class="text-sm">Chưa có bài viết tương tự</p>
+                    <i class="fas fa-robot text-3xl text-purple-300 mb-2"></i>
+                    <p class="text-sm">Chưa đủ dữ liệu để gợi ý bài tương tự</p>
                 </div>
             `;
                 return;
@@ -944,7 +937,6 @@
         } catch (error) {
             console.error('💥 Lỗi tải gợi ý:', error);
 
-            // ✅ HIỂN THỊ LỖI CHI TIẾT
             container.innerHTML = `
             <div class="col-span-3 text-center py-4 text-red-500">
                 <i class="fas fa-exclamation-triangle text-3xl mb-2"></i>
@@ -1155,6 +1147,56 @@
             // Hide mention suggestions
             hideMentionSuggestions(postId);
         }
+    }
+
+    // ✅ HÀM BẬT/TẮT MENU CHIA SẺ
+    function toggleShareMenu(postId) {
+        const menu = document.getElementById(`share-menu-${postId}`);
+
+        if (!menu) {
+            console.error(`Không tìm thấy share-menu-${postId}`);
+            return;
+        }
+
+        // Toggle hiển thị
+        menu.classList.toggle('hidden');
+
+        console.log(`Toggle share menu cho bài ${postId}:`, !menu.classList.contains('hidden'));
+    }
+
+    // ✅ CÁC HÀM CHIA SẺ
+    function shareFacebook(postId) {
+        const url = encodeURIComponent(window.location.origin + `/post/${postId}`);
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'width=600,height=400');
+    }
+
+    function shareZalo(postId) {
+        const url = encodeURIComponent(window.location.origin + `/post/${postId}`);
+        window.open(`https://zalo.me/share/link?url=${url}`, '_blank', 'width=600,height=400');
+    }
+
+    function shareTwitter(postId) {
+        const url = encodeURIComponent(window.location.origin + `/post/${postId}`);
+        window.open(`https://twitter.com/intent/tweet?url=${url}`, '_blank', 'width=600,height=400');
+    }
+
+    function shareInstagram(postId) {
+        alert('Instagram không hỗ trợ chia sẻ link trực tiếp. Hãy copy link và dán vào story/bio!');
+    }
+
+    function shareTelegram(postId) {
+        const url = encodeURIComponent(window.location.origin + `/post/${postId}`);
+        window.open(`https://t.me/share/url?url=${url}`, '_blank', 'width=600,height=400');
+    }
+
+    function copyLink(postId) {
+        const url = window.location.origin + `/post/${postId}`;
+        navigator.clipboard.writeText(url).then(() => {
+            showToast('Đã copy link vào clipboard!');
+        }).catch(err => {
+            console.error('Lỗi copy:', err);
+            showToast('Không thể copy link!', false);
+        });
     }
     // Show mention suggestions
     async function showMentionSuggestions(postId, query, textarea) {
