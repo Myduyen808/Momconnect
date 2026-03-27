@@ -24,24 +24,23 @@
 
                 <div class="p-6">
                     {% if pending_requests %}
-                    <div class="space-y-4">
+                    <div class="space-y-4" id="pending-requests">
                         {% for request in pending_requests %}
-                        <div
-                            class="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition">
+                        <div class="request-card flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition"
+                            id="request-card-{{ request.id }}">
+
                             <div class="flex items-center gap-4">
                                 <img src="{{ url_for('static', filename=request.sender.avatar or 'images/default-avatar.png') }}"
                                     class="w-16 h-16 rounded-full object-cover ring-2 ring-gray-200">
                                 <div>
                                     <h4 class="font-bold text-gray-900 text-lg">{{ request.sender.name }}</h4>
-
-                                    <!-- THÊM HUY HIỆU CẤP BẬC -->
                                     <div class="flex items-center gap-2 mt-1">
-                                        <i class="fas fa-medal text-sm
+                                        <i class="fas fa-medal text-sm 
                                             {% if 'Ứng viên Chuyên gia' in request.sender.badge %}text-purple-600
                                             {% elif 'Thành Viên Bạc' in request.sender.badge %}text-gray-500
                                             {% elif 'Thành Viên Đồng' in request.sender.badge %}text-orange-500
                                             {% else %}text-green-600{% endif %}"></i>
-                                        <span class="text-sm font-medium
+                                        <span class="text-sm font-medium 
                                             {% if 'Ứng viên Chuyên gia' in request.sender.badge %}text-purple-600
                                             {% elif 'Thành Viên Bạc' in request.sender.badge %}text-gray-600
                                             {% elif 'Thành Viên Đồng' in request.sender.badge %}text-orange-600
@@ -49,17 +48,15 @@
                                             {{ request.sender.badge }}
                                         </span>
                                     </div>
-
                                     <p class="text-sm text-gray-600 mt-1">
-                                        <i class="far fa-clock mr-1"></i>
-                                        {{ request.created_at.strftime('%d/%m/%Y') }}
+                                        <i class="far fa-clock mr-1"></i> {{ request.created_at.strftime('%d/%m/%Y') }}
                                     </p>
                                 </div>
                             </div>
 
                             <div class="flex gap-2">
                                 <form action="{{ url_for('accept_friend_request', request_id=request.id) }}"
-                                    method="post" class="inline">
+                                    method="post" class="inline accept-form">
                                     <button type="submit"
                                         class="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-2">
                                         <i class="fas fa-check"></i> Chấp nhận
@@ -67,7 +64,7 @@
                                 </form>
 
                                 <form action="{{ url_for('reject_friend_request', request_id=request.id) }}"
-                                    method="post" class="inline">
+                                    method="post" class="inline reject-form">
                                     <button type="submit"
                                         class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition">
                                         Từ chối
@@ -95,7 +92,6 @@
                         Lời mời đã gửi ({{ sent_requests|length }})
                     </h3>
                 </div>
-
                 <div class="p-6">
                     <div class="space-y-4">
                         {% for request in sent_requests %}
@@ -105,8 +101,6 @@
                                     class="w-12 h-12 rounded-full object-cover">
                                 <div>
                                     <h4 class="font-bold text-gray-900">{{ request.receiver.name }}</h4>
-
-                                    <!-- HUY HIỆU CHO NGƯỜI NHẬN LỜI MỜI -->
                                     <div class="flex items-center gap-1 text-xs mt-1">
                                         <i class="fas fa-medal
                                             {% if 'Ứng viên Chuyên gia' in request.receiver.badge %}text-purple-500
@@ -120,7 +114,6 @@
                                             {{ request.receiver.badge }}
                                         </span>
                                     </div>
-
                                     <p class="text-sm text-gray-600 mt-1">Đã gửi {{
                                         request.created_at.strftime('%d/%m/%Y') }}</p>
                                 </div>
@@ -139,9 +132,10 @@
                 </div>
             </div>
             {% endif %}
+
         </div>
 
-        <!-- SIDEBAR - DANH SÁCH BẠN BÈ & GỢI Ý -->
+        <!-- SIDEBAR -->
         <div class="space-y-6">
 
             <!-- DANH SÁCH BẠN BÈ -->
@@ -152,7 +146,6 @@
                         Bạn bè ({{ friends|length }})
                     </h3>
                 </div>
-
                 <div class="p-6">
                     {% if friends %}
                     <div class="space-y-3 max-h-96 overflow-y-auto">
@@ -166,8 +159,6 @@
                                         class="font-bold hover:text-pink-600 hover:underline transition">
                                         {{ friend.name }}
                                     </a>
-
-                                    <!-- HUY HIỆU TRONG DANH SÁCH BẠN BÈ -->
                                     <div class="flex items-center gap-1 text-xs mt-1">
                                         <i class="fas fa-medal
                                             {% if 'Ứng viên Chuyên gia' in friend.badge %}text-purple-500
@@ -183,13 +174,11 @@
                                     </div>
                                 </div>
                             </div>
-
                             <div class="flex gap-2">
                                 <a href="{{ url_for('chat', user_id=friend.id) }}"
                                     class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Nhắn tin">
                                     <i class="fas fa-comment"></i>
                                 </a>
-
                                 <form action="{{ url_for('unfriend', user_id=friend.id) }}" method="post"
                                     class="inline">
                                     <button type="submit"
@@ -221,11 +210,11 @@
                         Gợi ý kết bạn
                     </h3>
                 </div>
-
                 <div class="p-6">
                     <div class="space-y-4">
                         {% for user in suggested_users %}
-                        <div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition">
+                        <div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition"
+                            id="suggest-{{ user.id }}">
                             <div class="flex items-center gap-3">
                                 <img src="{{ url_for('static', filename=user.avatar or 'images/default-avatar.png') }}"
                                     class="w-12 h-12 rounded-full object-cover">
@@ -234,20 +223,17 @@
                                         class="font-medium hover:text-pink-600 hover:underline transition">
                                         {{ user.name }}
                                     </a>
-
-                                    <!-- HUY HIỆU TRONG GỢI Ý -->
-                                    <!-- HUY HIỆU TRONG GỢI Ý – CHỈ HIỆN NẾU KHÔNG PHẢI ADMIN -->
                                     {% if user.role != 'admin' %}
                                     <div class="flex items-center gap-1 text-xs mt-1">
                                         <i class="fas fa-medal
-        {% if 'Ứng viên Chuyên gia' in user.badge %}text-purple-500
-        {% elif 'Thành Viên Bạc' in user.badge %}text-gray-500
-        {% elif 'Thành Viên Đồng' in user.badge %}text-orange-500
-        {% else %}text-green-600{% endif %}"></i>
+                                            {% if 'Ứng viên Chuyên gia' in user.badge %}text-purple-500
+                                            {% elif 'Thành Viên Bạc' in user.badge %}text-gray-500
+                                            {% elif 'Thành Viên Đồng' in user.badge %}text-orange-500
+                                            {% else %}text-green-600{% endif %}"></i>
                                         <span class="{{ 'text-purple-600' if 'Ứng viên Chuyên gia' in user.badge else
-                    'text-gray-600' if 'Thành Viên Bạc' in user.badge else
-                    'text-orange-600' if 'Thành Viên Đồng' in user.badge else
-                    'text-green-700' }}">
+                                                        'text-gray-600' if 'Thành Viên Bạc' in user.badge else
+                                                        'text-orange-600' if 'Thành Viên Đồng' in user.badge else
+                                                        'text-green-700' }}">
                                             {{ user.badge }}
                                         </span>
                                     </div>
@@ -255,20 +241,154 @@
                                 </div>
                             </div>
 
+                            {% if user.id != current_user.id %}
+                            {% set status = current_user.get_friendship_status(user.id) if current_user.is_authenticated
+                            else 'not_friends' %}
+
+                            {% if status == 'friends' %}
+                            <span
+                                class="px-5 py-2 bg-green-100 text-green-700 rounded-lg font-medium flex items-center gap-2">
+                                <i class="fas fa-check"></i> Đã là bạn bè
+                            </span>
+                            {% elif status == 'outgoing_request' %}
+                            <span
+                                class="px-5 py-2 bg-orange-100 text-orange-700 rounded-lg font-medium flex items-center gap-2">
+                                <i class="fas fa-clock"></i> Đã gửi lời mời
+                            </span>
+                            {% elif status == 'incoming_request' %}
+                            <span class="px-5 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium">
+                                Có lời mời từ họ
+                            </span>
+                            {% else %}
                             <form action="{{ url_for('send_friend_request', user_id=user.id) }}" method="post"
-                                class="inline">
+                                class="inline friend-request-form">
                                 <button type="submit"
-                                    class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">
-                                    Kết bạn
+                                    class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition flex items-center gap-2">
+                                    <i class="fas fa-user-plus"></i> Kết bạn
                                 </button>
                             </form>
+                            {% endif %}
+                            {% endif %}
                         </div>
                         {% endfor %}
                     </div>
                 </div>
             </div>
             {% endif %}
+
         </div>
     </div>
 </div>
+{% endblock %}
+
+<!-- ✅ PHẢI ĐẶT SCRIPT TRONG BLOCK NÀY HOẶC CUỐI BLOCK CONTENT -->
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        // ===== CHẤP NHẬN LỜI MỜI =====
+        document.querySelectorAll('.accept-form').forEach(form => {
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault(); // ✅ Ngăn form submit mặc định
+
+                const button = this.querySelector('button');
+                const card = this.closest('.request-card');
+                const originalHTML = button.innerHTML;
+
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+
+                try {
+                    const response = await fetch(this.action, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        body: new URLSearchParams(new FormData(this))
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // ✅ THAY ĐỔI NỘI DUNG CARD THÀNH THÔNG BÁO
+                        card.innerHTML = `
+                            <div class="p-6 bg-green-50 border border-green-200 rounded-xl flex items-center gap-4 animate-bounce-in">
+                                <i class="fas fa-check-circle text-3xl text-green-600"></i>
+                                <div>
+                                    <p class="font-semibold text-green-700">Đã kết bạn với ${data.user_name || 'người dùng'}!</p>
+                                    <p class="text-sm text-green-600 mt-1">Hai bạn đã là bạn bè!</p>
+                                </div>
+                            </div>
+                        `;
+
+                        // ✅ TỰ ĐỘNG RELOAD TRANG SAU 2 GIÂY
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+
+                    } else {
+                        alert(data.error || 'Không thể chấp nhận lời mời!');
+                        button.disabled = false;
+                        button.innerHTML = originalHTML;
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Lỗi kết nối. Vui lòng thử lại!');
+                    button.disabled = false;
+                    button.innerHTML = originalHTML;
+                }
+            });
+        });
+
+        // ===== TỪ CHỐI LỜI MỜI =====
+        document.querySelectorAll('.reject-form').forEach(form => {
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                if (!confirm('Bạn có chắc muốn từ chối lời mời này?')) return;
+
+                const card = this.closest('.request-card');
+
+                try {
+                    const response = await fetch(this.action, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        body: new URLSearchParams(new FormData(this))
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success && card) {
+                        card.style.transition = 'all 0.4s';
+                        card.style.opacity = '0';
+                        setTimeout(() => card.remove(), 400);
+                    } else {
+                        alert(data.error || 'Không thể từ chối lời mời!');
+                    }
+                } catch (err) {
+                    alert('Lỗi kết nối!');
+                }
+            });
+        });
+    });
+</script>
+
+<style>
+    .animate-bounce-in {
+        animation: bounceIn 0.5s;
+    }
+
+    @keyframes bounceIn {
+        0% {
+            transform: scale(0.9);
+            opacity: 0;
+        }
+
+        50% {
+            transform: scale(1.05);
+        }
+
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+</style>
 {% endblock %}

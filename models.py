@@ -7,7 +7,10 @@ import pytz
 from sqlalchemy import event
 
 def vietnam_now():
-    return datetime.utcnow() + timedelta(hours=7)
+    """Trả về thời gian Việt Nam CÓ TIMEZONE"""
+    utc_now = datetime.utcnow().replace(tzinfo=pytz.UTC)
+    vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+    return utc_now.astimezone(vn_tz)  # ✅ Có timezone
 
 # =====================================================
 # FOLLOW MODEL
@@ -559,6 +562,14 @@ class TimeSlot(db.Model):
     # === RELATIONSHIPS ===
     expert = db.relationship('User', foreign_keys=[expert_id], backref='time_slots')
     booking = db.relationship('Booking', back_populates='time_slot', uselist=False)  # 1-1
+
+    @property
+    def duration_minutes(self):
+        """Tính thời lượng tư vấn (phút)"""
+        if self.start_time and self.end_time:
+            delta = self.end_time - self.start_time
+            return int(delta.total_seconds() / 60)
+        return 0  # ← Trả về 0 thay vì None
 
 # ✅ 2. ĐẶT LỊCH - Người dùng đặt vào khung giờ có sẵn
 class Booking(db.Model):

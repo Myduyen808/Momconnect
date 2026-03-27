@@ -9,36 +9,24 @@
             <a href="{{ url_for('home') }}" class="mr-4">
                 <i class="fas fa-arrow-left text-xl text-pink-600"></i>
             </a>
-            <img src="{{ url_for('static', filename=other_user.avatar or 'default.jpg') }}"
+            <img src="{{ url_for('static', filename=other_user.avatar or 'images/default-avatar.png') }}"
                 class="w-12 h-12 rounded-full object-cover mr-3">
             <div>
-                <div>
-                    <h3 class="font-bold text-lg">{{ other_user.name }}</h3>
+                <h3 class="font-bold text-lg">{{ other_user.name }}</h3>
 
-                    {% if other_user.role != 'admin' %}
-                    <div class="flex items-center gap-2 mt-1">
-                        <i class="fas fa-medal text-sm
-                                    {% if 'Ứng viên Chuyên gia' in other_user.badge %}text-purple-600
-                                    {% elif 'Thành Viên Bạc' in other_user.badge %}text-gray-500
-                                    {% elif 'Thành Viên Đồng' in other_user.badge %}text-orange-500
-                                    {% else %}text-green-600{% endif %}"></i>
-                                                <span class="text-sm font-medium
-                                    {% if 'Ứng viên Chuyên gia' in other_user.badge %}text-purple-600
-                                    {% elif 'Thành Viên Bạc' in other_user.badge %}text-gray-600
-                                    {% elif 'Thành Viên Đồng' in other_user.badge %}text-orange-600
-                                    {% else %}text-green-700{% endif %}">
-                            {{ other_user.badge }}
-                        </span>
-                    </div>
-                    {% endif %}
-                </div>
+                {% if other_user.is_verified_expert %}
+                <p class="text-xs text-purple-600 font-medium flex items-center gap-1">
+                    <i class="fas fa-user-graduate"></i> Chuyên gia tư vấn
+                </p>
+                {% else %}
                 <p class="text-sm text-green-600">Đang hoạt động</p>
+                {% endif %}
             </div>
         </div>
 
         <!-- Video Call Button -->
         <button onclick="startVideoCall()"
-            class="bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600 transition flex items-center gap-2">
+            class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-full transition flex items-center gap-2">
             <i class="fas fa-video"></i>
             <span>Gọi Video</span>
         </button>
@@ -214,131 +202,115 @@
     </div>
 </div>
 
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<!-- <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script> -->
 <script>
-    const socket = io('http://127.0.0.1:5000', {
-        transports: ['websocket', 'polling']
-    });
-    const userId = {{ current_user.id }};
+    // ===== DÙNG LẠI GLOBAL SOCKET TỪ base.html =====
+    // Đợi globalSocket sẵn sàng
+    function getSocket() {
+        return window._globalSocket;
+    }
+
+    const userId   = {{ current_user.id }};
     const friendId = {{ other_user.id }};
-    const chatbox = document.getElementById('chatbox');
+    const chatbox  = document.getElementById('chatbox');
 
-    // Audio Recording Variables
-    let mediaRecorder;
-    let audioChunks = [];
-    let recordingStartTime;
-    let recordingInterval;
+    // Audio/Video biến
+    let mediaRecorder, audioChunks = [], recordingStartTime, recordingInterval;
+    let localStream, peerConnection, callTimer, callStartTime;
+    let isMicOn = true, isCameraOn = true;
 
-    // Video Call Variables
-    let localStream;
-    let remoteStream;
-    let peerConnection;
-    let callTimer;
-    let callStartTime;
-    let isMicOn = true;
-    let isCameraOn = true;
-
-    const config = {
+    const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' }
         ]
     };
 
-    // THAY THẾ PHẦN SOCKET CONNECTION TRONG chat.html
+    // ===== KHỞI TẠO KHI TRANG LOAD =====
+    document.addEventListener('DOMContentLoaded', function () {
+        // Đợi globalSocket connect xong rồi join room
+        const socket = getSocket();
+        if (!socket) {
+            console.error('❌ Không tìm thấy globalSocket');
+            return;
+        }
 
-    socket.on('connect', function () {
-        console.log('✅ Connected! Socket ID:', socket.id);
+        if (socket.connected) {
+            joinChatRoom(socket);
+        } else {
+            socket.on('connect', function () {
+                joinChatRoom(socket);
+            });
+        }
 
-        // ✅ ĐĂNG KÝ USER_ID VỚI SOCKET
-        socket.emit('register_user', { user_id: userId });
+        // Lắng nghe tin nhắn
+        socket.on('receive_message', function (msg) {
+            console.log('📩 Message:', msg);
+            appendMessage(msg);
+        });
 
-        // Join chat room
+        // Video call events
+        socket.on('call_failed',          data  => { alert(data.message); endVideoCall(); });
+        socket.on('video_call_request',   data  => showIncomingCall(data));
+        socket.on('video_call_rejected',  ()    => alert('{{ other_user.name }} đã từ chối cuộc gọi'));
+        socket.on('call_ended',           ()    => endVideoCall());
+
+        socket.on('video_call_accepted', async function () {
+            await createPeerConnection();
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            getSocket().emit('video_call_offer', { to: friendId, offer });
+        });
+
+        socket.on('video_call_offer', async function (data) {
+            await createPeerConnection();
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            getSocket().emit('video_call_answer', { to: data.from, answer });
+        });
+
+        socket.on('video_call_answer', async function (data) {
+            if (peerConnection) await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        });
+
+        socket.on('ice_candidate', async function (data) {
+            if (peerConnection && data.candidate)
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        });
+
+        // Load lịch sử chat
+        loadHistory();
+    });
+
+    function joinChatRoom(socket) {
         socket.emit('join_chat', { user_id: userId, friend_id: friendId });
+        console.log('✅ Joined chat room:', userId, '↔', friendId);
+    }
 
-        setTimeout(() => loadHistory(), 500);
-    });
-
-    // ✅ THÊM LISTENER CHO CALL_FAILED
-    socket.on('call_failed', function (data) {
-        alert(data.message);
-        endVideoCall();
-    });
-    socket.on('receive_message', function (msg) {
-        console.log('📩 Received message:', msg);
-        appendMessage(msg);
-    });
-
-    // Video Call Socket Events
-    socket.on('video_call_request', function (data) {
-        showIncomingCall(data);
-    });
-
-    socket.on('video_call_accepted', async function (data) {
-        await createPeerConnection();
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        socket.emit('video_call_offer', {
-            to: friendId,
-            offer: offer
-        });
-    });
-
-    socket.on('video_call_rejected', function () {
-        alert('{{ other_user.name }} đã từ chối cuộc gọi');
-    });
-
-    socket.on('video_call_offer', async function (data) {
-        await createPeerConnection();
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        socket.emit('video_call_answer', {
-            to: data.from,
-            answer: answer
-        });
-    });
-
-    socket.on('video_call_answer', async function (data) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-    });
-
-    socket.on('ice_candidate', async function (data) {
-        if (peerConnection) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        }
-    });
-
-    socket.on('call_ended', function () {
-        endVideoCall();
-    });
-
+    // Enter để gửi
     document.getElementById('msgInput').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            sendMsg();
-        }
+        if (e.key === 'Enter') { e.preventDefault(); sendMsg(); }
     });
 
-    // Send Text Message
+    // ===== GỬI TIN NHẮN =====
     function sendMsg() {
-        const input = document.getElementById('msgInput');
+        const input   = document.getElementById('msgInput');
         const content = input.value.trim();
         if (!content) return;
 
-        socket.emit('send_message', {
-            sender_id: userId,
+        getSocket().emit('send_message', {
+            sender_id:   userId,
             receiver_id: friendId,
-            content: content,
+            content,
             type: 'text'
         });
         input.value = '';
     }
 
-    // Send Sticker
     function sendSticker(emoji) {
-        socket.emit('send_message', {
-            sender_id: userId,
+        getSocket().emit('send_message', {
+            sender_id:   userId,
             receiver_id: friendId,
             content: emoji,
             type: 'sticker'
@@ -347,74 +319,55 @@
     }
 
     function toggleStickerPanel() {
-        const panel = document.getElementById('stickerPanel');
-        panel.classList.toggle('hidden');
+        document.getElementById('stickerPanel').classList.toggle('hidden');
     }
 
-    // Handle Image Selection
+    // ===== ẢNH / VIDEO =====
     function handleImageSelect(event) {
-        const files = event.target.files;
-        if (files.length === 0) return;
+        const files = Array.from(event.target.files);
+        if (!files.length) return;
 
-        const preview = document.getElementById('mediaPreview');
+        const preview        = document.getElementById('mediaPreview');
         const previewContent = document.getElementById('previewContent');
-
         previewContent.innerHTML = '';
-        Array.from(files).forEach(file => {
+
+        files.forEach(file => {
             const reader = new FileReader();
-            reader.onload = function (e) {
+            reader.onload = e => {
                 const img = document.createElement('img');
-                img.src = e.target.result;
+                img.src       = e.target.result;
                 img.className = 'h-20 w-20 object-cover rounded mr-2 inline-block';
                 previewContent.appendChild(img);
-            };
-            reader.readAsDataURL(file);
-        });
 
-        preview.classList.remove('hidden');
-
-        // Send images
-        Array.from(files).forEach(file => {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                socket.emit('send_message', {
-                    sender_id: userId,
-                    receiver_id: friendId,
-                    content: e.target.result,
-                    type: 'image',
-                    filename: file.name
+                getSocket().emit('send_message', {
+                    sender_id: userId, receiver_id: friendId,
+                    content: e.target.result, type: 'image', filename: file.name
                 });
             };
             reader.readAsDataURL(file);
         });
 
-        setTimeout(() => clearMediaPreview(), 1000);
+        preview.classList.remove('hidden');
+        setTimeout(clearMediaPreview, 1500);
     }
 
-    // Handle Video Selection
     function handleVideoSelect(event) {
         const file = event.target.files[0];
         if (!file) return;
 
-        const preview = document.getElementById('mediaPreview');
         const previewContent = document.getElementById('previewContent');
-
         previewContent.innerHTML = `<p class="text-sm"><i class="fas fa-video mr-2"></i>${file.name}</p>`;
-        preview.classList.remove('hidden');
+        document.getElementById('mediaPreview').classList.remove('hidden');
 
         const reader = new FileReader();
-        reader.onload = function (e) {
-            socket.emit('send_message', {
-                sender_id: userId,
-                receiver_id: friendId,
-                content: e.target.result,
-                type: 'video',
-                filename: file.name
+        reader.onload = e => {
+            getSocket().emit('send_message', {
+                sender_id: userId, receiver_id: friendId,
+                content: e.target.result, type: 'video', filename: file.name
             });
         };
         reader.readAsDataURL(file);
-
-        setTimeout(() => clearMediaPreview(), 1000);
+        setTimeout(clearMediaPreview, 1500);
     }
 
     function clearMediaPreview() {
@@ -424,301 +377,173 @@
         document.getElementById('videoInput').value = '';
     }
 
-    // Voice Recording - FIXED VERSION
+    // ===== GHI ÂM =====
     async function toggleRecording() {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-            stopRecording();
-        } else {
-            startRecording();
-        }
+        if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
+        else startRecording();
     }
 
     async function startRecording() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    sampleRate: 44100
-                }
-            });
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4']
+                .find(t => MediaRecorder.isTypeSupported(t)) || '';
 
-            // Kiểm tra codec hỗ trợ
-            let mimeType = 'audio/webm;codecs=opus';
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'audio/webm';
-            }
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'audio/ogg;codecs=opus';
-            }
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'audio/mp4';
-            }
+            mediaRecorder  = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+            audioChunks    = [];
 
-            console.log('Using mimeType:', mimeType);
-
-            mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    audioChunks.push(event.data);
-                    console.log('Audio chunk:', event.data.size, 'bytes');
-                }
-            };
-
-            mediaRecorder.onstop = async () => {
-                console.log('Recording stopped, chunks:', audioChunks.length);
-
-                const audioBlob = new Blob(audioChunks, { type: mimeType });
-                console.log('Audio blob size:', audioBlob.size, 'bytes');
-
-                // Chuyển thành base64
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                const blob   = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
                 const reader = new FileReader();
-                reader.onload = function (e) {
-                    console.log('Base64 length:', e.target.result.length);
-
-                    socket.emit('send_message', {
-                        sender_id: userId,
-                        receiver_id: friendId,
-                        content: e.target.result,
-                        type: 'audio'
-                    });
-                };
-                reader.onerror = (err) => {
-                    console.error('FileReader error:', err);
-                };
-                reader.readAsDataURL(audioBlob);
-
-                stream.getTracks().forEach(track => track.stop());
+                reader.onload = e => getSocket().emit('send_message', {
+                    sender_id: userId, receiver_id: friendId,
+                    content: e.target.result, type: 'audio'
+                });
+                reader.readAsDataURL(blob);
+                stream.getTracks().forEach(t => t.stop());
             };
 
             mediaRecorder.start();
-            console.log('Recording started');
-
             document.getElementById('recordingIndicator').classList.remove('hidden');
-            document.getElementById('recordBtn').classList.add('text-red-600', 'bg-red-50');
-
+            document.getElementById('recordBtn').classList.add('text-red-600','bg-red-50');
             recordingStartTime = Date.now();
-            recordingInterval = setInterval(updateRecordTime, 100);
+            recordingInterval  = setInterval(updateRecordTime, 100);
         } catch (err) {
-            console.error('Recording error:', err);
             alert('Không thể truy cập microphone: ' + err.message);
         }
     }
 
     function stopRecording() {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
+        if (mediaRecorder?.state === 'recording') {
             mediaRecorder.stop();
             document.getElementById('recordingIndicator').classList.add('hidden');
-            document.getElementById('recordBtn').classList.remove('text-red-600', 'bg-red-50');
+            document.getElementById('recordBtn').classList.remove('text-red-600','bg-red-50');
             clearInterval(recordingInterval);
             document.getElementById('recordTime').textContent = '00:00';
         }
     }
 
     function updateRecordTime() {
-        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
-        const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
-        const seconds = (elapsed % 60).toString().padStart(2, '0');
-        document.getElementById('recordTime').textContent = `${minutes}:${seconds}`;
+        const s = Math.floor((Date.now() - recordingStartTime) / 1000);
+        document.getElementById('recordTime').textContent =
+            `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
     }
 
-    // Video Call Functions
+    // ===== VIDEO CALL =====
     async function startVideoCall() {
         try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            });
-
-            document.getElementById('localVideo').srcObject = localStream;
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('localVideo').srcObject  = localStream;
             document.getElementById('videoCallModal').classList.remove('hidden');
             document.getElementById('callStatus').textContent = 'Đang gọi...';
-
-            socket.emit('video_call_request', {
-                from: userId,
-                to: friendId,
-                caller_name: '{{ current_user.name }}'
-            });
-
+            getSocket().emit('video_call_request', { from: userId, to: friendId, caller_name: '{{ current_user.name }}' });
             startCallTimer();
-        } catch (err) {
-            alert('Không thể truy cập camera/mic: ' + err.message);
-        }
+        } catch (err) { alert('Không thể truy cập camera/mic: ' + err.message); }
     }
 
     function showIncomingCall(data) {
         document.getElementById('callerName').textContent = data.caller_name;
-        document.getElementById('callerAvatar').src = "{{ url_for('static', filename='default.jpg') }}";
         document.getElementById('incomingCallNotif').classList.remove('hidden');
-
-        // Play ringtone
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        audio.loop = true;
-        audio.play();
-        window.ringtone = audio;
+        window.ringtone = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        window.ringtone.loop = true;
+        window.ringtone.play().catch(() => {});
     }
 
     async function acceptCall() {
-        if (window.ringtone) {
-            window.ringtone.pause();
-        }
-
+        window.ringtone?.pause();
         document.getElementById('incomingCallNotif').classList.add('hidden');
-
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
-        });
-
-        document.getElementById('localVideo').srcObject = localStream;
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        document.getElementById('localVideo').srcObject  = localStream;
         document.getElementById('videoCallModal').classList.remove('hidden');
         document.getElementById('callStatus').textContent = 'Đang kết nối...';
-
-        socket.emit('video_call_accepted', {
-            from: userId,
-            to: friendId
-        });
-
+        getSocket().emit('video_call_accepted', { from: userId, to: friendId });
         startCallTimer();
     }
 
     function rejectCall() {
-        if (window.ringtone) {
-            window.ringtone.pause();
-        }
-
+        window.ringtone?.pause();
         document.getElementById('incomingCallNotif').classList.add('hidden');
-        socket.emit('video_call_rejected', {
-            from: userId,
-            to: friendId
-        });
+        getSocket().emit('video_call_rejected', { from: userId, to: friendId });
     }
 
     async function createPeerConnection() {
-        peerConnection = new RTCPeerConnection(config);
-
-        localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
-        });
-
-        peerConnection.ontrack = (event) => {
-            document.getElementById('remoteVideo').srcObject = event.streams[0];
+        peerConnection = new RTCPeerConnection(rtcConfig);
+        localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+        peerConnection.ontrack = e => {
+            document.getElementById('remoteVideo').srcObject = e.streams[0];
             document.getElementById('callStatus').textContent = 'Đã kết nối';
         };
-
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('ice_candidate', {
-                    to: friendId,
-                    candidate: event.candidate
-                });
-            }
+        peerConnection.onicecandidate = e => {
+            if (e.candidate) getSocket().emit('ice_candidate', { to: friendId, candidate: e.candidate });
         };
     }
 
     function toggleMic() {
         isMicOn = !isMicOn;
         localStream.getAudioTracks()[0].enabled = isMicOn;
-
         const btn = document.getElementById('micBtn');
-        if (isMicOn) {
-            btn.innerHTML = '<i class="fas fa-microphone text-xl"></i>';
-            btn.classList.remove('bg-red-600');
-            btn.classList.add('bg-gray-700');
-        } else {
-            btn.innerHTML = '<i class="fas fa-microphone-slash text-xl"></i>';
-            btn.classList.remove('bg-gray-700');
-            btn.classList.add('bg-red-600');
-        }
+        btn.innerHTML = isMicOn ? '<i class="fas fa-microphone text-xl"></i>' : '<i class="fas fa-microphone-slash text-xl"></i>';
+        btn.classList.toggle('bg-red-600', !isMicOn);
+        btn.classList.toggle('bg-gray-700', isMicOn);
     }
 
     function toggleCamera() {
         isCameraOn = !isCameraOn;
         localStream.getVideoTracks()[0].enabled = isCameraOn;
-
         const btn = document.getElementById('cameraBtn');
-        if (isCameraOn) {
-            btn.innerHTML = '<i class="fas fa-video text-xl"></i>';
-            btn.classList.remove('bg-red-600');
-            btn.classList.add('bg-gray-700');
-        } else {
-            btn.innerHTML = '<i class="fas fa-video-slash text-xl"></i>';
-            btn.classList.remove('bg-gray-700');
-            btn.classList.add('bg-red-600');
-        }
+        btn.innerHTML = isCameraOn ? '<i class="fas fa-video text-xl"></i>' : '<i class="fas fa-video-slash text-xl"></i>';
+        btn.classList.toggle('bg-red-600', !isCameraOn);
+        btn.classList.toggle('bg-gray-700', isCameraOn);
     }
 
     function endVideoCall() {
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
-        }
-
-        if (peerConnection) {
-            peerConnection.close();
-        }
-
+        localStream?.getTracks().forEach(t => t.stop());
+        peerConnection?.close();
         document.getElementById('videoCallModal').classList.add('hidden');
-        document.getElementById('localVideo').srcObject = null;
+        document.getElementById('localVideo').srcObject  = null;
         document.getElementById('remoteVideo').srcObject = null;
-
-        if (callTimer) {
-            clearInterval(callTimer);
-        }
-
-        socket.emit('call_ended', { to: friendId });
-
-        localStream = null;
-        peerConnection = null;
-        isMicOn = true;
-        isCameraOn = true;
+        if (callTimer) clearInterval(callTimer);
+        getSocket().emit('call_ended', { to: friendId });
+        localStream = null; peerConnection = null; isMicOn = true; isCameraOn = true;
     }
 
     function startCallTimer() {
         callStartTime = Date.now();
         callTimer = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
-            const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
-            const seconds = (elapsed % 60).toString().padStart(2, '0');
-            document.getElementById('callTimer').textContent = `${minutes}:${seconds}`;
+            const s = Math.floor((Date.now() - callStartTime) / 1000);
+            document.getElementById('callTimer').textContent =
+                `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
         }, 1000);
     }
 
-    // Load Chat History
+    // ===== LỊCH SỬ CHAT =====
     function loadHistory() {
         fetch(`/chat/history/${friendId}`)
             .then(r => r.json())
             .then(msgs => {
                 chatbox.innerHTML = '';
-                msgs.forEach(msg => appendMessage(msg));
+                msgs.forEach(appendMessage);
                 chatbox.scrollTop = chatbox.scrollHeight;
             });
     }
 
-    // Append Message to Chat
+    // ===== HIỂN THỊ TIN NHẮN =====
     function appendMessage(msg) {
         const isMine = msg.sender_id == userId;
-        const div = document.createElement('div');
+        const type   = msg.type || 'text';
+        const div    = document.createElement('div');
         div.className = `flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`;
 
         let content = '';
-        const type = msg.type || 'text';
-
         switch (type) {
-            case 'sticker':
-                content = `<p class="text-6xl">${msg.content}</p>`;
-                break;
-            case 'image':
-                content = `<img src="${msg.content}" class="max-w-xs rounded-lg cursor-pointer hover:opacity-90 transition" onclick="window.open('${msg.content}', '_blank')">`;
-                break;
-            case 'video':
-                content = `<video controls class="max-w-xs rounded-lg"><source src="${msg.content}" type="video/mp4"></video>`;
-                break;
+            case 'sticker': content = `<p class="text-6xl">${msg.content}</p>`; break;
+            case 'image':   content = `<img src="${msg.content}" class="max-w-xs rounded-lg cursor-pointer hover:opacity-90" onclick="window.open('${msg.content}','_blank')">`; break;
+            case 'video':   content = `<video controls class="max-w-xs rounded-lg"><source src="${msg.content}" type="video/mp4"></video>`; break;
             case 'audio':
                 content = `
-                    <div class="flex items-center gap-2 p-2 rounded-lg min-w-[240px]">
-                        <button onclick="playAudio(this, '${msg.content}')" class="bg-white bg-opacity-30 hover:bg-opacity-50 p-2 rounded-full transition">
+                    <div class="flex items-center gap-2 p-2 min-w-[240px]">
+                        <button onclick="playAudio(this)" class="bg-white bg-opacity-30 hover:bg-opacity-50 p-2 rounded-full transition">
                             <i class="fas fa-play text-sm"></i>
                         </button>
                         <audio src="${msg.content}" class="hidden"></audio>
@@ -728,55 +553,41 @@
                             </div>
                             <span class="text-xs opacity-70 audio-time">0:00</span>
                         </div>
-                    </div>
-                `;
+                    </div>`;
                 break;
-            default:
-                content = `<p>${msg.content}</p>`;
+            default: content = `<p>${msg.content}</p>`;
         }
 
         div.innerHTML = `
-            <div class="max-w-xs ${type === 'sticker' ? '' : 'px-4 py-3'} rounded-2xl ${isMine ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white' : 'bg-white border shadow'}">
+            <div class="max-w-xs ${type === 'sticker' ? '' : 'px-4 py-3'} rounded-2xl
+                ${isMine ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white' : 'bg-white border shadow'}">
                 ${type !== 'sticker' ? `<p class="text-xs opacity-70 mb-1">${msg.sender_name}</p>` : ''}
                 ${content}
                 ${type !== 'sticker' ? `<p class="text-xs opacity-60 mt-1 text-right">${msg.timestamp}</p>` : ''}
-            </div>
-        `;
+            </div>`;
+
         chatbox.appendChild(div);
         chatbox.scrollTop = chatbox.scrollHeight;
     }
 
-    // Audio Player Functions
-    function playAudio(button, src) {
-        const container = button.parentElement;
-        const audio = container.querySelector('audio');
-        const icon = button.querySelector('i');
-        const progress = container.querySelector('.audio-progress');
+    function playAudio(button) {
+        const container  = button.parentElement;
+        const audio      = container.querySelector('audio');
+        const icon       = button.querySelector('i');
+        const progress   = container.querySelector('.audio-progress');
         const timeDisplay = container.querySelector('.audio-time');
 
         if (audio.paused) {
-            // Stop all other audios
             document.querySelectorAll('audio').forEach(a => {
-                if (a !== audio) {
-                    a.pause();
-                    a.currentTime = 0;
-                    const btn = a.parentElement.querySelector('button i');
-                    if (btn) btn.className = 'fas fa-play text-sm';
-                }
+                if (a !== audio) { a.pause(); a.currentTime = 0; }
             });
-
             audio.play();
             icon.className = 'fas fa-pause text-sm';
-
             audio.ontimeupdate = () => {
-                const percent = (audio.currentTime / audio.duration) * 100;
-                progress.style.width = percent + '%';
-
-                const minutes = Math.floor(audio.currentTime / 60);
-                const seconds = Math.floor(audio.currentTime % 60);
-                timeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                progress.style.width = (audio.currentTime / audio.duration * 100) + '%';
+                const s = Math.floor(audio.currentTime);
+                timeDisplay.textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
             };
-
             audio.onended = () => {
                 icon.className = 'fas fa-play text-sm';
                 progress.style.width = '0%';
@@ -787,7 +598,5 @@
             icon.className = 'fas fa-play text-sm';
         }
     }
-
-    loadHistory();
 </script>
 {% endblock %}

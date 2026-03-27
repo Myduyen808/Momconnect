@@ -226,6 +226,8 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- ✅ NỘI DUNG MENU ĐÃ SỬA -->
                             <div class="py-2">
                                 <a href="{{ url_for('expert_dashboard') }}"
                                     class="expert-menu-item block px-4 py-2 hover:bg-purple-50 transition flex items-center gap-3 group/item">
@@ -242,13 +244,9 @@
                                     <i class="fas fa-calendar-alt w-5 text-purple-600"></i>
                                     <span class="text-sm font-medium">Lịch tư vấn</span>
                                 </a>
-                                <!-- ✅ THÊM LINK LỊCH HẸN VÀO ĐÂY -->
-                                <a href="{{ url_for('my_bookings') }}"
-                                    class="expert-menu-item block px-4 py-2 hover:bg-purple-50 transition flex items-center gap-3">
-                                    <i class="fas fa-calendar-check w-5 text-purple-600"></i>
-                                    <span class="text-sm font-medium">Lịch hẹn của tôi</span>
-                                </a>
-                                <!-- ✅ THÊM LINK THỐNG KÊ -->
+
+                                <!-- ✅ ĐÃ XÓA MỤC "Lịch hẹn của tôi" Ở ĐÂY -->
+
                                 <a href="{{ url_for('expert_analytics') }}"
                                     class="expert-menu-item block px-4 py-2 hover:bg-purple-50 transition flex items-center gap-3">
                                     <i class="fas fa-chart-line w-5 text-purple-600"></i>
@@ -439,8 +437,115 @@
             setInterval(updateNotificationBadge, 10000);
         });
     </script>
-
     {% block scripts %}{% endblock %}
+
+    <!-- ===== CHAT TOAST NOTIFICATION ===== -->
+    <div id="chatToast" class="hidden fixed bottom-6 right-6 z-[9999] max-w-sm w-full animate-slide-in">
+        <div class="bg-white rounded-2xl shadow-2xl border border-pink-100 p-4 flex items-center gap-3 cursor-pointer hover:shadow-3xl transition-all"
+            onclick="goToChat()">
+            <div class="relative flex-shrink-0">
+                <img id="chatToastAvatar" src="/static/images/default-avatar.png"
+                    class="w-12 h-12 rounded-full object-cover ring-2 ring-pink-300">
+                <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-0.5">
+                    <i class="fas fa-comment-dots text-pink-500 text-xs"></i>
+                    <p class="font-bold text-gray-900 text-sm truncate" id="chatToastName"></p>
+                </div>
+                <p class="text-gray-500 text-xs truncate" id="chatToastContent"></p>
+            </div>
+            <button onclick="event.stopPropagation(); hideChatToast()"
+                class="text-gray-300 hover:text-gray-500 flex-shrink-0 transition-colors ml-1">
+                <i class="fas fa-times text-sm"></i>
+            </button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes slideInRight {
+            from {
+                transform: translateX(120%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .animate-slide-in {
+            animation: slideInRight 0.4s ease-out;
+        }
+    </style>
+
+    <script>
+        // ===== BIẾN TOÀN CỤC =====
+        let chatToastUrl = '';
+        let chatToastTimer = null;
+        // Biến này cho phép chat.html dùng lại socket thay vì tạo mới
+        window._globalSocket = null;
+
+        {% if current_user.is_authenticated %}
+        // Tạo 1 socket duy nhất cho toàn app
+        window._globalSocket = io({
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5
+        });
+
+        window._globalSocket.on('connect', function () {
+            console.log('🔌 Global socket connected:', window._globalSocket.id);
+            window._globalSocket.emit('register_user', { user_id: {{ current_user.id }} });
+        });
+
+        window._globalSocket.on('disconnect', function () {
+            console.log('❌ Global socket disconnected');
+        });
+
+        // ===== NHẬN TOAST TIN NHẮN MỚI =====
+        window._globalSocket.on('new_chat_notification', function (data) {
+            console.log('💬 Chat notification:', data);
+            // Không hiện nếu đang ở trang chat với người gửi
+            if (window.location.pathname === '/chat/' + data.sender_id) return;
+            showChatToast(data);
+        });
+        {% endif %}
+
+        // ===== HÀM TOAST =====
+        function showChatToast(data) {
+            const avatar = data.sender_avatar
+                ? (data.sender_avatar.startsWith('http') ? data.sender_avatar : '/static/' + data.sender_avatar)
+                : '/static/images/default-avatar.png';
+
+            document.getElementById('chatToastAvatar').src = avatar;
+            document.getElementById('chatToastName').textContent = data.sender_name || 'Ai đó';
+            document.getElementById('chatToastContent').textContent = data.content || 'Đã gửi tin nhắn';
+            chatToastUrl = data.chat_url || '#';
+
+            const toast = document.getElementById('chatToast');
+            toast.classList.remove('hidden');
+            // Reset animation
+            toast.style.animation = 'none';
+            toast.offsetHeight;   // reflow
+            toast.style.animation = '';
+
+            if (chatToastTimer) clearTimeout(chatToastTimer);
+            chatToastTimer = setTimeout(hideChatToast, 5000);
+        }
+
+        function hideChatToast() {
+            document.getElementById('chatToast').classList.add('hidden');
+            if (chatToastTimer) { clearTimeout(chatToastTimer); chatToastTimer = null; }
+        }
+
+        function goToChat() {
+            if (chatToastUrl && chatToastUrl !== '#') window.location.href = chatToastUrl;
+        }
+    </script>
+
 </body>
 
 </html>

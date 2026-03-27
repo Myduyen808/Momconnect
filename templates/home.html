@@ -19,7 +19,8 @@
         <!-- DANH SÁCH BÀI VIẾT -->
         {% if posts %}
         {% for post in posts %}
-        <div class="bg-white rounded-3xl shadow-xl post-card overflow-visible hover:shadow-2xl transition-all">
+        <div class="bg-white rounded-3xl shadow-xl post-card overflow-visible hover:shadow-2xl transition-all"
+            data-post-id="{{ post.id }}">
             <!-- Header bài viết -->
             <div class="p-6 pb-4 border-b border-gray-100">
                 <div class="flex items-center justify-between">
@@ -59,10 +60,20 @@
                                 </span>
                                 {% endif %}
                             </div>
-                            <p class="text-sm text-gray-500 flex items-center gap-2 mt-1">
-                                <i class="far fa-clock"></i>
-                                {{ post.created_at | vietnam_time }}
-                            </p>
+                            <div class="flex items-center gap-2 mt-1">
+                                <p class="text-sm text-gray-500 flex items-center gap-1">
+                                    <i class="far fa-clock"></i>
+                                    {{ post.created_at | vietnam_time }}
+                                </p>
+
+                                <!-- ✅ VIEW COUNT NHỎ - STYLE TIKTOK -->
+                                <span class="text-gray-300">•</span>
+                                <p class="text-sm text-gray-400 flex items-center gap-1">
+                                    <i class="fas fa-eye text-xs"></i>
+                                    <span class="view-count" id="view-count-{{ post.id }}">{{ post.views|default(0)
+                                        }}</span>
+                                </p>
+                            </div>
                         </div>
                     </div>
                     <!-- NÚT KẾT BẠN GIỐNG FACEBOOK -->
@@ -163,41 +174,35 @@
                             <span class="font-bold text-blue-700" id="comment-count-{{ post.id }}">{{
                                 post.comments_count }} Bình luận</span>
                         </button>
-                        <button class="flex items-center gap-2 group">
+                        <!-- <button class="flex items-center gap-2 group">
                             <i class="fas fa-eye text-2xl text-indigo-600 group-hover:scale-110 transition"></i>
                             <span class="font-bold text-indigo-700 view-count" id="view-count-{{ post.id }}">{{
                                 post.views|default(0) }} Lượt xem</span>
-                        </button>
+                        </button> -->
                         <button onclick="toggleShareMenu({{ post.id }})" class="flex items-center gap-2 group relative">
                             <i class="fas fa-share text-2xl text-green-600 group-hover:scale-110 transition"></i>
                             <span class="font-bold text-green-700">Chia sẻ</span>
                         </button>
                     </div>
+                    <!-- MENU BA CHẤM - ĐÃ FIX -->
                     <div class="relative">
-                        <button class="menu-toggle p-3 hover:bg-gray-100 rounded-full transition relative z-50"
-                            data-post-id="{{ post.id }}" onclick="toggleMenu({{ post.id }})" style="z-index:1000;">
+                        <button class="menu-toggle p-3 hover:bg-gray-100 rounded-full transition"
+                            data-post-id="{{ post.id }}" onclick="toggleMenu(event, {{ post.id }})">
                             <i class="fas fa-ellipsis-h text-gray-600 text-xl"></i>
                         </button>
-                        <!-- MENU BA CHẤM -->
-                        <div id="menu-{{ post.id }}" class="w-64 bg-white rounded-xl shadow-2xl border overflow-hidden">
-                            <button onclick="reportPost({{ post.id }})"
-                                class="w-full text-left px-6 py-4 hover:bg-red-50 flex items-center gap-3 text-red-600 transition-all border-b border-gray-100">
-                                <i class="fas fa-flag text-lg"></i>
-                                <span class="font-semibold">Báo cáo bài viết</span>
+
+                        <div id="menu-{{ post.id }}" class="menu-dropdown">
+                            <button onclick="reportPost({{ post.id }})">
+                                <i class="fas fa-flag text-lg text-red-500"></i>
+                                <span class="font-medium text-red-600">Báo cáo bài viết</span>
                             </button>
+
                             {% if current_user.is_authenticated and (current_user.id == post.author.id or
                             current_user.role|lower == 'admin') %}
-                            <button onclick="deletePost({{ post.id }})"
-                                class="w-full text-left px-6 py-4 hover:bg-red-50 flex items-center gap-3 text-red-600">
-                                <i class="fas fa-trash"></i>
-                                <span>Xóa bài viết</span>
+                            <button onclick="deletePost({{ post.id }})" style="border-top: 1px solid #f3f4f6;">
+                                <i class="fas fa-trash text-red-500"></i>
+                                <span class="text-red-600">Xóa bài viết</span>
                             </button>
-                            {% endif %}
-                            {% if current_user.id == post.author.id or current_user.role|lower == 'admin' %}
-                            {% else %}
-                            <div class="px-6 py-4 text-sm text-gray-400">
-                                Không có hành động
-                            </div>
                             {% endif %}
                         </div>
                     </div>
@@ -476,51 +481,44 @@
         overflow: hidden;
     }
 
-    /* 🔥 MENU BA CHẤM - FIX HOÀN CHỈNH */
-    .post-card {
-        position: relative;
-        overflow: visible !important;
-        /* QUAN TRỌNG: Bỏ overflow-hidden */
-    }
-
-    [id^="menu-"] {
+    /* ======================
+   MENU BA CHẤM - ĐÃ FIX
+   ====================== */
+    .menu-dropdown {
+        display: none;
         position: fixed !important;
-        min-width: 240px;
         background: white;
         border-radius: 16px;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        border: 1px solid #e5e7eb;
         z-index: 99999 !important;
-        opacity: 0;
-        visibility: hidden;
-        transform: scale(0.95);
-        transition: all 0.15s ease;
+        min-width: 240px;
+        overflow: hidden;
     }
 
-    [id^="menu-"].show {
-        opacity: 1;
-        visibility: visible;
-        transform: scale(1);
+    .menu-dropdown.show {
+        display: block;
     }
 
-    [id^="menu-"] button {
-        display: flex !important;
+    .menu-dropdown button {
+        width: 100%;
+        text-align: left;
+        padding: 14px 20px;
+        font-size: 15px;
+        display: flex;
         align-items: center;
         gap: 12px;
-        width: 100%;
-        padding: 16px 20px;
-        font-size: 15px;
-        font-weight: 500;
         border: none;
         background: none;
-        text-align: left;
-        transition: background-color 0.15s ease;
-        white-space: nowrap;
+        cursor: pointer;
+        transition: background-color 0.15s;
     }
 
-    [id^="menu-"] button:hover {
-        background: linear-gradient(90deg, #fee2e2 0%, #fecaca 100%);
+    .menu-dropdown button:hover {
+        background-color: #fee2e2;
+        color: #dc2626;
     }
+
 
     /* Đóng tất cả menu khi scroll */
     body.menu-open {
@@ -1404,5 +1402,412 @@
         }
     }
     // 🔥 BONUS: Hàm debug để kiểm tra cấu trúc DOM
+
+
+    // ==================== MENU BA CHẤM ====================
+    function toggleMenu(event, postId) {
+        event.stopPropagation(); // Ngăn click lan ra ngoài
+
+        const menu = document.getElementById(`menu-${postId}`);
+        if (!menu) return;
+
+        const isOpen = menu.classList.contains('show');
+
+        // Đóng tất cả menu khác trước
+        document.querySelectorAll('.menu-dropdown.show').forEach(m => m.classList.remove('show'));
+
+        if (!isOpen) {
+            // Tính vị trí dựa trên button
+            const button = event.currentTarget;
+            const rect = button.getBoundingClientRect();
+
+            // Hiện menu tạm để tính kích thước
+            menu.classList.add('show');
+            menu.style.visibility = 'hidden';
+
+            const menuHeight = menu.offsetHeight;
+            const menuWidth = menu.offsetWidth;
+
+            let top = rect.bottom + 8;
+            let left = rect.right - menuWidth;
+
+            // Tránh bị cắt bởi đáy màn hình
+            if (top + menuHeight > window.innerHeight - 20) {
+                top = rect.top - menuHeight - 8;
+            }
+
+            // Tránh bị cắt bởi cạnh trái màn hình
+            if (left < 10) left = 10;
+
+            menu.style.top = top + 'px';
+            menu.style.left = left + 'px';
+            menu.style.visibility = 'visible';
+        }
+    }
+
+    // Đóng menu khi click ra ngoài
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.menu-toggle') && !e.target.closest('.menu-dropdown')) {
+            document.querySelectorAll('.menu-dropdown.show').forEach(m => m.classList.remove('show'));
+        }
+    });
+
+    // Đóng menu khi scroll
+    window.addEventListener('scroll', function () {
+        document.querySelectorAll('.menu-dropdown.show').forEach(m => m.classList.remove('show'));
+    }, { passive: true });
+    // ✅ HÀM BÁO CÁO BÀI VIẾT (ĐANG THIẾU)
+    // ✅ SỬA LẠI HÀM reportPost - XỬ LÝ TRƯỜNG HỢP CHƯA ĐĂNG NHẬP
+    async function reportPost(postId) {
+        const reason = prompt("Vui lòng nhập lý do báo cáo bài viết này:");
+
+        if (!reason || reason.trim() === "") {
+            if (reason !== null) {
+                showToast('Bạn cần nhập lý do để báo cáo.', false);
+            }
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('reason', reason);
+
+            const res = await fetch(`/report/${postId}`, {
+                method: 'POST',
+                body: formData // Gửi dạng form data
+            });
+
+            // ✅ KIỂM TRA QUAN TRỌNG: Có bị Redirect (đẩy sang trang khác) không?
+            // Nếu URL trả về không chứa '/report/' nghĩa là đã bị đẩy sang login
+            if (!res.url.includes('/report/')) {
+                alert('Bạn cần đăng nhập để thực hiện tính năng này!');
+                window.location.href = '/login'; // Chuyển hướng người dùng ra trang đăng nhập
+                return;
+            }
+
+            // Nếu không bị redirect, mới tiếp tục đọc dữ liệu
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                showToast(data.message || 'Đã gửi báo cáo thành công!');
+            } else {
+                showToast(data.error || 'Gửi báo cáo thất bại.', false);
+            }
+        } catch (error) {
+            console.error('Lỗi báo cáo:', error);
+            // Hiện thông báo rõ ràng hơn
+            showToast('Có lỗi xảy ra (có thể do chưa đăng nhập). Vui lòng thử lại.', false);
+        }
+
+        closeAllMenus();
+    }
+
+    // ✅ HÀM XÓA BÀI VIẾT (CŨNG ĐANG THIẾU TRONG CODE CỦA BẠN)
+    // ✅ SỬA LẠI HÀM deletePost
+    async function deletePost(postId) {
+        if (!confirm('Bạn có chắc chắn muốn xóa bài viết này không?')) {
+            return;
+        }
+
+        try {
+            // ❌ URL CŨ: /delete_post/... (Sai)
+            // ✅ URL MỚI: /post/.../delete (Đúng theo app.py)
+            const res = await fetch(`/post/${postId}/delete`, {
+                method: 'POST'
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                showToast('Đã xóa bài viết thành công!');
+
+                // Logic ẩn bài viết (Fade out effect)
+                const postCard = document.querySelector(`.post-card[data-post-id="${postId}"]`);
+                if (postCard) {
+                    postCard.style.transition = 'opacity 0.3s';
+                    postCard.style.opacity = '0';
+                    setTimeout(() => postCard.remove(), 300);
+                } else {
+                    window.location.reload();
+                }
+            } else {
+                showToast(data.error || 'Không thể xóa bài viết.', false);
+            }
+        } catch (error) {
+            console.error('Lỗi xóa bài:', error);
+            showToast('Lỗi kết nối.', false);
+        }
+
+        closeAllMenus();
+    }
+
+    // ===== REPLY FORM =====
+    function showReplyForm(commentId) {
+        const replyFormDiv = document.getElementById(`reply-form-${commentId}`);
+        if (!replyFormDiv) return;
+
+        // Nếu đã có form rồi thì toggle
+        if (!replyFormDiv.classList.contains('hidden') && replyFormDiv.innerHTML.trim() !== '') {
+            hideReplyForm(commentId);
+            return;
+        }
+
+        // Lấy postId từ comment container
+        const commentContainer = document.getElementById(`comment-${commentId}`);
+        const postCard = commentContainer?.closest('[data-post-id]');
+        const postId = postCard?.getAttribute('data-post-id');
+        if (!postId) return;
+
+        replyFormDiv.innerHTML = `
+        <div class="flex gap-3 mt-2 p-3 bg-gray-50 rounded-2xl">
+            <div class="flex-1">
+                <textarea id="reply-input-${commentId}"
+                    placeholder="Viết phản hồi..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-pink-300 outline-none resize-none text-sm"
+                    rows="2"></textarea>
+                <div class="flex gap-2 mt-2 justify-end">
+                    <button onclick="hideReplyForm(${commentId})"
+                        class="px-4 py-1.5 bg-gray-200 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-300 transition">
+                        Hủy
+                    </button>
+                    <button onclick="submitReply(${postId}, ${commentId})"
+                        class="px-4 py-1.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full text-sm font-bold hover:shadow-lg transition">
+                        <i class="fas fa-paper-plane mr-1"></i>Gửi
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+        replyFormDiv.classList.remove('hidden');
+        document.getElementById(`reply-input-${commentId}`)?.focus();
+    }
+
+    function hideReplyForm(commentId) {
+        const replyFormDiv = document.getElementById(`reply-form-${commentId}`);
+        if (replyFormDiv) {
+            replyFormDiv.classList.add('hidden');
+            replyFormDiv.innerHTML = '';
+        }
+    }
+
+    async function submitReply(postId, parentCommentId) {
+        const textarea = document.getElementById(`reply-input-${parentCommentId}`);
+        const content = textarea?.value.trim();
+        if (!content) {
+            showToast('Vui lòng nhập nội dung phản hồi', false);
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('content', content);
+            formData.append('parent_id', parentCommentId);
+
+            const res = await fetch(`/comment/${postId}`, { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (data.success) {
+                hideReplyForm(parentCommentId);
+
+                // Cập nhật số lượng bình luận
+                const commentCount = document.getElementById(`comment-count-${postId}`);
+                if (commentCount) {
+                    const cur = parseInt(commentCount.textContent) || 0;
+                    commentCount.textContent = `${cur + 1} Bình luận`;
+                }
+
+                // Thêm reply vào DOM
+                const repliesContainer = document.querySelector(`#comment-${parentCommentId} .replies-container`);
+                if (repliesContainer) {
+                    const replyHtml = createCommentHtml(data.comment, true, parentCommentId);
+                    repliesContainer.insertAdjacentHTML('beforeend', replyHtml);
+                }
+
+                showToast('Đã gửi phản hồi!');
+            } else {
+                showToast(data.error || 'Không thể gửi phản hồi', false);
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    // ===== EDIT COMMENT =====
+    function editComment(commentId) {
+        const commentContainer = document.getElementById(`comment-${commentId}`);
+        if (!commentContainer) return;
+
+        const contentDiv = commentContainer.querySelector('.comment-content');
+        const originalText = contentDiv.innerText;
+
+        contentDiv.innerHTML = `
+        <textarea class="edit-comment-textarea w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 outline-none resize-none text-sm"
+            rows="3">${originalText}</textarea>
+        <div class="flex gap-2 mt-2 justify-end">
+            <button onclick="cancelEditComment(${commentId}, \`${originalText.replace(/`/g, '\\`')}\`)"
+                class="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-sm hover:bg-gray-300 transition">Hủy</button>
+            <button onclick="saveEditComment(${commentId})"
+                class="px-3 py-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full text-sm font-bold hover:shadow-lg transition">Lưu</button>
+        </div>
+    `;
+    }
+
+    function cancelEditComment(commentId, originalText) {
+        const commentContainer = document.getElementById(`comment-${commentId}`);
+        if (!commentContainer) return;
+        const contentDiv = commentContainer.querySelector('.comment-content');
+        contentDiv.innerHTML = processCommentContent(originalText);
+    }
+
+    async function saveEditComment(commentId) {
+        const commentContainer = document.getElementById(`comment-${commentId}`);
+        if (!commentContainer) return;
+
+        const textarea = commentContainer.querySelector('textarea');
+        const newContent = textarea?.value.trim();
+        if (!newContent) {
+            showToast('Nội dung không được để trống', false);
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/comment/${commentId}/edit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: newContent })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                const contentDiv = commentContainer.querySelector('.comment-content');
+                contentDiv.innerHTML = processCommentContent(data.content) + ' <span class="text-xs text-gray-400">(đã sửa)</span>';
+                showToast('Đã cập nhật bình luận!');
+            } else {
+                showToast(data.error || 'Không thể sửa bình luận', false);
+            }
+        } catch (err) {
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    // ===== DELETE COMMENT =====
+    async function deleteComment(commentId) {
+        if (!confirm('Bạn có chắc muốn xóa bình luận này?')) return;
+
+        try {
+            const res = await fetch(`/api/comment/${commentId}/delete`, { method: 'POST' });
+            const data = await res.json();
+
+            if (data.success) {
+                const commentEl = document.getElementById(`comment-${commentId}`);
+                if (commentEl) {
+                    commentEl.style.transition = 'opacity 0.3s';
+                    commentEl.style.opacity = '0';
+                    setTimeout(() => commentEl.remove(), 300);
+                }
+                showToast('Đã xóa bình luận!');
+            } else {
+                showToast(data.error || 'Không thể xóa', false);
+            }
+        } catch (err) {
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    // ===== REPORT COMMENT =====
+    async function reportComment(commentId) {
+        const reason = prompt('Nhập lý do báo cáo bình luận này:');
+        if (!reason || !reason.trim()) return;
+
+        try {
+            const res = await fetch(`/api/comment/${commentId}/report`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason.trim() })
+            });
+            const data = await res.json();
+            showToast(data.success ? 'Đã gửi báo cáo!' : (data.error || 'Lỗi báo cáo'), data.success);
+        } catch (err) {
+            showToast('Lỗi kết nối', false);
+        }
+    }
+
+    // ======================
+    // LOGIC ĐẾM LƯỢT XEM THÔNG MINH (TƯƠNG TỰ TIKTOK)
+    // ======================
+
+    // 1. Hàm gửi request tăng view
+    async function trackView(postId) {
+        try {
+            // Gọi API track_home_view đã có sẵn trong app.py của bạn
+            const res = await fetch(`/track_home_view/${postId}`, { method: 'POST' });
+            const data = await res.json();
+
+            if (data.success && data.views !== undefined) {
+                // Cập nhật số mới lên giao diện mà không cần reload
+                const viewEl = document.getElementById(`view-count-${postId}`);
+                if (viewEl) {
+                    viewEl.textContent = data.views;
+                    // Hiệu ứng nhỏ nháy sáng khi tăng view
+                    viewEl.classList.add('text-pink-500', 'font-bold');
+                    setTimeout(() => viewEl.classList.remove('text-pink-500', 'font-bold'), 1000);
+                }
+            }
+        } catch (e) {
+            console.error("Lỗi đếm view:", e);
+        }
+    }
+
+    // 2. Sử dụng IntersectionObserver để phát hiện người dùng đang xem bài nào
+    const viewObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            // Nếu bài viết đang hiển thị trên màn hình
+            if (entry.isIntersecting) {
+                const postCard = entry.target;
+                const postId = postCard.dataset.postId;
+
+                // Đợi 1.5 giây mới tính là "đã xem" (tránh scroll ẩu)
+                const timer = setTimeout(() => {
+                    // Kiểm tra lại xem bài viết vẫn còn visible không
+                    if (postCard.getBoundingClientRect().top < window.innerHeight) {
+                        trackView(postId);
+                        // Ngưng theo dõi sau khi đã đếm để không đếm lại khi scroll lên xuống
+                        viewObserver.unobserve(postCard);
+                    }
+                }, 1500);
+
+                // Lưu timer vào element để clear nếu user scroll đi nhanh quá 1.5s
+                postCard.dataset.viewTimer = timer;
+            } else {
+                // Nếu scroll đi chỗ khác trước 1.5s -> hủy đếm
+                const timer = entry.target.dataset.viewTimer;
+                if (timer) clearTimeout(parseInt(timer));
+            }
+        });
+    }, {
+        threshold: 0.5 // Phải nhìn thấy ít nhất 50% bài viết mới bắt đầu tính giờ
+    });
+
+    // 3. Áp dụng observer cho tất cả bài viết khi trang load xong
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.post-card').forEach(card => {
+            viewObserver.observe(card);
+        });
+    });
+
+    // 4. Xử lý cho cả việc click vào xem chi tiết (giữ nguyên logic cũ)
+    document.querySelectorAll('a[href*="/post/"]').forEach(link => {
+        link.addEventListener('click', function () {
+            const postId = this.closest('.post-card')?.dataset.postId;
+            if (postId) trackView(postId);
+        });
+    });
+
+    // Hàm phụ trợ đóng menu
+    function closeAllMenus() {
+        document.querySelectorAll('.menu-dropdown.show').forEach(m => m.classList.remove('show'));
+    }
+
 </script>
 {% endblock %}

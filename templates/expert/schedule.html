@@ -11,7 +11,7 @@
             <p class="text-gray-600">Tạo và quản lý khung giờ tư vấn của bạn</p>
         </div>
         <button onclick="openCreateModal()"
-                class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105 flex items-center gap-2">
+            class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105 flex items-center gap-2">
             <i class="fas fa-plus"></i>
             Tạo khung giờ mới
         </button>
@@ -19,12 +19,12 @@
 
     <!-- TAB NAVIGATION -->
     <div class="flex border-b border-gray-200 mb-8">
-        <button onclick="showTab('upcoming')" 
-                class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 focus:border-purple-600 active-tab">
+        <button onclick="showTab('upcoming')"
+            class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 focus:border-purple-600 active-tab">
             Sắp tới
         </button>
-        <button onclick="showTab('old')" 
-                class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 focus:border-purple-600">
+        <button onclick="showTab('old')"
+            class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 focus:border-purple-600">
             Lịch cũ
         </button>
     </div>
@@ -36,12 +36,10 @@
             {% for slot in upcoming_slots %}
             <div class="slot-card bg-white rounded-xl shadow-md overflow-hidden border-l-4 
                         {{ 'border-green-500' if slot.status == 'available' else 'border-orange-500' if slot.status == 'booked' else 'border-gray-400' }}"
-                 data-slot-id="{{ slot.id }}"
-                 data-date="{{ slot.start_time.strftime('%Y-%m-%d') }}"
-                 data-start-time="{{ slot.start_time.strftime('%H:%M') }}"
-                 data-duration="{{ (slot.end_time - slot.start_time).total_seconds() // 60 }}"
-                 data-max-participants="{{ slot.max_participants }}"
-                 data-notes="{{ slot.notes or '' }}">
+                data-slot-id="{{ slot.id }}" data-date="{{ slot.start_time.strftime('%Y-%m-%d') }}"
+                data-start-time="{{ slot.start_time.strftime('%H:%M') }}"
+                data-duration="{{ (slot.end_time - slot.start_time).total_seconds() // 60 }}"
+                data-max-participants="{{ slot.max_participants }}" data-notes="{{ slot.notes or '' }}">
 
                 <div class="p-6">
                     <!-- STATUS -->
@@ -64,13 +62,13 @@
                         <div class="flex gap-2">
                             {% if slot.status == 'available' %}
                             <button onclick="editSlot({{ slot.id }})"
-                                    class="p-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition"
-                                    title="Chỉnh sửa">
+                                class="p-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition"
+                                title="Chỉnh sửa">
                                 <i class="fas fa-edit"></i>
                             </button>
                             {% endif %}
                             <button onclick="deleteSlot({{ slot.id }})"
-                                    class="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition" title="Xóa">
+                                class="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition" title="Xóa">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -115,7 +113,7 @@
             <h3 class="text-2xl font-bold text-gray-700 mb-2">Chưa có khung giờ sắp tới</h3>
             <p class="text-gray-500 mb-6">Hãy tạo khung giờ tư vấn đầu tiên của bạn</p>
             <button onclick="openCreateModal()"
-                    class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
+                class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
                 <i class="fas fa-plus mr-2"></i>Tạo khung giờ mới
             </button>
         </div>
@@ -129,7 +127,7 @@
             {% for slot in old_slots %}
             <div class="slot-card bg-white rounded-xl shadow-md overflow-hidden border-l-4
                         {{ 'border-gray-400' if slot.status in ['cancelled', 'completed'] else 'border-orange-500' }}"
-                 data-slot-id="{{ slot.id }}">
+                data-slot-id="{{ slot.id }}">
 
                 <div class="p-6">
                     <!-- STATUS -->
@@ -179,28 +177,31 @@
                     {% set booking = slot.booking %}
                     {% set feedback = booking.feedback %}
                     {% if not feedback %}
-                    <form action="{{ url_for('submit_feedback', booking_id=booking.id) }}" method="POST" class="mt-6 border-t pt-4">
+                    <form action="{{ url_for('submit_feedback', booking_id=booking.id) }}" method="POST"
+                        class="mt-6 border-t pt-4">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Đánh giá khách hàng</label>
                         <div class="flex gap-1 mb-3">
                             {% for i in range(1,6) %}
-                            <input type="radio" name="rating" value="{{ i }}" id="star_expert_{{ slot.id }}_{{ i }}" class="hidden" required>
-                            <label for="star_expert_{{ slot.id }}_{{ i }}" 
-                                   class="cursor-pointer text-3xl text-gray-300 hover:text-yellow-400 transition">
+                            <input type="radio" name="rating" value="{{ i }}" id="star_expert_{{ slot.id }}_{{ i }}"
+                                class="hidden" required>
+                            <label for="star_expert_{{ slot.id }}_{{ i }}"
+                                class="cursor-pointer text-3xl text-gray-300 hover:text-yellow-400 transition">
                                 ★
                             </label>
                             {% endfor %}
                         </div>
-                        <textarea name="comment" rows="3" 
-                                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                  placeholder="Nhận xét về khách hàng..."></textarea>
-                        <button type="submit" 
-                                class="mt-3 bg-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-purple-700 transition">
+                        <textarea name="comment" rows="3"
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            placeholder="Nhận xét về khách hàng..."></textarea>
+                        <button type="submit"
+                            class="mt-3 bg-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-purple-700 transition">
                             Gửi đánh giá
                         </button>
                     </form>
                     {% else %}
                     <div class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <p class="text-sm font-medium text-gray-700">Bạn đã đánh giá khách hàng: {{ feedback.rating }} sao</p>
+                        <p class="text-sm font-medium text-gray-700">Bạn đã đánh giá khách hàng: {{ feedback.rating }}
+                            sao</p>
                         {% if feedback.comment %}
                         <p class="text-sm text-gray-600 mt-2 italic">"{{ feedback.comment }}"</p>
                         {% endif %}
@@ -239,19 +240,19 @@
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-2">Ngày *</label>
                         <input type="date" name="date" id="slotDate" required min="{{ min_date }}"
-                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     </div>
 
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-2">Giờ bắt đầu *</label>
                         <input type="time" name="start_time" id="slotTime" required
-                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     </div>
 
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-2">Thời lượng (phút) *</label>
                         <select name="duration" id="slotDuration" required
-                                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                             <option value="30">30 phút</option>
                             <option value="45">45 phút</option>
                             <option value="60">60 phút</option>
@@ -262,24 +263,24 @@
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-2">Số người tối đa</label>
                         <input type="number" name="max_participants" id="slotMax" value="1" min="1" max="10"
-                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
                     </div>
 
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-2">Ghi chú (tùy chọn)</label>
                         <textarea name="notes" id="slotNotes" rows="3"
-                                  class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                  placeholder="Mô tả ngắn gọn..."></textarea>
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            placeholder="Mô tả ngắn gọn..."></textarea>
                     </div>
                 </div>
 
                 <div class="flex gap-4 mt-6">
                     <button type="submit"
-                            class="flex-1 bg-purple-600 text-white py-2 rounded-lg font-bold hover:bg-purple-700">
+                        class="flex-1 bg-purple-600 text-white py-2 rounded-lg font-bold hover:bg-purple-700">
                         <i class="fas fa-save mr-1"></i>Lưu
                     </button>
                     <button type="button" onclick="closeModal()"
-                            class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300">
+                        class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300">
                         Hủy
                     </button>
                 </div>
@@ -294,7 +295,7 @@
         function showTab(tab) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.getElementById(tab + '-tab').classList.remove('hidden');
-            
+
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.classList.remove('border-purple-600', 'text-purple-600', 'active-tab');
             });
@@ -307,25 +308,43 @@
         });
 
         // ======================
-        // CÁC HÀM CŨ (editSlot, closeModal, deleteSlot, openCreateModal)
+        // MỞ MODAL TẠO MỚI
+        // ======================
+        function openCreateModal() {
+            // Reset form
+            document.getElementById('slotForm').reset();
+            document.getElementById('modalTitle').textContent = 'Tạo khung giờ mới';
+
+            // ✅ XÓA CÁC INPUT ẨN NẾU CÓ
+            const hiddenId = document.getElementById('slotId');
+            if (hiddenId) hiddenId.remove();
+
+            const actionInput = document.getElementById('slotAction');
+            if (actionInput) actionInput.remove();
+
+            // ✅ KHÔNG CẦN action='create' - backend sẽ tự hiểu khi không có slot_id
+
+            document.getElementById('slotModal').classList.remove('hidden');
+        }
+
+        // ======================
+        // MỞ MODAL CHỈNH SỬA
         // ======================
         function editSlot(slotId) {
             const card = document.querySelector(`.slot-card[data-slot-id="${slotId}"]`);
-            if (!card) return;
+            if (!card) {
+                alert('Không tìm thấy khung giờ!');
+                return;
+            }
 
-            const date = card.dataset.date;
-            const startTime = card.dataset.startTime;
-            const duration = card.dataset.duration;
-            const maxParticipants = card.dataset.maxParticipants;
-            const notes = card.dataset.notes;
+            // ✅ Điền dữ liệu vào form
+            document.getElementById('slotDate').value = card.dataset.date;
+            document.getElementById('slotTime').value = card.dataset.startTime;
+            document.getElementById('slotDuration').value = card.dataset.duration;
+            document.getElementById('slotMax').value = card.dataset.maxParticipants;
+            document.getElementById('slotNotes').value = card.dataset.notes || '';
 
-            document.getElementById('modalTitle').textContent = 'Chỉnh sửa khung giờ';
-            document.getElementById('slotDate').value = date;
-            document.getElementById('slotTime').value = startTime;
-            document.getElementById('slotDuration').value = duration;
-            document.getElementById('slotMax').value = maxParticipants;
-            document.getElementById('slotNotes').value = notes;
-
+            // ✅ Thêm slot_id (dấu hiệu backend biết là EDIT)
             let hiddenId = document.getElementById('slotId');
             if (!hiddenId) {
                 hiddenId = document.createElement('input');
@@ -336,21 +355,34 @@
             }
             hiddenId.value = slotId;
 
+            // ✅ KHÔNG CẦN action input - backend sẽ tự biết vì có slot_id
+
+            document.getElementById('modalTitle').textContent = 'Chỉnh sửa khung giờ';
             document.getElementById('slotModal').classList.remove('hidden');
         }
 
+        // ======================
+        // ĐÓNG MODAL
+        // ======================
         function closeModal() {
             document.getElementById('slotModal').classList.add('hidden');
             document.getElementById('slotForm').reset();
 
+            // Xóa các input ẩn
             const hiddenId = document.getElementById('slotId');
             if (hiddenId) hiddenId.remove();
+
+            const actionInput = document.getElementById('slotAction');
+            if (actionInput) actionInput.remove();
 
             document.getElementById('modalTitle').textContent = 'Tạo khung giờ mới';
         }
 
+        // ======================
+        // XÓA KHUNG GIỜ
+        // ======================
         async function deleteSlot(slotId) {
-            if (!confirm('Bạn có chắc muốn xóa khung giờ này?\nNếu đã có người đặt sẽ mất lịch hẹn!')) return;
+            if (!confirm('Bạn có chắc muốn xóa khung giờ này?\n⚠️ Nếu đã có người đặt sẽ mất lịch hẹn!')) return;
 
             try {
                 const formData = new FormData();
@@ -363,28 +395,83 @@
                 });
 
                 if (res.ok) {
+                    // ✅ Xóa card khỏi giao diện
                     const card = document.querySelector(`.slot-card[data-slot-id="${slotId}"]`);
                     if (card) {
                         card.style.transition = 'opacity 0.5s';
                         card.style.opacity = '0';
-                        setTimeout(() => card.remove(), 500);
+                        setTimeout(() => {
+                            card.remove();
+
+                            // Kiểm tra nếu không còn slot nào → hiện empty state
+                            const container = document.getElementById('slotsContainer');
+                            if (container && container.children.length === 0) {
+                                location.reload(); // Reload để hiện empty state
+                            }
+                        }, 500);
                     }
-                    alert('Đã xóa khung giờ thành công!');
+
+                    // ✅ Hiện thông báo thành công
+                    showToast('✅ Đã xóa khung giờ thành công!', 'success');
                 } else {
-                    alert('Có lỗi xảy ra!');
+                    const data = await res.json();
+                    alert('❌ ' + (data.error || 'Có lỗi xảy ra!'));
                 }
             } catch (error) {
                 console.error('Error:', error);
-                alert('Lỗi kết nối!');
+                alert('❌ Lỗi kết nối server!');
             }
         }
 
-        function openCreateModal() {
-            document.getElementById('slotModal').classList.remove('hidden');
-            document.getElementById('modalTitle').textContent = 'Tạo khung giờ mới';
-            document.getElementById('slotForm').reset();
-            const hiddenId = document.getElementById('slotId');
-            if (hiddenId) hiddenId.remove();
+        // ======================
+        // HÀM HIỂN THỊ TOAST (BONUS)
+        // ======================
+        function showToast(message, type = 'info') {
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                info: 'bg-blue-500'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-4 rounded-lg shadow-2xl z-50 transform transition-all`;
+            toast.textContent = message;
+
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
         }
+
+        // ======================
+        // XỬ LÝ SUBMIT FORM (QUAN TRỌNG!)
+        // ======================
+        document.getElementById('slotForm').addEventListener('submit', function (e) {
+            // ✅ Kiểm tra dữ liệu trước khi submit
+            const date = document.getElementById('slotDate').value;
+            const time = document.getElementById('slotTime').value;
+            const duration = document.getElementById('slotDuration').value;
+
+            if (!date || !time || !duration) {
+                e.preventDefault();
+                alert('❌ Vui lòng điền đầy đủ thông tin!');
+                return false;
+            }
+
+            // ✅ Kiểm tra ngày không được trong quá khứ
+            const selectedDate = new Date(date + 'T' + time);
+            const now = new Date();
+
+            if (selectedDate < now) {
+                e.preventDefault();
+                alert('❌ Không thể tạo khung giờ trong quá khứ!');
+                return false;
+            }
+
+            console.log('✅ Form validation passed, submitting...');
+            return true;
+        });
     </script>
-{% endblock %}
+    {% endblock %}

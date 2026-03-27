@@ -24,6 +24,7 @@ from functools import wraps
 from flask_login import current_user
 # ===== THÊM DÒNG NÀY ĐỂ IMPORT RECOMMENDER =====
 from recommendation_system import recommender
+from tasks import scheduler
 
 # ✅ THÊM DÒNG NÀY - Import model CommentLike
 from models import (
@@ -715,13 +716,35 @@ from sqlalchemy import func
 @login_required
 def profile():
     if request.method == 'POST':
-        current_user.name = request.form['name'].strip()
+        # 1. Thông tin cơ bản
+        current_user.name = request.form.get('name', current_user.name).strip()
         current_user.bio = request.form.get('bio', '').strip()
-        
-        # ✅ THÊM 2 DÒNG NÀY
+        current_user.phone = request.form.get('phone', '').strip() # Thêm phone
         current_user.children_count = int(request.form.get('children_count', 0))
         current_user.children_ages = request.form.get('children_ages', '').strip()
+
+        # 2. Thông tin chuyên gia (nếu là expert)
+        if current_user.is_verified_expert:
+            current_user.specialty = request.form.get('specialty', '').strip()
+            current_user.workplace = request.form.get('workplace', '').strip()
+            current_user.experience_years = int(request.form.get('experience_years', 0))
+            current_user.consultation_fee = float(request.form.get('consultation_fee', 0))
+            current_user.education = request.form.get('education', '').strip()
+            current_user.certifications = request.form.get('certifications', '').strip()
+            
+            # Thông tin chứng chỉ
+            current_user.license_number = request.form.get('license_number', '').strip()
+            license_expiry_str = request.form.get('license_expiry')
+            if license_expiry_str:
+                try:
+                    current_user.license_expiry = datetime.strptime(license_expiry_str, '%Y-%m-%d')
+                except:
+                    current_user.license_expiry = None
+            
+            # Trạng thái hoạt động
+            current_user.availability = request.form.get('availability', 'available')
         
+        # 3. Xử lý Avatar
         if 'avatar' in request.files:
             file = request.files['avatar']
             if file and file.filename:
@@ -796,6 +819,11 @@ def create_post():
         
         post.created_at = vietnam_now()
         db.session.add(post)
+
+        # ✅ THÊM DÒNG NÀY - cộng 20 điểm khi đăng bài
+        current_user.points += 20
+        update_user_badge(current_user)
+
         db.session.commit()
 
         # Thông báo cho tác giả nếu là bài viết chuyên gia
@@ -977,17 +1005,17 @@ def api_notifications():
             avatar = f'uploads/{avatar}' if not avatar.startswith('static/') else avatar.replace('static/', '')
         avatar_url = url_for('static', filename=avatar)
         
-        # 🔥 TẠO redirect_url với hash để scroll
-        redirect_url = '/notifications'
+        # 🔥 TẠO redirect_url (SỬA Ở ĐÂY)
+        redirect_url = '/notifications' # Mặc định
         
-        if n.type == 'comment' and n.related_id:
+        if n.type == 'chat' and n.related_user_id:
+            redirect_url = f'/chat/{n.related_user_id}' # 👈 THÊM DÒNG NÀY
+        elif n.type == 'comment' and n.related_id:
             redirect_url = f'/post/{n.related_id}#comments-section-{n.related_id}'
         elif n.type == 'like' and n.related_id:
             redirect_url = f'/post/{n.related_id}'
         elif n.type in ['friend_request', 'friend_accepted']:
-            redirect_url = f'/notifications#notif-{n.id}'  # 🔥 SCROLL TỚI THÔNG BÁO
-        else:
-            redirect_url = f'/notifications#notif-{n.id}'  # 🔥 MẶC ĐỊNH
+            redirect_url = '/friends'
         
         results.append({
             "id": n.id,
@@ -997,7 +1025,7 @@ def api_notifications():
             "is_read": n.is_read,
             "created_at": n.created_at.strftime('%H:%M %d/%m'),
             "related_user_avatar": avatar_url,
-            "redirect_url": redirect_url  # 🔥 ĐÃ CÓ HASH
+            "redirect_url": redirect_url
         })
     
     return jsonify(results)
@@ -1451,7 +1479,8 @@ def admin_delete_post(post_id):
         db.session.delete(post)
         
         db.session.commit()
-        return jsonify({'success': True, 'message': 'Đã xóa bài viết, trừ 50 điểm tác giả và gửi thông báo!'})
+        flash('Đã xóa bài viết, trừ 50 điểm tác giả và gửi thông báo!', 'success')
+        return redirect(url_for('admin_dashboard'))
     
     except Exception as e:
         db.session.rollback()
@@ -1459,11 +1488,13 @@ def admin_delete_post(post_id):
         return jsonify({'error': str(e)}), 500
 
 #Cảnh báo & Trừ điểm (không xóa bài)
+#Cảnh báo & Trừ điểm (không xóa bài)
 @app.route('/admin/report/<int:report_id>/warn', methods=['POST'])
 @login_required
 def admin_warn_report(report_id):
     if current_user.role != 'admin':
-        return jsonify({'error': 'Không có quyền!'}), 403
+        flash('Bạn không có quyền!', 'error')
+        return redirect(url_for('admin_dashboard'))
     
     report = Report.query.get_or_404(report_id)
     post = report.post
@@ -1488,14 +1519,14 @@ def admin_warn_report(report_id):
         db.session.delete(report)
         db.session.commit()
         
-        return jsonify({
-            'success': True,
-            'message': 'Đã cảnh báo và trừ điểm tác giả!'
-        }, ensure_ascii=False)
-    
+        # ✅ SỬA LỖI: Dùng Flash + Redirect thay vì jsonify
+        flash(f'Đã cảnh báo và trừ 50 điểm của tác giả {post.author.name}!', 'success')
+        return redirect(url_for('admin_dashboard'))
+        
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        flash(f'Có lỗi xảy ra: {str(e)}', 'error')
+        return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/post/<int:post_id>/lock', methods=['POST'])
 @app.route('/admin/post/<int:post_id>/unlock', methods=['POST'])
@@ -1884,30 +1915,24 @@ def unhide_post(post_id):
 @login_required
 def send_friend_request(user_id):
     recipient = User.query.get_or_404(user_id)
-    
+  
     if recipient.id == current_user.id:
-        return jsonify({'error': 'Không thể gửi lời mời cho chính mình!'}), 400
-    
-    # Kiểm tra đã là bạn bè chưa
+        return jsonify({'success': False, 'error': 'Không thể gửi lời mời cho chính mình!'}), 400
+  
     if current_user.is_friends_with(user_id):
-        return jsonify({'error': 'Đã là bạn bè rồi!'}), 400
-    
-    # Kiểm tra đã có lời mời nào chưa
+        return jsonify({'success': False, 'error': 'Đã là bạn bè rồi!'}), 400
+  
     if current_user.has_pending_friend_request_to(user_id):
-        return jsonify({'error': 'Đã gửi lời mời trước đó!'}), 400
-    
+        return jsonify({'success': False, 'error': 'Đã gửi lời mời trước đó!'}), 400
+  
     if current_user.has_pending_friend_request_from(user_id):
-        return jsonify({'error': 'Người này đã gửi lời mời cho bạn!'}), 400
-    
-    # Tạo lời mời kết bạn mới
-    friend_request = FriendRequest(
-        sender_id=current_user.id,
-        receiver_id=user_id,
-        status='pending'
-    )
+        return jsonify({'success': False, 'error': 'Người này đã gửi lời mời cho bạn!'}), 400
+  
+    # Tạo lời mời...
+    friend_request = FriendRequest(sender_id=current_user.id, receiver_id=user_id, status='pending')
     db.session.add(friend_request)
-    
-    # Tạo thông báo cho người nhận
+
+    # Tạo notification...
     notification = Notification(
         user_id=user_id,
         title="Lời mời kết bạn mới!",
@@ -1916,9 +1941,25 @@ def send_friend_request(user_id):
         related_user_id=current_user.id
     )
     db.session.add(notification)
-    
+  
     db.session.commit()
-    
+
+    # ================== THÊM PHẦN NÀY ==================
+    # Realtime thông báo cho người nhận (nếu họ đang online)
+    try:
+        # Gửi qua SocketIO đến user cụ thể
+        socketio.emit('new_notification', {
+            'id': notification.id,
+            'title': notification.title,
+            'message': notification.message,
+            'type': notification.type,
+            'created_at': notification.created_at.strftime('%H:%M'),
+            'related_user_avatar': url_for('static', filename=current_user.avatar or 'images/default-avatar.png')
+        }, room=f"user_{user_id}")   # room theo user_id
+    except Exception as e:
+        print(f"Socket emit error: {e}")
+    # ===================================================
+  
     return jsonify({
         'success': True,
         'message': f'Đã gửi lời mời kết bạn tới {recipient.name}!',
@@ -1930,41 +1971,59 @@ def send_friend_request(user_id):
 @login_required
 def accept_friend_request(request_id):
     friend_request = FriendRequest.query.get_or_404(request_id)
-    
-    # Kiểm tra xem lời mời có dành cho current_user không
+  
     if friend_request.receiver_id != current_user.id:
-        return jsonify({'error': 'Không có quyền xử lý lời mời này!'}), 403
-    
+        return jsonify({'error': 'Không có quyền!'}), 403
+  
     if friend_request.status != 'pending':
         return jsonify({'error': 'Lời mời đã được xử lý!'}), 400
-    
-    # Cập nhật trạng thái lời mời
+  
+    # Cập nhật trạng thái
     friend_request.status = 'accepted'
     friend_request.updated_at = vietnam_now()
-    
+
     # Tạo quan hệ bạn bè
     friendship = Friendship(
         user1_id=friend_request.sender_id,
         user2_id=current_user.id
     )
     db.session.add(friendship)
-    
-    # Tạo thông báo cho người gửi
+
+    # Tạo thông báo cho người gửi lời mời
     notification = Notification(
         user_id=friend_request.sender_id,
-        title="Lời mời được chấp nhận!",
-        message=f"{current_user.name} đã chấp nhận lời mời kết bạn của bạn.",
+        title="Đã chấp nhận lời mời kết bạn!",
+        message=f"{current_user.name} đã chấp nhận lời mời kết bạn của bạn. Hai bạn đã là bạn bè!",
         type='friend_accepted',
         related_user_id=current_user.id
     )
     db.session.add(notification)
-    
     db.session.commit()
-    
+
+    # ================== REALTIME ==================
+    try:
+        # Gửi realtime cho người được chấp nhận (người gửi lời mời)
+        socketio.emit('new_notification', {
+            'title': notification.title,
+            'message': notification.message,
+            'type': 'friend_accepted',
+            'related_user_avatar': url_for('static', filename=current_user.avatar or 'images/default-avatar.png')
+        }, room=f"user_{friend_request.sender_id}")
+
+        # Optional: Thông báo cho chính người chấp nhận
+        socketio.emit('friend_status_changed', {
+            'status': 'friends',
+            'user_id': friend_request.sender_id,
+            'name': friend_request.sender.name
+        }, room=f"user_{current_user.id}")
+    except:
+        pass
+    # ==============================================
+
     return jsonify({
         'success': True,
         'message': f'Đã kết bạn với {friend_request.sender.name}!',
-        'status': 'friends'
+        'user_name': friend_request.sender.name  # ← THÊM DÒNG NÀY
     })
 
 # === TỪ CHỐI LỜI MỜI KẾT BẠN ===
@@ -2079,19 +2138,50 @@ def friends():
     )
 
 # === CHAT ROUTE ===
+# === CHAT ROUTE - CHO CẢ BẠN BÈ VÀ TƯ VẤN CHUYÊN GIA ===
 @app.route('/chat/<int:user_id>')
 @login_required
 def chat(user_id):
-    # ✅ KIỂM TRA BẠN BÈ ĐÚNG CÁCH
+    other_user = User.query.get_or_404(user_id)
+    
+    can_chat = False
+    
+    # Trường hợp 1: Đã là bạn bè
     friendship = Friendship.query.filter(
         ((Friendship.user1_id == current_user.id) & (Friendship.user2_id == user_id)) |
         ((Friendship.user1_id == user_id) & (Friendship.user2_id == current_user.id))
     ).first()
     
-    if not friendship:
-        return render_template('not_friend.html', other_id=user_id)
+    if friendship:
+        can_chat = True
     
-    other_user = User.query.get_or_404(user_id)
+    # Trường hợp 2: Có booking hợp lệ (không cần bạn bè)
+    # Check cả 2 chiều: user đặt lịch chuyên gia HOẶC chuyên gia có booking với user
+    if not can_chat:
+        now = datetime.now()
+        
+        booking = Booking.query.join(TimeSlot).filter(
+            db.or_(
+                # User thường chat với chuyên gia
+                db.and_(
+                    Booking.user_id == current_user.id,
+                    TimeSlot.expert_id == user_id
+                ),
+                # Chuyên gia chat với user
+                db.and_(
+                    Booking.user_id == user_id,
+                    TimeSlot.expert_id == current_user.id
+                )
+            ),
+            Booking.status == 'scheduled'
+        ).first()  # ← BỎ filter start_time để không bị chặn bởi timezone
+        
+        if booking:
+            can_chat = True
+    
+    if not can_chat:
+        return render_template('not_friend.html', other_id=user_id, other_user=other_user)
+    
     return render_template('chat.html', other_user=other_user)
 
 @socketio.on('join_chat')
@@ -2104,31 +2194,69 @@ def on_join_chat(data):
 
 @socketio.on('send_message')
 def handle_message(data):
-    sender_id = data['sender_id']
-    receiver_id = data['receiver_id']
-    content = data['content'].strip()
-    
+    sender_id   = int(data['sender_id'])
+    receiver_id = int(data['receiver_id'])
+    content     = data['content'].strip()
+
     if not content or sender_id == receiver_id:
         return
 
-    # Lưu vào DB
+    # 1. Lưu tin nhắn vào DB
     msg = Message(sender_id=sender_id, receiver_id=receiver_id, content=content)
     db.session.add(msg)
-    db.session.commit()
-
-    timestamp = vietnam_now().strftime('%H:%M %d/%m')
+    
     sender = User.query.get(sender_id)
+    timestamp = vietnam_now().strftime('%H:%M %d/%m')
 
+    # 2. Gửi tin nhắn realtime đến phòng chat
     message_data = {
-        'sender_id': sender_id,
+        'sender_id':   sender_id,
         'sender_name': sender.name,
-        'content': content,
-        'timestamp': timestamp
+        'content':     content,
+        'timestamp':   timestamp,
+        'type':        'text'
     }
-
     room = f"chat_{min(sender_id, receiver_id)}_{max(sender_id, receiver_id)}"
     emit('receive_message', message_data, room=room, include_self=True, broadcast=True)
-    print(f"✅ Sent to room {room}: {content}")
+
+    # ========================================================
+    # ✅ PHẦN THÊM MỚI: TẠO THÔNG BÁO (Để hiện trong chuông)
+    # ========================================================
+    
+    # Xóa thông báo chưa đọc cũ của người gửi này để tránh trùng lặp
+    Notification.query.filter_by(
+        user_id=receiver_id,
+        related_user_id=sender_id,
+        type='chat',
+        is_read=False
+    ).delete()
+    
+    # Tạo thông báo mới
+    notif = Notification(
+        user_id=receiver_id,
+        title=f"Tin nhắn mới từ {sender.name}",
+        message=content[:50] + ('...' if len(content) > 50 else ''),
+        type='chat',
+        related_user_id=sender_id,
+        is_read=False
+    )
+    db.session.add(notif)
+    db.session.commit()
+    
+    # ========================================================
+    # ✅ PHẦN THÊM MỚI: GỬI SOCKET ĐỂ HIỆN TOAST GÓC PHẢI
+    # ========================================================
+    receiver_socket = online_users.get(receiver_id)
+    
+    if receiver_socket:
+        socketio.emit('new_chat_notification', {
+            'sender_id':     sender_id,
+            'sender_name':   sender.name,
+            'sender_avatar': sender.avatar or 'images/default-avatar.png',
+            'content':       content[:50] + ('...' if len(content) > 50 else ''),
+            'chat_url':      f'/chat/{sender_id}', # Link để redirect
+            'notification_id': notif.id
+        }, room=receiver_socket)
 
 # THÊM VÀO app.py - THAY THẾ PHẦN VIDEO CALL SOCKET EVENTS
 
@@ -2139,23 +2267,22 @@ online_users = {}
 def handle_connect():
     print(f'✅ User connected: {request.sid}')
 
-@socketio.on('disconnect')
-def handle_disconnect():
-    # Xóa user khỏi danh sách online
-    for user_id, sid in list(online_users.items()):
-        if sid == request.sid:
-            del online_users[user_id]
-            print(f'❌ User {user_id} disconnected')
-    print(f'Client disconnected: {request.sid}')
-
 @socketio.on('register_user')
 def handle_register_user(data):
-    """Đăng ký user_id với socket_id"""
     user_id = data.get('user_id')
     if user_id:
-        online_users[user_id] = request.sid
-        print(f'📝 Registered user {user_id} with socket {request.sid}')
-        print(f'Online users: {online_users}')
+        online_users[int(user_id)] = request.sid  # ép int để tránh lỗi kiểu dữ liệu
+        print(f'✅ REGISTER: user_id={user_id} → sid={request.sid}')
+        print(f'📊 online_users = {online_users}')
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    for uid, sid in list(online_users.items()):
+        if sid == request.sid:
+            del online_users[uid]
+            print(f'❌ DISCONNECT: user_id={uid} offline')
+    print(f'📊 online_users sau disconnect = {online_users}')
 
 @socketio.on('video_call_request')
 def handle_video_call_request(data):
@@ -2322,6 +2449,19 @@ def handle_stop_typing(data):
     emit('user_stop_typing', {
         'sender_id': data['sender_id']
     }, room=online_users.get(data['receiver_id']))
+
+# Thêm vào route book_slot trong app.py
+@socketio.on('new_booking')
+def handle_new_booking(data):
+    """Realtime notification khi có booking mới"""
+    expert_id = data.get('expert_id')
+    
+    # Gửi cho chuyên gia (nếu đang online)
+    if expert_id in online_users:
+        emit('booking_notification', {
+            'message': 'Bạn có lịch tư vấn mới!',
+            'booking_id': data.get('booking_id')
+        }, room=online_users[expert_id])
 
 # ============================================
 # CẬP NHẬT CHAT HISTORY API
@@ -2671,12 +2811,14 @@ def expert_posts():
 
 
 # ✅ 1. TRANG QUẢN LÝ KHUNG GIỜ
+# Thêm vào app.py
 @app.route('/expert/schedule', methods=['GET', 'POST'])
 @expert_required
 def expert_schedule():
     if request.method == 'POST':
-        action = request.form.get('action', 'create')
+        action = request.form.get('action', 'create')  # ✅ Mặc định là 'create'
         
+        # ===== XỬ LÝ XÓA =====
         if action == 'delete':
             slot_id = request.form.get('slot_id')
             slot = TimeSlot.query.get_or_404(slot_id)
@@ -2689,7 +2831,7 @@ def expert_schedule():
             if slot.booking:
                 notif = Notification(
                     user_id=slot.booking.user_id,
-                    title="Khung giờ tư vấn bị hủy",
+                    title="⚠️ Khung giờ tư vấn bị hủy",
                     message=f"Chuyên gia {current_user.name} đã hủy khung giờ lúc {slot.start_time.strftime('%H:%M %d/%m/%Y')}",
                     type='booking_cancelled'
                 )
@@ -2700,32 +2842,50 @@ def expert_schedule():
             flash('Đã xóa khung giờ thành công!', 'success')
             return redirect(url_for('expert_schedule'))
         
-        # Xử lý tạo/sửa (giữ nguyên code cũ của em)
-        slot_id = request.form.get('slot_id')
+        # ===== LẤY DỮ LIỆU TỪ FORM =====
+        slot_id = request.form.get('slot_id')  # ✅ Có = EDIT, Không có = CREATE
         date_str = request.form.get('date')
         start_time_str = request.form.get('start_time')
         duration_str = request.form.get('duration', '30')
         max_participants_str = request.form.get('max_participants', '1')
         notes = request.form.get('notes', '')
         
+        # ===== VALIDATE =====
+        if not date_str or not start_time_str:
+            flash('Vui lòng điền đầy đủ ngày và giờ!', 'error')
+            return redirect(url_for('expert_schedule'))
+        
         try:
+            # Parse datetime
             start_datetime_naive = datetime.strptime(f"{date_str} {start_time_str}", '%Y-%m-%d %H:%M')
             vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
             start_datetime = vn_tz.localize(start_datetime_naive)
+            
             duration = int(duration_str)
             end_datetime = start_datetime + timedelta(minutes=duration)
             max_participants = int(max_participants_str)
+            
             if max_participants < 1:
                 max_participants = 1
+            
+            # Kiểm tra thời gian không được trong quá khứ
+            if start_datetime < vietnam_now():
+                flash('Không thể tạo khung giờ trong quá khứ!', 'error')
+                return redirect(url_for('expert_schedule'))
+            
         except ValueError as e:
-            flash(f'Dữ liệu ngày/giờ không hợp lệ: {str(e)}', 'error')
+            flash(f'Dữ liệu không hợp lệ: {str(e)}', 'error')
             return redirect(url_for('expert_schedule'))
         
-        if slot_id:  # Chỉnh sửa
+        # ===== EDIT HOẶC CREATE =====
+        if slot_id:
+            # ✅ CHỈNH SỬA
             slot = TimeSlot.query.get_or_404(slot_id)
+            
             if slot.expert_id != current_user.id:
                 flash('Không có quyền chỉnh sửa!', 'error')
                 return redirect(url_for('expert_schedule'))
+            
             if slot.booking:
                 flash('Không thể chỉnh sửa khung giờ đã có người đặt!', 'warning')
                 return redirect(url_for('expert_schedule'))
@@ -2734,8 +2894,10 @@ def expert_schedule():
             slot.end_time = end_datetime
             slot.max_participants = max_participants
             slot.notes = notes
-            flash('Đã cập nhật khung giờ thành công!', 'success')
-        else:  # Tạo mới
+            
+            flash('✅ Đã cập nhật khung giờ thành công!', 'success')
+        else:
+            # ✅ TẠO MỚI
             slot = TimeSlot(
                 expert_id=current_user.id,
                 start_time=start_datetime,
@@ -2745,21 +2907,21 @@ def expert_schedule():
                 status='available'
             )
             db.session.add(slot)
-            flash('Đã tạo khung giờ mới thành công!', 'success')
+            flash('✅ Đã tạo khung giờ mới thành công!', 'success')
         
         db.session.commit()
         return redirect(url_for('expert_schedule'))
 
-    # GET - Hiển thị danh sách
+    # ===== GET - HIỂN THỊ DANH SÁCH =====
     now = vietnam_now()
     min_date = now.strftime('%Y-%m-%d')
     
-    # Lịch sắp tới (future + available/booked)
+    # Lịch sắp tới
     upcoming_slots = TimeSlot.query.filter_by(expert_id=current_user.id)\
                                   .filter(TimeSlot.start_time >= now)\
                                   .order_by(TimeSlot.start_time).all()
     
-    # Lịch cũ (đã qua, cancelled, booked cũ)
+    # Lịch cũ
     old_slots = TimeSlot.query.filter_by(expert_id=current_user.id)\
                              .filter(TimeSlot.start_time < now)\
                              .order_by(TimeSlot.start_time.desc()).all()
@@ -2818,77 +2980,155 @@ def view_expert_slots(expert_id):
     return render_template('expert_slots.html', expert=expert, slots=available_slots)
 
 # ✅ 4. ĐẶT LỊCH TƯ VẤN
+# ✅ 4. ĐẶT LỊCH TƯ VẤN
 @app.route('/book-slot/<int:slot_id>', methods=['POST'])
 @login_required
 def book_slot(slot_id):
-    slot = TimeSlot.query.get_or_404(slot_id)
-    
-    # Kiểm tra khung giờ
-    if slot.status != 'available':
-        return jsonify({'error': 'Khung giờ không còn trống!'}), 400
-    
-    if slot.start_time <= vietnam_now():
-        return jsonify({'error': 'Khung giờ đã qua!'}), 400
-    
-    # Kiểm tra đã đặt chưa
-    existing = Booking.query.filter_by(user_id=current_user.id, time_slot_id=slot_id).first()
-    if existing:
-        return jsonify({'error': 'Bạn đã đặt khung giờ này rồi!'}), 400
-    
-    # Tạo booking
-    booking = Booking(
-        user_id=current_user.id,
-        time_slot_id=slot_id,
-        notes=request.form.get('notes', ''),
-        status='scheduled'
-    )
-    db.session.add(booking)
-    
-    # Cập nhật trạng thái slot
-    slot.status = 'booked'
-    
-    # Thông báo cho chuyên gia
-    notif = Notification(
-        user_id=slot.expert_id,
-        title="Có lịch tư vấn mới",
-        message=f"{current_user.name} đã đặt lịch tư vấn lúc {slot.start_time.strftime('%H:%M %d/%m/%Y')}",
-        type='new_booking',
-        related_user_id=current_user.id
-    )
-    db.session.add(notif)
-    
-    db.session.commit()
-    
-    return jsonify({
-        'success': True,
-        'message': 'Đặt lịch thành công!'
-    })
+    """Đặt lịch tư vấn - Chỉ thông báo cho Chuyên gia"""
+    try:
+        slot = TimeSlot.query.get_or_404(slot_id)
+        
+        # Kiểm tra trạng thái slot
+        if slot.status != 'available':
+            return jsonify({
+                'success': False,
+                'error': 'Khung giờ không còn trống!'
+            }), 400
+        
+        # Kiểm tra thời gian
+        now = vietnam_now()
+        if now.tzinfo is None:
+            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+            now = vn_tz.localize(now)
+        
+        slot_time = slot.start_time
+        if slot_time.tzinfo is None:
+            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+            slot_time = vn_tz.localize(slot_time)
+        
+        if slot_time <= now:
+            return jsonify({
+                'success': False,
+                'error': 'Khung giờ đã qua!'
+            }), 400
+        
+        # Kiểm tra đã đặt chưa
+        existing = Booking.query.filter_by(
+            user_id=current_user.id,
+            time_slot_id=slot_id
+        ).first()
+        
+        if existing:
+            return jsonify({
+                'success': False,
+                'error': 'Bạn đã đặt khung giờ này rồi!'
+            }), 400
+        
+        # ✅ TẠO BOOKING MỚI
+        booking = Booking(
+            user_id=current_user.id,
+            time_slot_id=slot_id,
+            notes=request.form.get('notes', ''),
+            status='scheduled'
+        )
+        db.session.add(booking)
+        
+        # Cập nhật trạng thái slot
+        slot.status = 'booked'
+        
+        # =========================================================
+        # ✅ LOGIC THÔNG BÁO: CHỈ GỬI CHO CHUYÊN GIA CỦA SLOT NÀY
+        # =========================================================
+        
+        # 1. Tạo thông báo trong Database (Hiện trong icon chuông)
+        notif = Notification(
+            user_id=slot.expert_id,  # 👈 Chỉ gửi cho chuyên gia sở hữu slot
+            title="📅 Có lịch tư vấn mới",
+            message=f"{current_user.name} đã đặt lịch tư vấn lúc {slot.start_time.strftime('%H:%M %d/%m/%Y')}",
+            type='new_booking',
+            related_user_id=current_user.id,
+            related_id=booking.id
+        )
+        db.session.add(notif)
+        
+        db.session.commit()
+        
+        # 2. Gửi Real-time Socket (Hiện popup toast ngay lập tức)
+        # Chỉ gửi đến room của chuyên gia (user_{expert_id})
+        socketio.emit('new_notification', {
+            'id': notif.id,
+            'title': notif.title,
+            'message': notif.message,
+            'type': notif.type,
+            'created_at': notif.created_at.strftime('%H:%M'),
+            'related_user_avatar': url_for('static', filename=current_user.avatar or 'images/default-avatar.png')
+        }, room=f"user_{slot.expert_id}") # 👈 Room riêng của chuyên gia
+        
+        # =========================================================
+        
+        return jsonify({
+            'success': True,
+            'message': 'Đặt lịch thành công!',
+            'booking_id': booking.id
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Lỗi book_slot: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            'success': False,
+            'error': f'Lỗi server: {str(e)}'
+        }), 500
 
 # ✅ 5. HỦY LỊCH ĐÃ ĐẶT (Người dùng)
+# ✅ 5. HỦY LỊCH ĐÃ ĐẶT (Người dùng hủy)
 @app.route('/cancel-booking/<int:booking_id>', methods=['POST'])
 @login_required
 def cancel_booking(booking_id):
+    """Hủy lịch - Chỉ thông báo cho Chuyên gia"""
     booking = Booking.query.get_or_404(booking_id)
     
+    # Kiểm tra quyền
     if booking.user_id != current_user.id:
         return jsonify({'error': 'Không có quyền!'}), 403
     
-    # Giải phóng khung giờ
     slot = booking.time_slot
+    
+    # Giải phóng khung giờ
     slot.status = 'available'
     
-    # Thông báo cho chuyên gia
+    # =========================================================
+    # ✅ LOGIC THÔNG BÁO: CHỈ GỬI CHO CHUYÊN GIA
+    # =========================================================
+    
+    # 1. Tạo thông báo Database
     notif = Notification(
-        user_id=slot.expert_id,
-        title="Lịch tư vấn bị hủy",
+        user_id=slot.expert_id, # 👈 Chỉ gửi cho chuyên gia
+        title="⚠️ Lịch tư vấn bị hủy",
         message=f"{current_user.name} đã hủy lịch tư vấn lúc {slot.start_time.strftime('%H:%M %d/%m/%Y')}",
         type='booking_cancelled',
         related_user_id=current_user.id
     )
     db.session.add(notif)
     
+    # Xóa booking
     db.session.delete(booking)
     db.session.commit()
+    
+    # 2. Gửi Real-time Socket
+    socketio.emit('new_notification', {
+        'id': notif.id,
+        'title': notif.title,
+        'message': notif.message,
+        'type': notif.type,
+        'created_at': notif.created_at.strftime('%H:%M'),
+        'related_user_avatar': url_for('static', filename=current_user.avatar or 'images/default-avatar.png')
+    }, room=f"user_{slot.expert_id}") # 👈 Chỉ gửi cho chuyên gia
+    
+    # =========================================================
     
     return jsonify({'success': True})
 
@@ -2896,24 +3136,32 @@ def cancel_booking(booking_id):
 @app.route('/my-bookings')
 @login_required
 def my_bookings():
-    now = vietnam_now()
+    now = datetime.now()  # ← dùng datetime thuần, không timezone
     
-    # Lịch sắp tới
+    all_bookings = Booking.query.filter_by(user_id=current_user.id).all()
+    print(f"=== DEBUG my_bookings ===")
+    print(f"User ID: {current_user.id}")
+    print(f"Total bookings: {len(all_bookings)}")
+    for b in all_bookings:
+        slot = b.time_slot
+        print(f"  Booking {b.id}: status={b.status}")
+        print(f"  slot.start_time={slot.start_time} (type={type(slot.start_time)})")
+        print(f"  now={now} (type={type(now)})")
+        print(f"  start_time >= now? {slot.start_time >= now}")
+    
     upcoming = Booking.query.filter_by(user_id=current_user.id, status='scheduled')\
                            .join(TimeSlot)\
                            .filter(TimeSlot.start_time >= now)\
                            .order_by(TimeSlot.start_time).all()
     
-    # Lịch cũ (đã qua, đã hủy, đã hoàn thành)
     old_bookings = Booking.query.filter_by(user_id=current_user.id)\
                                .join(TimeSlot)\
                                .filter(TimeSlot.start_time < now)\
                                .order_by(TimeSlot.start_time.desc()).all()
     
-    return render_template('my_bookings.html', 
-                          upcoming=upcoming, 
-                          old_bookings=old_bookings,
-                          now=now)
+    print(f"Upcoming: {len(upcoming)}, Old: {len(old_bookings)}")
+    
+    return render_template('my_bookings.html', upcoming=upcoming, old_bookings=old_bookings, now=now)
 
 
 # ====================================
@@ -3331,7 +3579,7 @@ def expert_consult_chat(expert_id):
         ((Message.sender_id == expert_id) & (Message.receiver_id == current_user.id))
     ).order_by(Message.timestamp.asc()).all()
     
-    return render_template('expert_consult_chat.html', expert=expert, messages=messages)
+    return render_template('chat.html', other_user=expert, messages=messages)
 
 # ====================================
 # EDIT BÀI VIẾT CHUYÊN GIA
@@ -3342,60 +3590,44 @@ def expert_edit_post(post_id):
     post = Post.query.get_or_404(post_id)
     
     if post.user_id != current_user.id:
-        flash('Bạn không có quyền chỉnh sửa bài viết này!', 'error')
-        return redirect(url_for('expert_posts'))
+        return jsonify({'error': 'Không có quyền!'}), 403
     
-    if request.method == 'POST':
-        title = request.form.get('title', '').strip()
-        content = request.form.get('content', '').strip()
-        category = request.form.get('category', 'other')
-        
-        if not title or not content:
-            flash('Vui lòng điền đầy đủ tiêu đề và nội dung!', 'error')
-            return redirect(url_for('expert_edit_post', post_id=post_id))
-        
-        # Xử lý upload media mới (nếu có)
-        images_list = post.images.split(',') if post.images else []
-        video_file = post.video
-        
-        if 'media' in request.files:
-            files = request.files.getlist('media')
-            for file in files:
-                if file and file.filename:
-                    filename = secure_filename(f"{int(time.time())}_{file.filename}")
-                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(filepath)
-                    
-                    if file.mimetype.startswith('video/'):
-                        video_file = filename
-                    else:
-                        images_list.append(filename)
-        
-        # Cập nhật bài viết
-        post.title = title
-        post.content = content
-        post.category = category
-        post.images = ','.join(images_list) if images_list else None
-        post.video = video_file
-        post.updated_at = vietnam_now()
-        
-        db.session.commit()
-        flash('Đã cập nhật bài viết thành công!', 'success')
-        return redirect(url_for('expert_posts'))
-    
-    # GET: trả về dữ liệu để điền vào modal (dùng cho AJAX)
+    # ✅ Nếu là AJAX request → trả JSON
     if request.args.get('ajax'):
         return jsonify({
             'id': post.id,
             'title': post.title,
             'content': post.content,
-            'category': post.category,
-            'images': post.get_images_list() if post.images else [],
-            'video': post.video
+            'category': post.category
         })
     
-    # Nếu không phải AJAX thì render trang riêng (tùy chọn)
+    # ✅ Nếu là POST → cập nhật
+    if request.method == 'POST':
+        post.title = request.form.get('title', '').strip()
+        post.content = request.form.get('content', '').strip()
+        post.category = request.form.get('category', 'other')
+        
+        # Xử lý upload media mới (nếu có)
+        if 'media' in request.files:
+            files = request.files.getlist('media')
+            images_list = []
+            for file in files:
+                if file and file.filename:
+                    filename = secure_filename(f"{int(time.time())}_{file.filename}")
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(filepath)
+                    images_list.append(filename)
+            
+            if images_list:
+                post.images = ','.join(images_list)
+        
+        post.updated_at = vietnam_now()
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Cập nhật thành công!'})
+    
     return render_template('expert/edit_post.html', post=post)
+
 
 
 # ====================================
@@ -3407,29 +3639,23 @@ def expert_delete_post(post_id):
     post = Post.query.get_or_404(post_id)
     
     if post.user_id != current_user.id:
-        return jsonify({'success': False, 'message': 'Không có quyền xóa bài viết này!'}), 403
+        return jsonify({'error': 'Không có quyền!'}), 403
     
     try:
-        # Xóa dữ liệu liên quan (đã có trong code cũ của bạn)
+        # Xóa dữ liệu liên quan
         PostLike.query.filter_by(post_id=post_id).delete()
         PostRating.query.filter_by(post_id=post_id).delete()
-        HiddenPost.query.filter_by(post_id=post_id).delete()
         Comment.query.filter_by(post_id=post_id).delete()
         Report.query.filter_by(post_id=post_id).delete()
         
         db.session.delete(post)
         db.session.commit()
         
-        return jsonify({
-            'success': True,
-            'message': 'Đã xóa bài viết thành công!'
-        })
+        return jsonify({'success': True, 'message': 'Đã xóa!'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
+        return jsonify({'error': str(e)}), 500
+    
 
 @app.route('/upload_chat_image', methods=['POST'])
 @login_required

@@ -12,7 +12,7 @@
 
     <div class="grid lg:grid-cols-3 gap-8">
 
-        <!-- LEFT -->
+        <!-- LEFT (Thông tin chuyên gia) -->
         <div class="lg:col-span-1">
             <div class="bg-white rounded-3xl shadow-xl overflow-hidden sticky top-24">
 
@@ -44,42 +44,34 @@
                         </p>
                     </div>
                     {% endif %}
+                    
+                    <!-- Đánh giá sao -->
+                    <div class="mt-6 flex flex-col items-center gap-2">
+                        <div class="flex items-center gap-1">
+                            {% if expert.rating %}
+                            {% for i in range(1, 6) %}
+                                {% if i <= expert.rating|round(0) %} <span class="text-2xl text-yellow-400">★</span>
+                                {% elif i == expert.rating|round(0) + 1 and expert.rating % 1 >= 0.5 %}
+                                <span class="text-2xl text-yellow-400">½</span>
+                                {% else %}
+                                <span class="text-2xl text-gray-300">★</span>
+                                {% endif %}
+                            {% endfor %}
+                            {% else %}
+                            <span class="text-2xl text-gray-300">★★★★★</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            ({{ expert.received_feedbacks | length }} đánh giá)
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- THÊM PHẦN ĐÁNH GIÁ SAO -->
-        <div class="mt-6 flex flex-col items-center gap-2">
-            <div class="flex items-center gap-1">
-                {% if expert.rating %}
-                <!-- Hiển thị sao đầy (rating) -->
-                {% for i in range(1, 6) %}
-                {% if i <= expert.rating|round(0) %} <span class="text-3xl text-yellow-400">★</span>
-                    {% elif i == expert.rating|round(0) + 1 and expert.rating % 1 >= 0.5 %}
-                    <span class="text-3xl text-yellow-400">½</span>
-                    {% else %}
-                    <span class="text-3xl text-gray-300">★</span>
-                    {% endif %}
-                    {% endfor %}
-                    {% else %}
-                    <span class="text-3xl text-gray-300">★★★★★</span>
-                    {% endif %}
-            </div>
-
-            <div class="text-xl font-bold text-gray-800">
-                {{ expert.rating|round(1) if expert.rating else 'Chưa có đánh giá' }}
-            </div>
-
-            <div class="text-sm text-gray-500">
-                ({{ expert.received_feedbacks | length }}
-                đánh giá)
-            </div>
-        </div>
-
-        <!-- RIGHT -->
+        <!-- RIGHT (Lịch tư vấn) -->
         <div class="lg:col-span-2 space-y-8">
 
-            <!-- LỊCH -->
             <div class="bg-white rounded-3xl shadow-xl p-8">
                 <h3 class="text-2xl font-bold mb-6">
                     <i class="fas fa-calendar-alt text-purple-600"></i>
@@ -90,7 +82,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {% if available_slots %}
                     {% for slot in available_slots %}
-                    <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
+                    <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition border border-gray-100">
                         <div class="text-center mb-4">
                             <div class="text-4xl font-bold text-purple-600">
                                 {{ slot.start_time.strftime('%d') }}
@@ -109,36 +101,41 @@
                             {{ slot.duration_minutes }} phút
                         </p>
 
-                        <button onclick="openBookModal(
-                                    {{ slot.id }},
-                                    '{{ slot.start_time.strftime('%d/%m/%Y') }}',
-                                    '{{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}',
-                                    {{ slot.duration_minutes }}
-                                )" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600
-                                       text-white py-3 rounded-xl font-bold hover:shadow-lg">
+                        <!-- Hiển thị chủ đề tư vấn -->
+                        {% if slot.notes %}
+                        <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-4">
+                            <p class="text-sm font-semibold text-indigo-800 text-center">
+                                <i class="fas fa-lightbulb text-yellow-500 mr-1"></i>
+                                {{ slot.notes }}
+                            </p>
+                        </div>
+                        {% else %}
+                        <div class="bg-gray-50 rounded-lg p-3 mb-4">
+                            <p class="text-sm text-gray-500 text-center italic">
+                                Tư vấn chung
+                            </p>
+                        </div>
+                        {% endif %}
+                        
+                        {# NÚT ĐẶT LỊCH #}
+                        <button onclick='openBookModal(
+                                {{ slot.id }},
+                                {{ slot.start_time.strftime('%d/%m/%Y') | tojson }},
+                                "{{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}",
+                                {{ slot.duration_minutes if slot.duration_minutes else 60 }},
+                                {{ slot.notes | tojson }}
+                            )' 
+                            class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:shadow-lg transition transform hover:scale-105">
                             <i class="fas fa-calendar-plus mr-2"></i> Đặt lịch ngay
                         </button>
-                        <!-- Nút Chat tư vấn - Chỉ hiện nếu đã có lịch đặt -->
-                        {% if has_booking %}
-                        <button
-                            onclick="window.location.href='{{ url_for('expert_consult_chat', expert_id=expert.id) }}'"
-                            class="mt-6 w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition flex items-center justify-center gap-2">
-                            <i class="fas fa-comments"></i> Chat tư vấn ngay
-                        </button>
-                        {% else %}
-                        <button disabled
-                            class="mt-6 w-full bg-gray-400 text-white py-3 rounded-xl font-medium cursor-not-allowed flex items-center justify-center gap-2">
-                            <i class="fas fa-comments mr-2"></i> Chat tư vấn (đặt lịch trước)
-                        </button>
-                        <p class="text-sm text-gray-500 mt-2 text-center">
-                            Bạn cần đặt lịch tư vấn để chat trực tiếp với chuyên gia
-                        </p>
-                        {% endif %}
+                        
+                        {# ✅ ĐÃ XÓA NÚT CHAT TƯ VẤN (ĐẶT LỊCH TRƯỚC) Ở ĐÂY #}
                     </div>
                     {% endfor %}
                     {% else %}
                     <div class="col-span-full text-center py-12 text-gray-500">
-                        Chưa có khung giờ trống
+                        <i class="fas fa-calendar-times text-5xl mb-3"></i>
+                        <p>Chuyên gia chưa có khung giờ trống.</p>
                     </div>
                     {% endif %}
                 </div>
@@ -147,46 +144,66 @@
     </div>
 </div>
 
-<!-- ================= MODAL ĐẶT LỊCH ================= -->
+<!-- MODAL ĐẶT LỊCH -->
 <div id="bookModal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
-
     <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl">
-        <div
-            class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-t-2xl flex justify-between">
-            <h3 class="text-xl font-bold">Đặt lịch với {{ expert.name }}</h3>
+        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-t-2xl flex justify-between">
+            <h3 class="text-xl font-bold">Xác nhận đặt lịch</h3>
             <button onclick="closeBookModal()" class="text-2xl">&times;</button>
         </div>
 
         <div class="p-6 space-y-4">
             <form id="bookForm">
                 <input type="hidden" id="selectedSlotId" name="slot_id">
-
                 <div class="bg-purple-50 p-4 rounded-lg" id="selectedSlotInfo">
                     Chưa chọn khung giờ
                 </div>
-
-                <textarea name="notes" rows="4" class="w-full mt-4 px-4 py-3 border rounded-lg"
-                    placeholder="Ghi chú cho chuyên gia..."></textarea>
+                <textarea name="notes" rows="3" class="w-full mt-4 px-4 py-3 border rounded-lg"
+                    placeholder="Ghi chú cho chuyên gia (tùy chọn)..."></textarea>
             </form>
         </div>
 
         <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-4">
-            <button onclick="closeBookModal()" class="px-6 py-2 bg-gray-200 rounded-lg">Hủy</button>
-
+            <button onclick="closeBookModal()" class="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Hủy</button>
             <button id="bookBtn" onclick="bookSlot()" disabled
-                class="px-6 py-2 bg-purple-600 text-white rounded-lg disabled:opacity-50">
-                Đặt lịch
+                class="px-6 py-2 bg-purple-600 text-white rounded-lg disabled:opacity-50 hover:bg-purple-700">
+                Xác nhận đặt lịch
             </button>
         </div>
     </div>
 </div>
 
-<!-- ================= JS ================= -->
+<!-- JS -->
 <script>
-    function openBookModal(id, date, time, duration) {
+    function openBookModal(id, date, time, duration, notes) {
+        if (!notes) notes = "Tư vấn chung";
+        const notesText = (typeof notes === 'string') ? notes : JSON.stringify(notes);
+        const durationText = duration && duration > 0 ? `${duration} phút` : 'Chưa xác định';
+
         document.getElementById('selectedSlotId').value = id;
-        document.getElementById('selectedSlotInfo').innerHTML =
-            `<b>${date}</b><br>${time} (${duration} phút)`;
+        document.getElementById('selectedSlotInfo').innerHTML = `
+        <div class="space-y-2">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-calendar text-purple-600"></i>
+                <span class="font-bold">${date}</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <i class="fas fa-clock text-purple-600"></i>
+                <span>${time}</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <i class="fas fa-hourglass-half text-purple-600"></i>
+                <span>${durationText}</span>
+            </div>
+            <div class="flex items-start gap-2 border-t pt-2 mt-2">
+                <i class="fas fa-comment-dots text-purple-600 mt-1"></i>
+                <div>
+                    <span class="text-xs text-gray-500 block">Chủ đề:</span>
+                    <span class="font-semibold text-purple-900">${notesText}</span>
+                </div>
+            </div>
+        </div>
+        `;
         document.getElementById('bookBtn').disabled = false;
         document.getElementById('bookModal').classList.remove('hidden');
     }
@@ -200,7 +217,7 @@
     async function bookSlot() {
         const btn = document.getElementById('bookBtn');
         btn.disabled = true;
-        btn.innerText = 'Đang đặt...';
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang xử lý...';
 
         const formData = new FormData(document.getElementById('bookForm'));
         const slotId = formData.get('slot_id');
@@ -210,16 +227,23 @@
                 method: 'POST',
                 body: formData
             });
+
             const data = await res.json();
 
             if (data.success) {
-                alert('Đặt lịch thành công!');
-                location.reload();
+                alert('✅ Đặt lịch thành công!');
+                // ✅ CHUYỂN HƯỚNG SANG TRANG LỊCH HẸN CỦA TÔI
+                window.location.href = "{{ url_for('my_bookings') }}";
             } else {
-                alert(data.error || 'Có lỗi');
+                alert('❌ ' + (data.error || 'Có lỗi xảy ra'));
+                btn.disabled = false;
+                btn.innerText = 'Xác nhận đặt lịch';
             }
-        } catch {
-            alert('Lỗi kết nối');
+        } catch (error) {
+            console.error('Error:', error);
+            alert('❌ Lỗi kết nối: ' + error.message);
+            btn.disabled = false;
+            btn.innerText = 'Xác nhận đặt lịch';
         }
     }
 </script>

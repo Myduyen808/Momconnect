@@ -4,17 +4,20 @@
 
 {% block content %}
 <div class="container mx-auto px-4 py-8 max-w-5xl">
-    <h1 class="text-3xl font-bold text-gray-800 mb-8">Lịch hẹn tư vấn của tôi</h1>
+    <h1 class="text-3xl font-bold text-gray-800 mb-8">
+        <i class="fas fa-calendar-check text-purple-600 mr-2"></i>
+        Lịch hẹn tư vấn của tôi
+    </h1>
 
     <!-- Tab Navigation -->
     <div class="flex border-b border-gray-200 mb-8">
-        <button onclick="showTab('upcoming')"
-            class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 focus:border-purple-600 focus:text-purple-600 active-tab">
-            Sắp tới
+        <button onclick="showTab('upcoming', this)"
+            class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-purple-600 text-purple-600">
+            <i class="fas fa-clock mr-1"></i> Sắp tới
         </button>
-        <button onclick="showTab('old')"
-            class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 focus:border-purple-600 focus:text-purple-600">
-            Lịch cũ
+        <button onclick="showTab('old', this)"
+            class="tab-btn px-6 py-3 font-medium text-lg border-b-2 border-transparent hover:border-purple-600 hover:text-purple-600">
+            <i class="fas fa-history mr-1"></i> Lịch cũ
         </button>
     </div>
 
@@ -23,42 +26,83 @@
         {% if upcoming %}
         <div class="grid md:grid-cols-2 gap-6">
             {% for booking in upcoming %}
-            <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
-                <h3 class="text-xl font-bold text-gray-800 mb-2">{{ booking.time_slot.expert.name }}</h3>
-                <p class="text-sm text-gray-600 mb-4">
-                    {{ booking.time_slot.start_time.strftime('%d/%m/%Y %H:%M') }} -
-                    {{ booking.time_slot.end_time.strftime('%H:%M') }}
-                </p>
-                <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">
-                    Sắp diễn ra
-                </span>
-                <a href="{{ url_for('expert_consult_chat', expert_id=booking.time_slot.expert.id) }}"
-                    class="mt-4 block w-full bg-green-600 text-white py-3 rounded-xl text-center font-bold hover:bg-green-700">
-                    Bắt đầu chat tư vấn
-                </a>
+            <div
+                class="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition border-l-4 border-purple-600">
+                <div class="p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <img src="{{ url_for('static', filename=booking.time_slot.expert.avatar or 'images/default-avatar.png') }}"
+                            class="w-12 h-12 rounded-full object-cover">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">{{ booking.time_slot.expert.name }}</h3>
+                            <p class="text-sm text-purple-600">{{ booking.time_slot.expert.expert_category }}</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-3 rounded-lg mb-4">
+                        <div class="flex items-center gap-2 text-gray-700 mb-1">
+                            <i class="fas fa-calendar text-purple-500"></i>
+                            <span>{{ booking.time_slot.start_time.strftime('%d/%m/%Y') }}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-700">
+                            <i class="fas fa-clock text-purple-500"></i>
+                            <span>{{ booking.time_slot.start_time.strftime('%H:%M') }} - {{
+                                booking.time_slot.end_time.strftime('%H:%M') }}</span>
+                        </div>
+                        {% if booking.time_slot.notes %}
+                        <p class="text-sm text-indigo-700 mt-2 italic">
+                            <i class="fas fa-lightbulb text-yellow-500 mr-1"></i>
+                            {{ booking.time_slot.notes }}
+                        </p>
+                        {% endif %}
+                    </div>
+
+                    <div class="flex gap-2">
+                        <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                            <i class="fas fa-check-circle mr-1"></i> Đã đặt
+                        </span>
+                        {% if booking.status == 'scheduled' %}
+                        <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                            Sắp diễn ra
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- ✅ NÚT CHAT TƯ VẤN -->
+                    <a href="{{ url_for('expert_consult_chat', expert_id=booking.time_slot.expert.id) }}"
+                        class="mt-4 flex items-center justify-center gap-2 w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition">
+                        <i class="fas fa-comments"></i> Bắt đầu chat tư vấn
+                    </a>
+                </div>
             </div>
             {% endfor %}
         </div>
         {% else %}
-        <div class="text-center py-12 bg-gray-50 rounded-xl">
+        <div class="text-center py-16 bg-gray-50 rounded-xl">
             <i class="fas fa-calendar-times text-6xl text-gray-300 mb-4"></i>
-            <h3 class="text-xl font-bold text-gray-700">Chưa có lịch hẹn sắp tới</h3>
+            <h3 class="text-xl font-bold text-gray-700 mb-2">Chưa có lịch hẹn sắp tới</h3>
+            <p class="text-gray-500 mb-4">Hãy tìm kiếm chuyên gia và đặt lịch tư vấn nhé!</p>
+            <a href="{{ url_for('experts_list') }}"
+                class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700">
+                Tìm chuyên gia
+            </a>
         </div>
         {% endif %}
     </div>
 
-    <!-- Tab Lịch cũ (đã hủy + đã hoàn thành + đã qua) -->
+    <!-- Tab Lịch cũ -->
     <div id="old-tab" class="tab-content hidden">
         {% if old_bookings %}
         <div class="grid md:grid-cols-2 gap-6">
             {% for booking in old_bookings %}
-            <div class="bg-white rounded-xl shadow-md p-6 opacity-80">
-
-                <h3 class="text-xl font-bold text-gray-800 mb-2">
+            <div class="bg-white rounded-xl shadow-md p-6 opacity-80 border border-gray-200">
+                <!-- Code hiển thị lịch cũ và đánh giá sao giữ nguyên như bạn đã viết -->
+                <!-- ... -->
+                <h3 class="text-lg font-bold text-gray-800 mb-2">
                     {{ booking.time_slot.expert.name }}
                 </h3>
 
                 <p class="text-sm text-gray-600 mb-2">
+                    <i class="fas fa-clock mr-1"></i>
                     {{ booking.time_slot.start_time.strftime('%d/%m/%Y %H:%M') }} -
                     {{ booking.time_slot.end_time.strftime('%H:%M') }}
                 </p>
@@ -72,63 +116,41 @@
                     {% else %}Đã qua{% endif %}
                 </span>
 
-                <!-- ===== ĐÁNH GIÁ SAO ===== -->
+                <!-- ĐÁNH GIÁ SAO (Giữ nguyên logic cũ) -->
                 {% if booking.status == 'completed' %}
                 {% set feedback = booking.feedback %}
-
                 {% if not feedback %}
-                <!-- FORM ĐÁNH GIÁ -->
-                <form action="{{ url_for('submit_feedback', booking_id=booking.id) }}" method="POST" class="mt-4">
-
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Đánh giá buổi tư vấn
-                    </label>
-
-                    <!-- SAO -->
+                <form action="{{ url_for('submit_feedback', booking_id=booking.id) }}" method="POST"
+                    class="mt-4 border-t pt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Đánh giá buổi tư vấn</label>
                     <div class="flex gap-1 mb-3">
                         {% for i in range(1,6) %}
                         <input type="radio" name="rating" id="star{{ booking.id }}_{{ i }}" value="{{ i }}"
                             class="hidden" required>
                         <label for="star{{ booking.id }}_{{ i }}"
-                            class="cursor-pointer text-2xl text-gray-300 hover:text-yellow-400">
-                            ★
-                        </label>
+                            class="cursor-pointer text-2xl text-gray-300 hover:text-yellow-400 transition">★</label>
                         {% endfor %}
                     </div>
-
-                    <textarea name="comment" rows="3"
-                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                        placeholder="Nhận xét của bạn..."></textarea>
-
+                    <textarea name="comment" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm"
+                        placeholder="Nhận xét..."></textarea>
                     <button type="submit"
-                        class="mt-3 bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700">
-                        Gửi đánh giá
-                    </button>
+                        class="mt-2 bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700">Gửi đánh
+                        giá</button>
                 </form>
-
                 {% else %}
-                <!-- ĐÃ ĐÁNH GIÁ -->
-                <div class="mt-4 p-4 bg-gray-50 rounded-lg">
-                    <p class="text-sm font-medium text-gray-700">
-                        Bạn đã đánh giá:
-                        <span class="text-yellow-500 font-bold">
-                            {{ feedback.rating }} ★
-                        </span>
-                    </p>
-                    {% if feedback.comment %}
-                    <p class="text-sm text-gray-600 mt-1">
-                        "{{ feedback.comment }}"
-                    </p>
-                    {% endif %}
+                <div class="mt-4 p-3 bg-gray-50 rounded-lg">
+                    <p class="text-sm font-medium text-gray-700">Bạn đã đánh giá: <span
+                            class="text-yellow-500 font-bold">{{ feedback.rating }} ★</span></p>
+                    {% if feedback.comment %}<p class="text-xs text-gray-600 mt-1 italic">"{{ feedback.comment }}"</p>{%
+                    endif %}
                 </div>
                 {% endif %}
                 {% endif %}
-
             </div>
             {% endfor %}
         </div>
         {% else %}
-        <div class="text-center py-12 bg-gray-50 rounded-xl">
+        <div class="text-center py-16 bg-gray-50 rounded-xl">
             <i class="fas fa-history text-6xl text-gray-300 mb-4"></i>
             <h3 class="text-xl font-bold text-gray-700">Chưa có lịch hẹn cũ</h3>
         </div>
@@ -136,21 +158,21 @@
     </div>
 </div>
 
-<!-- JavaScript chuyển tab -->
 <script>
-    function showTab(tab) {
+    function showTab(tab, btnEl) {
+        // Ẩn tất cả content
         document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
         document.getElementById(tab + '-tab').classList.remove('hidden');
 
+        // Reset style tất cả nút
         document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.classList.remove('border-purple-600', 'text-purple-600', 'active-tab');
+            btn.classList.remove('border-purple-600', 'text-purple-600');
+            btn.classList.add('border-transparent');
         });
-        event.target.classList.add('border-purple-600', 'text-purple-600', 'active-tab');
-    }
 
-    // Mặc định mở tab Sắp tới
-    document.addEventListener('DOMContentLoaded', () => {
-        showTab('upcoming');
-    });
+        // Highlight nút được chọn
+        btnEl.classList.add('border-purple-600', 'text-purple-600');
+        btnEl.classList.remove('border-transparent');
+    }
 </script>
 {% endblock %}

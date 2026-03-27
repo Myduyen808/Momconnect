@@ -1,0 +1,91 @@
+    <!-- Tạo file templates/video_call.html -->
+    {% extends "base.html" %}
+    {% block title %}Video Call{% endblock %}
+
+    {% block content %}
+    <div class="container mx-auto px-4 py-8">
+        <div class="grid grid-cols-2 gap-4">
+            <!-- Video người gọi -->
+            <div class="bg-black rounded-xl overflow-hidden">
+                <video id="localVideo" autoplay muted class="w-full"></video>
+            </div>
+            
+            <!-- Video người nhận -->
+            <div class="bg-black rounded-xl overflow-hidden">
+                <video id="remoteVideo" autoplay class="w-full"></video>
+            </div>
+        </div>
+        
+        <div class="flex justify-center gap-4 mt-6">
+            <button onclick="toggleMic()" class="bg-blue-500 text-white px-6 py-3 rounded-full">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button onclick="toggleCamera()" class="bg-blue-500 text-white px-6 py-3 rounded-full">
+                <i class="fas fa-video"></i>
+            </button>
+            <button onclick="endCall()" class="bg-red-500 text-white px-6 py-3 rounded-full">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+    let localStream;
+    let remoteStream;
+    let peerConnection;
+
+    // WebRTC config
+    const config = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' }
+        ]
+    };
+
+    // Khởi động camera
+    async function startCall() {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        document.getElementById('localVideo').srcObject = localStream;
+        
+        peerConnection = new RTCPeerConnection(config);
+        
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+        
+        peerConnection.ontrack = event => {
+            remoteStream = event.streams[0];
+            document.getElementById('remoteVideo').srcObject = remoteStream;
+        };
+        
+        // Tạo offer
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        
+        // Gửi offer qua Socket.IO
+        socket.emit('video_call_offer', {
+            to: {{ expert_id }},
+            offer: offer
+        });
+    }
+
+    // Các hàm toggle mic/camera
+    function toggleMic() {
+        const audioTrack = localStream.getAudioTracks()[0];
+        audioTrack.enabled = !audioTrack.enabled;
+    }
+
+    function toggleCamera() {
+        const videoTrack = localStream.getVideoTracks()[0];
+        videoTrack.enabled = !videoTrack.enabled;
+    }
+
+    function endCall() {
+        peerConnection.close();
+        localStream.getTracks().forEach(track => track.stop());
+        window.location.href = '/expert/{{ expert_id }}/profile';
+    }
+
+    // Khởi động khi load trang
+    startCall();
+    </script>
+    {% endblock %}
