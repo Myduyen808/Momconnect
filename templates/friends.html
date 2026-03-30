@@ -84,6 +84,7 @@
             </div>
 
             <!-- LỜI MỜI ĐÃ GỬI -->
+            <!-- LỜI MỜI ĐÃ GỬI -->
             {% if sent_requests %}
             <div class="bg-white rounded-xl shadow-sm border border-gray-200">
                 <div class="p-6 border-b border-gray-200">
@@ -101,26 +102,14 @@
                                     class="w-12 h-12 rounded-full object-cover">
                                 <div>
                                     <h4 class="font-bold text-gray-900">{{ request.receiver.name }}</h4>
-                                    <div class="flex items-center gap-1 text-xs mt-1">
-                                        <i class="fas fa-medal
-                                            {% if 'Ứng viên Chuyên gia' in request.receiver.badge %}text-purple-500
-                                            {% elif 'Thành Viên Bạc' in request.receiver.badge %}text-gray-500
-                                            {% elif 'Thành Viên Đồng' in request.receiver.badge %}text-orange-500
-                                            {% else %}text-green-600{% endif %}"></i>
-                                        <span class="{{ 'text-purple-600' if 'Ứng viên Chuyên gia' in request.receiver.badge else
-                                                        'text-gray-600' if 'Thành Viên Bạc' in request.receiver.badge else
-                                                        'text-orange-600' if 'Thành Viên Đồng' in request.receiver.badge else
-                                                        'text-green-700' }}">
-                                            {{ request.receiver.badge }}
-                                        </span>
-                                    </div>
                                     <p class="text-sm text-gray-600 mt-1">Đã gửi {{
                                         request.created_at.strftime('%d/%m/%Y') }}</p>
                                 </div>
                             </div>
 
-                            <form action="{{ url_for('cancel_friend_request', user_id=request.receiver.id) }}"
-                                method="post" class="inline">
+                            <!-- SỬA Ở ĐÂY: Dùng request.id thay vì user_id -->
+                            <form action="{{ url_for('cancel_friend_request', request_id=request.id) }}" method="post"
+                                class="inline cancel-sent-form">
                                 <button type="submit"
                                     class="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg transition">
                                     <i class="fas fa-times mr-1"></i> Hủy
@@ -286,11 +275,99 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
 
-        // ===== CHẤP NHẬN LỜI MỜI =====
+        // ====================== KẾT BẠN ======================
+        document.querySelectorAll('.friend-request-form').forEach(form => {
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                const button = this.querySelector('button');
+                const originalHTML = button.innerHTML;
+                const card = this.closest('div'); // card chứa gợi ý
+
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang gửi...';
+
+                try {
+                    const response = await fetch(this.action, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        card.innerHTML = `
+                            <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3">
+                                <i class="fas fa-check-circle text-2xl text-blue-600"></i>
+                                <div>
+                                    <p class="font-semibold text-blue-700">${data.message || 'Đã gửi lời mời kết bạn!'}</p>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        alert(data.error || 'Không thể gửi lời mời!');
+                        button.disabled = false;
+                        button.innerHTML = originalHTML;
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Lỗi kết nối!');
+                    button.disabled = false;
+                    button.innerHTML = originalHTML;
+                }
+            });
+        });
+
+        // ====================== HỦY KẾT BẠN ======================
+        document.querySelectorAll('form[action*="/unfriend"]').forEach(form => {
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                if (!confirm('Bạn có chắc muốn hủy kết bạn với người này không?')) return;
+
+                const button = this.querySelector('button');
+                const originalHTML = button.innerHTML;
+                const card = this.closest('.flex.items-center.justify-between');
+
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang hủy...';
+
+                try {
+                    const response = await fetch(this.action, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        card.innerHTML = `
+                            <div class="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
+                                <i class="fas fa-check-circle text-2xl text-red-600"></i>
+                                <div>
+                                    <p class="font-semibold text-red-700">${data.message || 'Đã hủy kết bạn!'}</p>
+                                </div>
+                            </div>
+                        `;
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        alert(data.error || 'Không thể hủy kết bạn!');
+                        button.disabled = false;
+                        button.innerHTML = originalHTML;
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Lỗi kết nối!');
+                    button.disabled = false;
+                    button.innerHTML = originalHTML;
+                }
+            });
+        });
+
+        // ====================== CHẤP NHẬN LỜI MỜI ======================
         document.querySelectorAll('.accept-form').forEach(form => {
             form.addEventListener('submit', async function (e) {
-                e.preventDefault(); // ✅ Ngăn form submit mặc định
-
+                e.preventDefault();
                 const button = this.querySelector('button');
                 const card = this.closest('.request-card');
                 const originalHTML = button.innerHTML;
@@ -304,63 +381,51 @@
                         headers: { 'X-Requested-With': 'XMLHttpRequest' },
                         body: new URLSearchParams(new FormData(this))
                     });
-
                     const data = await response.json();
 
                     if (data.success) {
-                        // ✅ THAY ĐỔI NỘI DUNG CARD THÀNH THÔNG BÁO
                         card.innerHTML = `
-                            <div class="p-6 bg-green-50 border border-green-200 rounded-xl flex items-center gap-4 animate-bounce-in">
+                            <div class="p-6 bg-green-50 border border-green-200 rounded-xl flex items-center gap-4">
                                 <i class="fas fa-check-circle text-3xl text-green-600"></i>
                                 <div>
-                                    <p class="font-semibold text-green-700">Đã kết bạn với ${data.user_name || 'người dùng'}!</p>
-                                    <p class="text-sm text-green-600 mt-1">Hai bạn đã là bạn bè!</p>
+                                    <p class="font-semibold text-green-700">Đã kết bạn thành công!</p>
                                 </div>
                             </div>
                         `;
-
-                        // ✅ TỰ ĐỘNG RELOAD TRANG SAU 2 GIÂY
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 2000);
-
+                        setTimeout(() => window.location.reload(), 1500);
                     } else {
                         alert(data.error || 'Không thể chấp nhận lời mời!');
                         button.disabled = false;
                         button.innerHTML = originalHTML;
                     }
                 } catch (err) {
-                    console.error(err);
-                    alert('Lỗi kết nối. Vui lòng thử lại!');
+                    alert('Lỗi kết nối!');
                     button.disabled = false;
                     button.innerHTML = originalHTML;
                 }
             });
         });
 
-        // ===== TỪ CHỐI LỜI MỜI =====
+        // ====================== TỪ CHỐI LỜI MỜI ======================
         document.querySelectorAll('.reject-form').forEach(form => {
             form.addEventListener('submit', async function (e) {
                 e.preventDefault();
                 if (!confirm('Bạn có chắc muốn từ chối lời mời này?')) return;
 
                 const card = this.closest('.request-card');
-
                 try {
                     const response = await fetch(this.action, {
                         method: 'POST',
                         headers: { 'X-Requested-With': 'XMLHttpRequest' },
                         body: new URLSearchParams(new FormData(this))
                     });
-
                     const data = await response.json();
-
                     if (data.success && card) {
                         card.style.transition = 'all 0.4s';
                         card.style.opacity = '0';
                         setTimeout(() => card.remove(), 400);
                     } else {
-                        alert(data.error || 'Không thể từ chối lời mời!');
+                        alert(data.error || 'Không thể từ chối!');
                     }
                 } catch (err) {
                     alert('Lỗi kết nối!');
@@ -369,26 +434,4 @@
         });
     });
 </script>
-
-<style>
-    .animate-bounce-in {
-        animation: bounceIn 0.5s;
-    }
-
-    @keyframes bounceIn {
-        0% {
-            transform: scale(0.9);
-            opacity: 0;
-        }
-
-        50% {
-            transform: scale(1.05);
-        }
-
-        100% {
-            transform: scale(1);
-            opacity: 1;
-        }
-    }
-</style>
 {% endblock %}

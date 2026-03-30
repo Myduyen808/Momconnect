@@ -17,52 +17,40 @@ class PostRecommender:
         self.load_model()
 
     def preprocess_text(self, text):
-        """Tiền xử lý tiếng Việt: loại bỏ ký tự đặc biệt, chuyển thường, giữ từ ghép"""
-        if not text or not isinstance(text, str):
-            return ""
-        # Loại bỏ ký tự đặc biệt nhưng giữ dấu cách
-        text = re.sub(r'[^\w\sàáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]', '', text.lower())
-        # Thay nhiều khoảng trắng bằng một
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text
+            """Tiền xử lý tiếng Việt tốt hơn"""
+            if not text or not isinstance(text, str):
+                return ""
+            text = re.sub(r'[^\w\sàáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]', '', text.lower())
+            text = re.sub(r'\s+', ' ', text).strip()
+            return text
 
     def train(self, posts_df):
-        """Huấn luyện model từ DataFrame posts"""
-        print("🚀 Bắt đầu huấn luyện model gợi ý...")
+            print("🚀 Bắt đầu huấn luyện model gợi ý...")
 
-        if 'title' not in posts_df.columns or 'content' not in posts_df.columns:
-            print("❌ DataFrame thiếu cột 'title' hoặc 'content'!")
-            return False
+            posts_df['full_text'] = (posts_df['title'].fillna('') + " " + posts_df['content'].fillna('')).str.strip()
+            posts_df['processed'] = posts_df['full_text'].apply(self.preprocess_text)
 
-        # Kết hợp title + content
-        posts_df['full_text'] = (posts_df['title'].fillna('') + " " + posts_df['content'].fillna('')).str.strip()
-        posts_df['processed'] = posts_df['full_text'].apply(self.preprocess_text)
+            posts_df = posts_df[posts_df['processed'].str.strip() != ''].copy()
 
-        # Loại bỏ bài rỗng
-        posts_df = posts_df[posts_df['processed'].str.strip() != ''].copy()
+            if len(posts_df) < 3:
+                print("❌ Không đủ dữ liệu để train!")
+                return False
 
-        if len(posts_df) < 3:
-            print(f"⚠️ Chỉ có {len(posts_df)} bài viết có nội dung → không đủ để train!")
-            return False
+            self.post_ids = posts_df['id'].tolist()
+            self.post_data = posts_df[['id', 'title', 'content', 'user_id']].to_dict('records')
 
-        self.post_ids = posts_df['id'].tolist()
-        self.post_data = posts_df[['id', 'title', 'content', 'user_id']].to_dict('records')
+            # CẢI TIẾN: tăng max_features + ngram 1-3
+            self.vectorizer = TfidfVectorizer(
+                max_features=12000,
+                ngram_range=(1, 3),      # nhận diện "sốt xuất huyết", "sốt virus", "ốm vặt"...
+                min_df=1
+            )
 
-        # TF-IDF với bigram → nhận diện "lật ngửa", "vận động thô", "ăn dặm", "sốt cao"...
-        self.vectorizer = TfidfVectorizer(
-            max_features=8000,
-            ngram_range=(1, 2),           # 1-2 gram rất quan trọng cho tiếng Việt
-            min_df=1,                     # Cho phép từ hiếm (vì dữ liệu mẹ bỉm thường ít)
-            token_pattern=r'(?u)\b\w+\b'  # Giữ nguyên từ tiếng Việt
-        )
+            self.tfidf_matrix = self.vectorizer.fit_transform(posts_df['processed'])
 
-        print(f"Vectorizing {len(posts_df)} documents...")
-        self.tfidf_matrix = self.vectorizer.fit_transform(posts_df['processed'])
-
-        self.save_model()
-        print(f"✅ Huấn luyện thành công! {len(self.post_ids)} bài viết đã được vector hóa.")
-        print(f"Từ vựng mẫu: {list(self.vectorizer.vocabulary_.keys())[:10]}...")
-        return True
+            self.save_model()
+            print(f"✅ Train thành công! {len(self.post_ids)} bài viết")
+            return True
 
     def save_model(self):
         if not os.path.exists(os.path.dirname(self.model_path)):
@@ -112,19 +100,29 @@ class PostRecommender:
             return []
 
     def recommend_for_user(self, liked_post_ids, top_n=5):
-        if self.tfidf_matrix is None or not self.post_ids:
+        """Gợi ý cho user - ĐÃ CẢI TIẾN"""
+        if self.tfidf_matrix is None or len(self.post_ids) == 0:
+            print("Model chưa load!")
             return []
 
         valid_liked = [pid for pid in liked_post_ids if pid in self.post_ids]
+        
+        # Nếu user chưa like bài nào → fallback thông minh
         if not valid_liked:
-            return []
+            print("DEBUG: User chưa like bài nào → fallback hot + new posts")
+            from app import Post
+            hot_posts = Post.query.order_by(Post.likes.desc()).limit(top_n).all()
+            new_posts = Post.query.order_by(Post.created_at.desc()).limit(top_n).all()
+            
+            all_fallback = list(dict.fromkeys([p.id for p in hot_posts + new_posts]))
+            return all_fallback[:top_n]
 
+        # User đã like → dùng AI bình thường
         try:
             liked_indices = [self.post_ids.index(pid) for pid in valid_liked]
             user_vector = self.tfidf_matrix[liked_indices].mean(axis=0)
             sim_scores = cosine_similarity(user_vector, self.tfidf_matrix).flatten()
 
-            # Loại bỏ các bài đã like
             for idx in liked_indices:
                 sim_scores[idx] = 0
 

@@ -871,30 +871,41 @@ def create_post():
     return render_template('post.html')
 
 # ĐĂNG KÝ
+# ĐĂNG KÝ
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         name = request.form['name'].strip()
+        phone = request.form.get('phone', '').strip()  # ✅ LẤY SỐ ĐIỆN THOẠI
         email = request.form['email'].strip().lower()
         password = request.form['password']
         confirm = request.form['confirm_password']
 
+        # Kiểm tra mật khẩu
         if len(password) < 6:
             flash('Mật khẩu phải có ít nhất 6 ký tự!', 'danger')
             return render_template('register.html')
         if password != confirm:
             flash('Mật khẩu xác nhận không khớp!', 'danger')
             return render_template('register.html')
+        
+        # Kiểm tra Email đã tồn tại
         if User.query.filter_by(email=email).first():
             flash('Email đã được sử dụng!', 'danger')
             return render_template('register.html')
 
+        # ✅ KIỂM TRA SỐ ĐIỆN THOẠI ĐÃ TỒN TẠI CHƯA
+        if User.query.filter_by(phone=phone).first():
+            flash('Số điện thoại này đã được đăng ký!', 'danger')
+            return render_template('register.html')
+
         hashed = generate_password_hash(password)
-        user = User(name=name, email=email, password=hashed, points=10)
+        # ✅ THÊM PHONE VÀO KHI TẠO USER MỚI
+        user = User(name=name, email=email, password=hashed, points=10, phone=phone)
         db.session.add(user)
         db.session.commit()
 
-        # Thông báo cho admin
+        # Thông báo cho admin (giữ nguyên)
         notify_all_admins(
             title="Thành viên mới đăng ký!",
             message=f"Người dùng mới: {name} ({email}) vừa đăng ký tài khoản.",
@@ -1713,6 +1724,13 @@ def admin_revoke_expert(user_id):
         flash('Người dùng này không phải là chuyên gia!', 'error')
         return redirect(url_for('admin_dashboard'))
 
+    
+    # === THÊM ĐOẠN NÀY ĐỂ TRỪ 500 ĐIỂM ===
+    old_points = user.points
+    user.points = max(0, user.points - 500)
+    update_user_badge(user)   # Nếu em không có hàm này thì xóa dòng này cũng được
+    # ======================================
+
     # Hủy tư cách chuyên gia
     user.is_verified_expert = False
     old_category = user.expert_category
@@ -2052,49 +2070,72 @@ def reject_friend_request(request_id):
     })
 
 # === HỦY LỜI MỜI KẾT BẠN ===
-@app.route('/cancel_friend_request/<int:user_id>', methods=['POST'])
+# === HỦY LỜI MỜI KẾT BẠN ===
+@app.route('/cancel_friend_request/<int:request_id>', methods=['POST'])
 @login_required
-def cancel_friend_request(user_id):
-    # Tìm lời mời đã gửi
-    friend_request = FriendRequest.query.filter_by(
-        sender_id=current_user.id,
-        receiver_id=user_id,
-        status='pending'
-    ).first()
+def cancel_friend_request(request_id):
+    # 1. Tìm lời mời theo ID chính xác
+    friend_request = FriendRequest.query.get_or_404(request_id)
     
-    if not friend_request:
-        return jsonify({'error': 'Không tìm thấy lời mời!'}), 404
+    # 2. Kiểm tra quyền: Chỉ người gửi mới được hủy
+    if friend_request.sender_id != current_user.id:
+        return jsonify({'success': False, 'error': 'Bạn không có quyền hủy lời mời này!'}), 403
     
+    # 3. Kiểm tra trạng thái
+    if friend_request.status != 'pending':
+        return jsonify({'success': False, 'error': 'Lời mời này đã được xử lý hoặc không còn tồn tại!'}), 400
+    
+    # 4. Lưu tên người nhận để thông báo (trước khi xóa)
+    receiver_name = friend_request.receiver.name
+    
+    # 5. Xóa lời mời
     db.session.delete(friend_request)
     db.session.commit()
     
     return jsonify({
         'success': True,
-        'message': 'Đã hủy lời mời kết bạn!',
+        'message': f'Đã hủy lời mời kết bạn gửi tới {receiver_name}!',
         'status': 'not_friends'
     })
 
 # === HỦY KẾT BẠN ===
+# === HỦY KẾT BẠN - SỬA LẠI CHO CHẮC CHẮN ===
 @app.route('/unfriend/<int:user_id>', methods=['POST'])
 @login_required
 def unfriend(user_id):
-    # Tìm quan hệ bạn bè
+    if user_id == current_user.id:
+        return jsonify({'success': False, 'error': 'Không thể hủy kết bạn với chính mình!'}), 400
+
+    # Tìm quan hệ bạn bè theo cả 2 chiều
     friendship = Friendship.query.filter(
-        ((Friendship.user1_id == current_user.id) & (Friendship.user2_id == user_id)) |
-        ((Friendship.user1_id == user_id) & (Friendship.user2_id == current_user.id))
+        db.or_(
+            db.and_(Friendship.user1_id == current_user.id, Friendship.user2_id == user_id),
+            db.and_(Friendship.user1_id == user_id, Friendship.user2_id == current_user.id)
+        )
     ).first()
-    
+
     if not friendship:
-        return jsonify({'error': 'Không phải là bạn bè!'}), 404
-    
-    db.session.delete(friendship)
-    db.session.commit()
-    
-    return jsonify({
-        'success': True,
-        'message': 'Đã hủy kết bạn!',
-        'status': 'not_friends'
-    })
+        return jsonify({
+            'success': False,
+            'error': 'Không tìm thấy quan hệ bạn bè!'
+        }), 404
+
+    try:
+        db.session.delete(friendship)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Đã hủy kết bạn thành công!',
+            'status': 'not_friends'
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Lỗi hủy kết bạn: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Có lỗi xảy ra khi hủy kết bạn'
+        }), 500
 
 # === LẤY TRẠNG THÁI KẾT BẠN ===
 @app.route('/friendship_status/<int:user_id>')
@@ -2194,28 +2235,30 @@ def on_join_chat(data):
 
 @socketio.on('send_message')
 def handle_message(data):
-    sender_id   = int(data['sender_id'])
+    sender_id = int(data['sender_id'])
     receiver_id = int(data['receiver_id'])
-    content     = data['content'].strip()
+    content = data['content'].strip()
+    msg_type = data.get('type', 'text')  # ✅ LẤY TYPE TỪ CLIENT (image, video, audio...)
 
     if not content or sender_id == receiver_id:
         return
 
-    # 1. Lưu tin nhắn vào DB
-    msg = Message(sender_id=sender_id, receiver_id=receiver_id, content=content)
+    # 1. Lưu vào DB (Nhớ thêm type=msg_type)
+    msg = Message(sender_id=sender_id, receiver_id=receiver_id, content=content, type=msg_type)
     db.session.add(msg)
     
     sender = User.query.get(sender_id)
     timestamp = vietnam_now().strftime('%H:%M %d/%m')
 
-    # 2. Gửi tin nhắn realtime đến phòng chat
+    # 2. Gửi realtime
     message_data = {
-        'sender_id':   sender_id,
+        'sender_id': sender_id,
         'sender_name': sender.name,
-        'content':     content,
-        'timestamp':   timestamp,
-        'type':        'text'
+        'content': content,
+        'timestamp': timestamp,
+        'type': msg_type  # ✅ TRUYỀN TYPE ĐÚNG SANG CLIENT
     }
+    
     room = f"chat_{min(sender_id, receiver_id)}_{max(sender_id, receiver_id)}"
     emit('receive_message', message_data, room=room, include_self=True, broadcast=True)
 
@@ -2286,29 +2329,25 @@ def handle_disconnect():
 
 @socketio.on('video_call_request')
 def handle_video_call_request(data):
-    """Xử lý yêu cầu gọi video"""
     from_user = data.get('from')
     to_user = data.get('to')
-    caller_name = data.get('caller_name')
-    
-    print(f'📞 Video call request: {from_user} -> {to_user}')
-    print(f'Online users: {online_users}')
-    
-    # Lấy socket_id của người nhận
-    to_socket = online_users.get(to_user)
-    
+    caller_name = data.get('caller_name', 'Ai đó')
+
+    print(f'📞 Video call request: {from_user} → {to_user} | Online users: {list(online_users.keys())}')
+
+    to_socket = online_users.get(int(to_user)) if to_user else None
+
     if to_socket:
-        print(f'✅ Sending call notification to socket {to_socket}')
-        # Gửi thông báo đến người nhận cụ thể
         emit('video_call_request', {
             'from': from_user,
             'caller_name': caller_name
         }, room=to_socket)
+        print(f'✅ Gửi thông báo gọi đến socket {to_socket} của user {to_user}')
     else:
-        print(f'❌ User {to_user} is not online')
-        # Thông báo cho người gọi rằng đối phương offline
+        print(f'❌ User {to_user} không online hoặc chưa register')
+        # Thông báo cho người gọi
         emit('call_failed', {
-            'message': 'Người dùng không trực tuyến'
+            'message': 'Người nhận hiện không trực tuyến hoặc không nhận được cuộc gọi.'
         }, room=request.sid)
 
 @socketio.on('video_call_accepted')
@@ -3668,12 +3707,20 @@ def upload_chat_image():
         return jsonify({'success': False, 'error': 'Chưa chọn file'})
 
     if file:
+        # Tạo tên file an toàn
+        import time
         filename = secure_filename(f"chat_{int(time.time())}_{file.filename}")
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         
-        image_url = url_for('static', filename=f'uploads/{filename}')
-        return jsonify({'success': True, 'image_url': image_url})
+        # Trả về URL tuyệt đối để hiển thị ảnh
+        image_url = f"/static/uploads/{filename}"
+        
+        return jsonify({
+            'success': True, 
+            'url': image_url,  # ✅ Trả về URL ngắn gọn
+            'type': 'video' if file.mimetype.startswith('video') else 'image'
+        })
 
     return jsonify({'success': False, 'error': 'Lỗi upload'})
 
@@ -3977,6 +4024,88 @@ def auto_train_model():
             from train_model import train_recommendation_model
             train_recommendation_model()
 
+# Xóa tài khoản
+# ====================== XÓA TÀI KHOẢN ======================
+@app.route('/delete_account', methods=['POST'])
+@login_required
+def delete_account():
+    confirm = request.form.get('confirm', '').strip()
+
+    if confirm != 'DELETE':
+        flash('Bạn phải gõ đúng từ "DELETE" để xác nhận xóa tài khoản!', 'warning')
+        return redirect(url_for('profile'))
+
+    try:
+        user_id = current_user.id
+
+        # 1. Lấy danh sách ID bài viết của user (để xóa các bản ghi liên quan sau này)
+        post_ids = [p.id for p in Post.query.filter_by(user_id=user_id).all()]
+
+        # 2. Xóa TẤT CẢ các bản ghi có liên quan đến user (quan trọng!)
+        # === BẢNG NGƯỜI DÙNG TẠO RA ===
+        Post.query.filter_by(user_id=user_id).delete()
+        Comment.query.filter_by(user_id=user_id).delete()
+        Notification.query.filter_by(user_id=user_id).delete()
+        Friendship.query.filter(
+            (Friendship.user1_id == user_id) | (Friendship.user2_id == user_id)
+        ).delete()
+        FriendRequest.query.filter(
+            (FriendRequest.sender_id == user_id) | (FriendRequest.receiver_id == user_id)
+        ).delete()
+        Message.query.filter(
+            (Message.sender_id == user_id) | (Message.receiver_id == user_id)
+        ).delete()
+        Report.query.filter_by(user_id=user_id).delete()
+        ExpertRequest.query.filter_by(user_id=user_id).delete()
+        Follow.query.filter(
+            (Follow.follower_id == user_id) | (Follow.followed_id == user_id)
+        ).delete()
+        PostLike.query.filter_by(user_id=user_id).delete()
+        PostRating.query.filter_by(user_id=user_id).delete()
+        HiddenPost.query.filter_by(user_id=user_id).delete()
+        CommentLike.query.filter_by(user_id=user_id).delete()
+        Booking.query.filter_by(user_id=user_id).delete()
+        
+        # === BẢNG LIÊN QUAN ĐẾN BÀI VIẾT CỦA USER ===
+        if post_ids:
+            # Xóa comment, like, report... trên bài viết của user
+            Comment.query.filter(Comment.post_id.in_(post_ids)).delete(synchronize_session=False)
+            PostLike.query.filter(PostLike.post_id.in_(post_ids)).delete(synchronize_session=False)
+            PostRating.query.filter(PostRating.post_id.in_(post_ids)).delete(synchronize_session=False)
+            HiddenPost.query.filter(HiddenPost.post_id.in_(post_ids)).delete(synchronize_session=False)
+            Report.query.filter(Report.post_id.in_(post_ids)).delete(synchronize_session=False)
+            
+            # Xóa like/report trên comment của bài viết user
+            comment_ids = [c.id for c in Comment.query.filter(Comment.post_id.in_(post_ids)).all()]
+            if comment_ids:
+                CommentLike.query.filter(CommentLike.comment_id.in_(comment_ids)).delete(synchronize_session=False)
+                CommentReport.query.filter(CommentReport.comment_id.in_(comment_ids)).delete(synchronize_session=False)
+
+        # === XỬ LÝ CHUYÊN GIA (nếu user là expert) ===
+        if current_user.is_verified_expert:
+            # Xóa khung giờ tư vấn (TimeSlot) - phải xóa trước Booking
+            TimeSlot.query.filter_by(expert_id=user_id).delete()
+            
+            # Xóa feedback về chuyên gia
+            ConsultationFeedback.query.filter_by(to_user_id=user_id).delete()
+            
+            # Xóa bài viết chuyên gia (đã được xử lý ở phần Post)
+
+        # 3. Cuối cùng xóa user
+        db.session.delete(current_user)
+        db.session.commit()
+
+        logout_user()   # Đăng xuất
+
+        flash('Tài khoản đã được xóa thành công. Hẹn gặp lại bạn!', 'success')
+        return redirect(url_for('home'))
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ LỖI XÓA TÀI KHOẢN: {e}")  # In chi tiết lỗi ra console
+        flash('Có lỗi xảy ra khi xóa tài khoản. Vui lòng thử lại sau!', 'error')
+        return redirect(url_for('profile'))
+    
 # ===== CHẠY APP =====
 if __name__ == '__main__':
     with app.app_context():

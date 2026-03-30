@@ -30,6 +30,12 @@
             <i class="fas fa-video"></i>
             <span>Gọi Video</span>
         </button>
+        <!-- Nút Hủy kết bạn -->
+        <!-- <button onclick="unfriendUser()"
+            class="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-full transition flex items-center gap-2">
+            <i class="fas fa-user-minus"></i>
+            <span>Hủy kết bạn</span>
+        </button> -->
     </div>
 
     <!-- Video Call Modal -->
@@ -210,9 +216,9 @@
         return window._globalSocket;
     }
 
-    const userId   = {{ current_user.id }};
+    const userId = {{ current_user.id }};
     const friendId = {{ other_user.id }};
-    const chatbox  = document.getElementById('chatbox');
+    const chatbox = document.getElementById('chatbox');
 
     // Audio/Video biến
     let mediaRecorder, audioChunks = [], recordingStartTime, recordingInterval;
@@ -229,10 +235,11 @@
     // ===== KHỞI TẠO KHI TRANG LOAD =====
     document.addEventListener('DOMContentLoaded', function () {
         // Đợi globalSocket connect xong rồi join room
+        // ===== REGISTER USER KHI VÀO CHAT =====
         const socket = getSocket();
-        if (!socket) {
-            console.error('❌ Không tìm thấy globalSocket');
-            return;
+        if (socket) {
+            socket.emit('register_user', { user_id: userId });
+            console.log('✅ Registered user', userId, 'for realtime');
         }
 
         if (socket.connected) {
@@ -250,10 +257,10 @@
         });
 
         // Video call events
-        socket.on('call_failed',          data  => { alert(data.message); endVideoCall(); });
-        socket.on('video_call_request',   data  => showIncomingCall(data));
-        socket.on('video_call_rejected',  ()    => alert('{{ other_user.name }} đã từ chối cuộc gọi'));
-        socket.on('call_ended',           ()    => endVideoCall());
+        socket.on('call_failed', data => { alert(data.message); endVideoCall(); });
+        socket.on('video_call_request', data => showIncomingCall(data));
+        socket.on('video_call_rejected', () => alert('{{ other_user.name }} đã từ chối cuộc gọi'));
+        socket.on('call_ended', () => endVideoCall());
 
         socket.on('video_call_accepted', async function () {
             await createPeerConnection();
@@ -295,12 +302,12 @@
 
     // ===== GỬI TIN NHẮN =====
     function sendMsg() {
-        const input   = document.getElementById('msgInput');
+        const input = document.getElementById('msgInput');
         const content = input.value.trim();
         if (!content) return;
 
         getSocket().emit('send_message', {
-            sender_id:   userId,
+            sender_id: userId,
             receiver_id: friendId,
             content,
             type: 'text'
@@ -310,7 +317,7 @@
 
     function sendSticker(emoji) {
         getSocket().emit('send_message', {
-            sender_id:   userId,
+            sender_id: userId,
             receiver_id: friendId,
             content: emoji,
             type: 'sticker'
@@ -327,48 +334,48 @@
         const files = Array.from(event.target.files);
         if (!files.length) return;
 
-        const preview        = document.getElementById('mediaPreview');
-        const previewContent = document.getElementById('previewContent');
-        previewContent.innerHTML = '';
-
+        // Hiện preview loading tạm thời
         files.forEach(file => {
-            const reader = new FileReader();
-            reader.onload = e => {
-                const img = document.createElement('img');
-                img.src       = e.target.result;
-                img.className = 'h-20 w-20 object-cover rounded mr-2 inline-block';
-                previewContent.appendChild(img);
-
-                getSocket().emit('send_message', {
-                    sender_id: userId, receiver_id: friendId,
-                    content: e.target.result, type: 'image', filename: file.name
-                });
-            };
-            reader.readAsDataURL(file);
+            uploadFile(file, 'image'); // Gọi hàm upload chung
         });
-
-        preview.classList.remove('hidden');
-        setTimeout(clearMediaPreview, 1500);
     }
 
     function handleVideoSelect(event) {
         const file = event.target.files[0];
         if (!file) return;
 
-        const previewContent = document.getElementById('previewContent');
-        previewContent.innerHTML = `<p class="text-sm"><i class="fas fa-video mr-2"></i>${file.name}</p>`;
-        document.getElementById('mediaPreview').classList.remove('hidden');
-
-        const reader = new FileReader();
-        reader.onload = e => {
-            getSocket().emit('send_message', {
-                sender_id: userId, receiver_id: friendId,
-                content: e.target.result, type: 'video', filename: file.name
-            });
-        };
-        reader.readAsDataURL(file);
-        setTimeout(clearMediaPreview, 1500);
+        uploadFile(file, 'video'); // Gọi hàm upload chung
     }
+
+    // ✅ HÀM MỚI: UPLOAD FILE LÊN SERVER TRƯỚC
+    async function uploadFile(file, type) {
+        const formData = new FormData();
+        formData.append('image', file); // Backend key là 'image' nhưng nhận hết mọi loại file
+
+        try {
+            const response = await fetch('/upload_chat_image', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                // ✅ GỬI ĐƯỜNG LINK QUA SOCKET (KHÔNG GỬI BASE64 NỮA)
+                getSocket().emit('send_message', {
+                    sender_id: userId,
+                    receiver_id: friendId,
+                    content: result.url, // Gửi đường dẫn ảnh: /static/uploads/xxx.jpg
+                    type: result.type || type
+                });
+            } else {
+                alert('Lỗi upload: ' + result.error);
+            }
+        } catch (err) {
+            console.error('Upload error:', err);
+            alert('Không thể gửi file.');
+        }
+    }
+
 
     function clearMediaPreview() {
         document.getElementById('mediaPreview').classList.add('hidden');
@@ -386,15 +393,15 @@
     async function startRecording() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4']
+            const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
                 .find(t => MediaRecorder.isTypeSupported(t)) || '';
 
-            mediaRecorder  = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-            audioChunks    = [];
+            mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+            audioChunks = [];
 
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
             mediaRecorder.onstop = () => {
-                const blob   = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
+                const blob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
                 const reader = new FileReader();
                 reader.onload = e => getSocket().emit('send_message', {
                     sender_id: userId, receiver_id: friendId,
@@ -406,9 +413,9 @@
 
             mediaRecorder.start();
             document.getElementById('recordingIndicator').classList.remove('hidden');
-            document.getElementById('recordBtn').classList.add('text-red-600','bg-red-50');
+            document.getElementById('recordBtn').classList.add('text-red-600', 'bg-red-50');
             recordingStartTime = Date.now();
-            recordingInterval  = setInterval(updateRecordTime, 100);
+            recordingInterval = setInterval(updateRecordTime, 100);
         } catch (err) {
             alert('Không thể truy cập microphone: ' + err.message);
         }
@@ -418,7 +425,7 @@
         if (mediaRecorder?.state === 'recording') {
             mediaRecorder.stop();
             document.getElementById('recordingIndicator').classList.add('hidden');
-            document.getElementById('recordBtn').classList.remove('text-red-600','bg-red-50');
+            document.getElementById('recordBtn').classList.remove('text-red-600', 'bg-red-50');
             clearInterval(recordingInterval);
             document.getElementById('recordTime').textContent = '00:00';
         }
@@ -427,14 +434,14 @@
     function updateRecordTime() {
         const s = Math.floor((Date.now() - recordingStartTime) / 1000);
         document.getElementById('recordTime').textContent =
-            `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+            `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
     }
 
     // ===== VIDEO CALL =====
     async function startVideoCall() {
         try {
             localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            document.getElementById('localVideo').srcObject  = localStream;
+            document.getElementById('localVideo').srcObject = localStream;
             document.getElementById('videoCallModal').classList.remove('hidden');
             document.getElementById('callStatus').textContent = 'Đang gọi...';
             getSocket().emit('video_call_request', { from: userId, to: friendId, caller_name: '{{ current_user.name }}' });
@@ -447,14 +454,14 @@
         document.getElementById('incomingCallNotif').classList.remove('hidden');
         window.ringtone = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         window.ringtone.loop = true;
-        window.ringtone.play().catch(() => {});
+        window.ringtone.play().catch(() => { });
     }
 
     async function acceptCall() {
         window.ringtone?.pause();
         document.getElementById('incomingCallNotif').classList.add('hidden');
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        document.getElementById('localVideo').srcObject  = localStream;
+        document.getElementById('localVideo').srcObject = localStream;
         document.getElementById('videoCallModal').classList.remove('hidden');
         document.getElementById('callStatus').textContent = 'Đang kết nối...';
         getSocket().emit('video_call_accepted', { from: userId, to: friendId });
@@ -501,7 +508,7 @@
         localStream?.getTracks().forEach(t => t.stop());
         peerConnection?.close();
         document.getElementById('videoCallModal').classList.add('hidden');
-        document.getElementById('localVideo').srcObject  = null;
+        document.getElementById('localVideo').srcObject = null;
         document.getElementById('remoteVideo').srcObject = null;
         if (callTimer) clearInterval(callTimer);
         getSocket().emit('call_ended', { to: friendId });
@@ -513,7 +520,7 @@
         callTimer = setInterval(() => {
             const s = Math.floor((Date.now() - callStartTime) / 1000);
             document.getElementById('callTimer').textContent =
-                `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+                `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
         }, 1000);
     }
 
@@ -531,31 +538,59 @@
     // ===== HIỂN THỊ TIN NHẮN =====
     function appendMessage(msg) {
         const isMine = msg.sender_id == userId;
-        const type   = msg.type || 'text';
-        const div    = document.createElement('div');
+        const type = msg.type || 'text';
+        const div = document.createElement('div');
         div.className = `flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`;
 
         let content = '';
+
+        // Xử lý hiển thị theo loại tin nhắn
         switch (type) {
-            case 'sticker': content = `<p class="text-6xl">${msg.content}</p>`; break;
-            case 'image':   content = `<img src="${msg.content}" class="max-w-xs rounded-lg cursor-pointer hover:opacity-90" onclick="window.open('${msg.content}','_blank')">`; break;
-            case 'video':   content = `<video controls class="max-w-xs rounded-lg"><source src="${msg.content}" type="video/mp4"></video>`; break;
+            case 'sticker':
+                content = `<p class="text-6xl">${msg.content}</p>`;
+                break;
+
+            case 'image':
+                // Kiểm tra nếu content là link (bắt đầu bằng / hoặc http) thì hiện ảnh
+                // Nếu vẫn là base64 (data:image) thì dùng ảnh base64
+                const imgSrc = msg.content.startsWith('data:') || msg.content.startsWith('http') || msg.content.startsWith('/')
+                    ? msg.content
+                    : `data:image/png;base64,${msg.content}`;
+                content = `
+                    <img src="${imgSrc}" 
+                         class="max-w-xs rounded-lg cursor-pointer hover:opacity-90 shadow-md" 
+                         onclick="window.open('${imgSrc}','_blank')"
+                         style="max-height: 300px; object-fit: cover;">`;
+                break;
+
+            case 'video':
+                content = `
+                    <video controls class="max-w-xs rounded-lg shadow-md" style="max-height: 300px;">
+                        <source src="${msg.content}" type="video/mp4">
+                        Trình duyệt không hỗ trợ video.
+                    </video>`;
+                break;
+
             case 'audio':
                 content = `
-                    <div class="flex items-center gap-2 p-2 min-w-[240px]">
-                        <button onclick="playAudio(this)" class="bg-white bg-opacity-30 hover:bg-opacity-50 p-2 rounded-full transition">
+                    <div class="flex items-center gap-2 p-2 min-w-[240px] bg-gray-100 rounded-full">
+                        <button onclick="playAudio(this)" class="bg-pink-500 hover:bg-pink-600 text-white p-2 rounded-full transition">
                             <i class="fas fa-play text-sm"></i>
                         </button>
                         <audio src="${msg.content}" class="hidden"></audio>
                         <div class="flex-1 flex items-center gap-2">
-                            <div class="h-1 bg-white bg-opacity-30 rounded-full flex-1">
-                                <div class="h-1 bg-white rounded-full w-0 audio-progress"></div>
+                            <div class="h-1 bg-gray-300 rounded-full flex-1">
+                                <div class="h-1 bg-pink-500 rounded-full w-0 audio-progress"></div>
                             </div>
-                            <span class="text-xs opacity-70 audio-time">0:00</span>
+                            <span class="text-xs text-gray-500 audio-time">0:00</span>
                         </div>
                     </div>`;
                 break;
-            default: content = `<p>${msg.content}</p>`;
+
+            default:
+                // Xử lý link trong text thường
+                const textContent = msg.content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-500 underline">$1</a>');
+                content = `<p style="word-break: break-word;">${textContent}</p>`;
         }
 
         div.innerHTML = `
@@ -571,10 +606,10 @@
     }
 
     function playAudio(button) {
-        const container  = button.parentElement;
-        const audio      = container.querySelector('audio');
-        const icon       = button.querySelector('i');
-        const progress   = container.querySelector('.audio-progress');
+        const container = button.parentElement;
+        const audio = container.querySelector('audio');
+        const icon = button.querySelector('i');
+        const progress = container.querySelector('.audio-progress');
         const timeDisplay = container.querySelector('.audio-time');
 
         if (audio.paused) {
@@ -586,7 +621,7 @@
             audio.ontimeupdate = () => {
                 progress.style.width = (audio.currentTime / audio.duration * 100) + '%';
                 const s = Math.floor(audio.currentTime);
-                timeDisplay.textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+                timeDisplay.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
             };
             audio.onended = () => {
                 icon.className = 'fas fa-play text-sm';
@@ -596,6 +631,35 @@
         } else {
             audio.pause();
             icon.className = 'fas fa-play text-sm';
+        }
+    }
+    <!-- Thêm vào cuối phần <script> trong chat.html -->
+    async function unfriendUser() {
+        if (!confirm('Bạn có chắc muốn hủy kết bạn với ' + '{{ other_user.name }}' + '?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/unfriend/${friendId}`, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(data.message || 'Đã hủy kết bạn!', true);
+
+                // Tự động chuyển về trang home sau 1.5 giây
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1500);
+            } else {
+                showToast(data.error || 'Không thể hủy kết bạn', false);
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('Lỗi kết nối. Vui lòng thử lại!', false);
         }
     }
 </script>
