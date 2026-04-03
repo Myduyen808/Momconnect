@@ -15,3 +15,19 @@ class Config:
     
     # Thiết lập múi giờ mặc định cho ứng dụng là Việt Nam (UTC+7)
     TIMEZONE = 'Asia/Ho_Chi_Minh'
+
+    # ===================================================
+    # CẤU HÌNH GỬI EMAIL (GMAIL)
+    # ===================================================
+    MAIL_SERVER = 'smtp.gmail.com'
+    MAIL_PORT = 587
+    MAIL_USE_TLS = True
+    MAIL_USE_SSL = False
+    
+    # ⚠️ THAY ĐỔI EMAIL DƯỚI ĐÂY THÀNH EMAIL GMAIL CỦA BẠN
+    MAIL_USERNAME = 'duyenb2203435@student.ctu.edu.vn'      # Ví dụ: minhnguyen123@gmail.com
+    
+    # DÁN MẬT KHẨU VỪA LẤY VÀO ĐÂY (GIỮ NGUYÊN CÁCH CÁCH NHA)
+    MAIL_PASSWORD = 'pvan jwzw ttdc wfjh'               
+    
+    MAIL_DEFAULT_SENDER = 'MomConnect <duyenb2203435@student.ctu.edu.vn>'

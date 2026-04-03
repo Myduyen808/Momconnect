@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="max-w-4xl mx-auto p-4">
-    <!-- Header -->
+    <!-- ==================== HEADER ==================== -->
     <div class="bg-white shadow rounded-lg p-4 mb-4 flex items-center justify-between">
         <div class="flex items-center">
             <a href="{{ url_for('home') }}" class="mr-4">
@@ -13,60 +13,48 @@
                 class="w-12 h-12 rounded-full object-cover mr-3">
             <div>
                 <h3 class="font-bold text-lg">{{ other_user.name }}</h3>
-
                 {% if other_user.is_verified_expert %}
                 <p class="text-xs text-purple-600 font-medium flex items-center gap-1">
                     <i class="fas fa-user-graduate"></i> Chuyên gia tư vấn
                 </p>
-                {% else %}
-                <p class="text-sm text-green-600">Đang hoạt động</p>
+                {% elif chat_type == 'friend' %}
+                <p class="text-sm text-green-600 flex items-center gap-1">
+                    <i class="fas fa-user-check"></i> Bạn bè
+                </p>
                 {% endif %}
             </div>
         </div>
 
-        <!-- Video Call Button -->
+        <!-- NÚT GỌI VIDEO - CHỈ KHI ĐANG HOẠT ĐỘNG -->
+        {% if is_active_chat %}
         <button onclick="startVideoCall()"
             class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-full transition flex items-center gap-2">
             <i class="fas fa-video"></i>
             <span>Gọi Video</span>
         </button>
-        <!-- Nút Hủy kết bạn -->
-        <!-- <button onclick="unfriendUser()"
-            class="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-full transition flex items-center gap-2">
-            <i class="fas fa-user-minus"></i>
-            <span>Hủy kết bạn</span>
-        </button> -->
+        {% endif %}
     </div>
 
-    <!-- Video Call Modal -->
+    <!-- ==================== VIDEO CALL MODAL ==================== -->
     <div id="videoCallModal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
         <div class="w-full h-full relative">
-            <!-- Remote Video (Người nhận) -->
             <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover"></video>
-
-            <!-- Local Video (Bạn) -->
             <video id="localVideo" autoplay muted playsinline
                 class="absolute bottom-20 right-4 w-48 h-36 rounded-lg shadow-lg border-2 border-white object-cover"></video>
-
-            <!-- Call Info -->
             <div class="absolute top-4 left-1/2 transform -translate-x-1/2 text-white text-center">
                 <h3 class="text-2xl font-bold mb-2">{{ other_user.name }}</h3>
                 <p id="callStatus" class="text-lg">Đang kết nối...</p>
                 <p id="callTimer" class="text-sm mt-1"></p>
             </div>
-
-            <!-- Control Buttons -->
             <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4">
                 <button onclick="toggleMic()" id="micBtn"
                     class="bg-gray-700 hover:bg-gray-600 text-white w-14 h-14 rounded-full transition">
                     <i class="fas fa-microphone text-xl"></i>
                 </button>
-
                 <button onclick="toggleCamera()" id="cameraBtn"
                     class="bg-gray-700 hover:bg-gray-600 text-white w-14 h-14 rounded-full transition">
                     <i class="fas fa-video text-xl"></i>
                 </button>
-
                 <button onclick="endVideoCall()"
                     class="bg-red-600 hover:bg-red-700 text-white w-14 h-14 rounded-full transition">
                     <i class="fas fa-phone-slash text-xl"></i>
@@ -75,7 +63,7 @@
         </div>
     </div>
 
-    <!-- Incoming Call Notification -->
+    <!-- ==================== INCOMING CALL ==================== -->
     <div id="incomingCallNotif"
         class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-2xl p-6 z-50 w-96">
         <div class="text-center">
@@ -85,26 +73,93 @@
             <div class="flex gap-3 justify-center">
                 <button onclick="acceptCall()"
                     class="bg-green-500 text-white px-6 py-3 rounded-full hover:bg-green-600 transition flex items-center gap-2">
-                    <i class="fas fa-phone"></i>
-                    Chấp nhận
+                    <i class="fas fa-phone"></i> Chấp nhận
                 </button>
                 <button onclick="rejectCall()"
                     class="bg-red-500 text-white px-6 py-3 rounded-full hover:bg-red-600 transition flex items-center gap-2">
-                    <i class="fas fa-phone-slash"></i>
-                    Từ chối
+                    <i class="fas fa-phone-slash"></i> Từ chối
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Chat Box -->
-    <div id="chatbox" class="bg-gray-50 h-96 overflow-y-auto p-4 rounded-lg mb-4 space-y-3">
-        <p class="text-center text-gray-500">Bắt đầu cuộc trò chuyện!</p>
+    <!-- ============================================================ -->
+    <!-- ✅ TRƯỜNG HỢP 1: CHƯA ĐẾN GIỜ TƯ VẤN -->
+    <!-- ============================================================ -->
+    {% if chat_type == 'consultation' and chat_status == 'not_started' %}
+    <div class="bg-white rounded-lg shadow p-4 mb-4">
+        <div class="text-center py-8 bg-blue-50 rounded-xl border-2 border-blue-200">
+            <i class="fas fa-clock text-blue-500 text-5xl mb-4"></i>
+            <h4 class="text-xl font-bold text-gray-800 mb-2">Chưa đến giờ tư vấn</h4>
+            <p class="text-gray-600 mb-4">Buổi tư vấn với chuyên gia sẽ bắt đầu vào:</p>
+
+            <div class="inline-block bg-white px-8 py-4 rounded-lg shadow-lg mb-4">
+                <p class="text-lg text-gray-500">
+                    <i class="fas fa-calendar-alt mr-2"></i>{{ start_time.strftime('%d/%m/%Y') }}
+                </p>
+                <p class="text-3xl font-bold text-blue-600 my-2">
+                    <i class="fas fa-clock mr-2"></i>{{ start_time.strftime('%H:%M') }} - {{ end_time.strftime('%H:%M')
+                    }}
+                </p>
+                {% if booking.time_slot.notes %}
+                <p class="text-sm text-gray-500 mt-2">
+                    <i class="fas fa-sticky-note mr-1"></i> {{ booking.time_slot.notes }}
+                </p>
+                {% endif %}
+            </div>
+
+            <p class="text-sm text-gray-500 mb-6">
+                <i class="fas fa-info-circle mr-1"></i>
+                Vui lòng quay lại đúng giờ để bắt đầu tư vấn
+            </p>
+
+            <div class="flex justify-center gap-3">
+                <a href="{{ url_for('my_bookings') }}"
+                    class="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition">
+                    <i class="fas fa-calendar-check mr-2"></i> Xem lịch đã đặt
+                </a>
+                <a href="{{ url_for('home') }}"
+                    class="bg-gray-200 text-gray-700 px-6 py-2.5 rounded-lg font-medium hover:bg-gray-300 transition">
+                    <i class="fas fa-home mr-2"></i> Trang chủ
+                </a>
+            </div>
+        </div>
     </div>
 
-    <!-- Input Area -->
+    <!-- ============================================================ -->
+    <!-- ✅ TRƯỜNG HỢP 2: CHAT ĐANG HOẠT ĐỘNG (Bạn bè hoặc Đang tư vấn) -->
+    <!-- ============================================================ -->
+    {% elif is_active_chat %}
+
+    <!-- Thông tin giờ tư vấn (chỉ hiện cho chat tư vấn) -->
+    {% if chat_type == 'consultation' %}
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-center justify-between">
+        <div class="flex items-center gap-2 text-blue-700">
+            <i class="fas fa-headset"></i>
+            <span class="text-sm font-medium">Đang trong buổi tư vấn</span>
+            <span class="text-xs">({{ start_time.strftime('%H:%M') }} - {{ end_time.strftime('%H:%M') }})</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span class="text-xs text-green-600 font-medium">Đang hoạt động</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Chat Box -->
+    <div id="chatbox" class="bg-gray-50 h-96 overflow-y-auto p-4 rounded-lg mb-4 space-y-3">
+        <p class="text-center text-gray-500">
+            {% if chat_type == 'consultation' %}
+            <i class="fas fa-headset mr-1"></i> Bắt đầu buổi tư vấn với chuyên gia {{ other_user.name }}!
+            {% else %}
+            <i class="fas fa-comments mr-1"></i> Bắt đầu cuộc trò chuyện!
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Khung Nhập Tin Nhắn -->
     <div class="bg-white rounded-lg shadow p-3">
-        <!-- Preview Area for Selected Media -->
+        <!-- Preview Area -->
         <div id="mediaPreview" class="hidden mb-3 p-2 bg-gray-100 rounded-lg">
             <div class="flex items-center justify-between">
                 <div id="previewContent" class="flex-1"></div>
@@ -128,9 +183,7 @@
 
         <!-- Main Input Row -->
         <div class="flex gap-2 items-center">
-            <!-- Media Buttons -->
             <div class="flex gap-1">
-                <!-- Image Button -->
                 <button onclick="document.getElementById('imageInput').click()"
                     class="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition" title="Gửi ảnh">
                     <i class="fas fa-image text-xl"></i>
@@ -138,31 +191,27 @@
                 <input type="file" id="imageInput" accept="image/*" multiple class="hidden"
                     onchange="handleImageSelect(event)">
 
-                <!-- Video Button -->
                 <button onclick="document.getElementById('videoInput').click()"
                     class="p-2 text-purple-600 hover:bg-purple-50 rounded-full transition" title="Gửi video">
                     <i class="fas fa-video text-xl"></i>
                 </button>
                 <input type="file" id="videoInput" accept="video/*" class="hidden" onchange="handleVideoSelect(event)">
 
-                <!-- Sticker Button -->
                 <button onclick="toggleStickerPanel()"
                     class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-full transition" title="Sticker">
                     <i class="fas fa-smile text-xl"></i>
                 </button>
 
-                <!-- Voice Record Button -->
                 <button onclick="toggleRecording()" id="recordBtn"
                     class="p-2 text-green-600 hover:bg-green-50 rounded-full transition" title="Ghi âm">
                     <i class="fas fa-microphone text-xl"></i>
                 </button>
             </div>
 
-            <!-- Text Input -->
             <input type="text" id="msgInput" placeholder="Nhắn tin..."
-                class="flex-1 px-4 py-2 rounded-full border focus:outline-none focus:ring-2 focus:ring-pink-500">
+                class="flex-1 px-4 py-2 rounded-full border focus:outline-none focus:ring-2 focus:ring-pink-500"
+                onkeypress="if(event.key==='Enter') sendMsg()">
 
-            <!-- Send Button -->
             <button onclick="sendMsg()"
                 class="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-6 py-2 rounded-full font-medium hover:shadow-lg transition">
                 <i class="fas fa-paper-plane"></i>
@@ -188,10 +237,6 @@
                     class="text-3xl hover:bg-gray-200 p-2 rounded transition">🤔</button>
                 <button onclick="sendSticker('😢')"
                     class="text-3xl hover:bg-gray-200 p-2 rounded transition">😢</button>
-                <button onclick="sendSticker('😭')"
-                    class="text-3xl hover:bg-gray-200 p-2 rounded transition">😭</button>
-                <button onclick="sendSticker('😡')"
-                    class="text-3xl hover:bg-gray-200 p-2 rounded transition">😡</button>
                 <button onclick="sendSticker('👍')"
                     class="text-3xl hover:bg-gray-200 p-2 rounded transition">👍</button>
                 <button onclick="sendSticker('❤️')"
@@ -200,18 +245,88 @@
                     class="text-3xl hover:bg-gray-200 p-2 rounded transition">💯</button>
                 <button onclick="sendSticker('🔥')"
                     class="text-3xl hover:bg-gray-200 p-2 rounded transition">🔥</button>
-                <button onclick="sendSticker('✨')" class="text-3xl hover:bg-gray-200 p-2 rounded transition">✨</button>
-                <button onclick="sendSticker('🎉')"
-                    class="text-3xl hover:bg-gray-200 p-2 rounded transition">🎉</button>
             </div>
         </div>
     </div>
+
+    <!-- ============================================================ -->
+    <!-- ✅ TRƯỜNG HỢP 3: HẾT GIỜ TƯ VẤN (CHỈ XEM LỊCH SỬ) -->
+    <!-- ============================================================ -->
+    {% elif chat_type == 'consultation' and chat_status == 'ended' %}
+
+    <!-- Thông báo đã kết thúc -->
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex items-center justify-between">
+        <div class="flex items-center gap-2 text-yellow-700">
+            <i class="fas fa-lock"></i>
+            <span class="text-sm font-medium">Buổi tư vấn đã kết thúc</span>
+            <span class="text-xs">({{ start_time.strftime('%H:%M') }} - {{ end_time.strftime('%H:%M') }})</span>
+        </div>
+        <span class="text-xs text-gray-500">Chỉ xem được lịch sử</span>
+    </div>
+
+    <!-- Chat Box (Chỉ xem) -->
+    <div id="chatbox" class="bg-gray-50 h-96 overflow-y-auto p-4 rounded-lg mb-4 space-y-3">
+        <p class="text-center text-gray-500">
+            <i class="fas fa-history mr-1"></i> Lịch sử buổi tư vấn
+        </p>
+    </div>
+
+    <!-- Thông báo & Đánh giá -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="text-center py-4 bg-yellow-50 rounded-xl border-2 border-yellow-200">
+            <i class="fas fa-lock text-yellow-500 text-4xl mb-3"></i>
+            <h4 class="text-lg font-bold text-gray-800 mb-1">Buổi tư vấn đã kết thúc</h4>
+            <p class="text-sm text-gray-600 mb-4">Đây là lịch sử cuộc trò chuyện. Bạn không thể gửi tin nhắn mới.</p>
+
+            <div class="flex justify-center gap-3">
+                <a href="{{ url_for('my_bookings') }}"
+                    class="bg-gray-200 text-gray-700 px-5 py-2 rounded-lg font-medium hover:bg-gray-300 transition">
+                    <i class="fas fa-arrow-left mr-1"></i> Quay lại
+                </a>
+                {% if booking and not booking.feedback %}
+                <button onclick="openFeedbackModal()"
+                    class="bg-purple-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-purple-700 transition">
+                    <i class="fas fa-star mr-1"></i> Đánh giá chuyên gia
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Đánh giá -->
+    {% if booking and not booking.feedback %}
+    <div id="feedbackModal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h3 class="text-xl font-bold mb-4">Đánh giá buổi tư vấn</h3>
+            <form action="{{ url_for('submit_feedback', booking_id=booking.id) }}" method="POST">
+                <div class="flex justify-center gap-2 mb-4">
+                    {% for i in range(1,6) %}
+                    <input type="radio" name="rating" value="{{ i }}" id="fstar{{ i }}" class="hidden" required>
+                    <label for="fstar{{ i }}"
+                        class="text-4xl text-gray-300 hover:text-yellow-400 cursor-pointer transition">★</label>
+                    {% endfor %}
+                </div>
+                <textarea name="comment" rows="3"
+                    class="w-full border rounded-lg p-2 mb-4 focus:ring-2 focus:ring-purple-500"
+                    placeholder="Chia sẻ cảm nhận của bạn..."></textarea>
+                <div class="flex gap-3">
+                    <button type="button" onclick="closeFeedbackModal()"
+                        class="flex-1 bg-gray-200 py-2 rounded-lg">Hủy</button>
+                    <button type="submit"
+                        class="flex-1 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700">Gửi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+
 </div>
 
-<!-- <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script> -->
 <script>
-    // ===== DÙNG LẠI GLOBAL SOCKET TỪ base.html =====
-    // Đợi globalSocket sẵn sàng
+    // ===== GLOBAL SOCKET =====
     function getSocket() {
         return window._globalSocket;
     }
@@ -220,7 +335,6 @@
     const friendId = {{ other_user.id }};
     const chatbox = document.getElementById('chatbox');
 
-    // Audio/Video biến
     let mediaRecorder, audioChunks = [], recordingStartTime, recordingInterval;
     let localStream, peerConnection, callTimer, callStartTime;
     let isMicOn = true, isCameraOn = true;
@@ -232,14 +346,11 @@
         ]
     };
 
-    // ===== KHỞI TẠO KHI TRANG LOAD =====
+    // ===== KHỞI TẠO =====
     document.addEventListener('DOMContentLoaded', function () {
-        // Đợi globalSocket connect xong rồi join room
-        // ===== REGISTER USER KHI VÀO CHAT =====
         const socket = getSocket();
         if (socket) {
             socket.emit('register_user', { user_id: userId });
-            console.log('✅ Registered user', userId, 'for realtime');
         }
 
         if (socket.connected) {
@@ -250,25 +361,20 @@
             });
         }
 
-        // Lắng nghe tin nhắn
         socket.on('receive_message', function (msg) {
-            console.log('📩 Message:', msg);
             appendMessage(msg);
         });
 
-        // Video call events
         socket.on('call_failed', data => { alert(data.message); endVideoCall(); });
         socket.on('video_call_request', data => showIncomingCall(data));
         socket.on('video_call_rejected', () => alert('{{ other_user.name }} đã từ chối cuộc gọi'));
         socket.on('call_ended', () => endVideoCall());
-
         socket.on('video_call_accepted', async function () {
             await createPeerConnection();
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             getSocket().emit('video_call_offer', { to: friendId, offer });
         });
-
         socket.on('video_call_offer', async function (data) {
             await createPeerConnection();
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
@@ -276,29 +382,20 @@
             await peerConnection.setLocalDescription(answer);
             getSocket().emit('video_call_answer', { to: data.from, answer });
         });
-
         socket.on('video_call_answer', async function (data) {
             if (peerConnection) await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
         });
-
         socket.on('ice_candidate', async function (data) {
             if (peerConnection && data.candidate)
                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
         });
 
-        // Load lịch sử chat
         loadHistory();
     });
 
     function joinChatRoom(socket) {
         socket.emit('join_chat', { user_id: userId, friend_id: friendId });
-        console.log('✅ Joined chat room:', userId, '↔', friendId);
     }
-
-    // Enter để gửi
-    document.getElementById('msgInput').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); sendMsg(); }
-    });
 
     // ===== GỬI TIN NHẮN =====
     function sendMsg() {
@@ -333,38 +430,28 @@
     function handleImageSelect(event) {
         const files = Array.from(event.target.files);
         if (!files.length) return;
-
-        // Hiện preview loading tạm thời
-        files.forEach(file => {
-            uploadFile(file, 'image'); // Gọi hàm upload chung
-        });
+        files.forEach(file => uploadFile(file, 'image'));
     }
 
     function handleVideoSelect(event) {
         const file = event.target.files[0];
         if (!file) return;
-
-        uploadFile(file, 'video'); // Gọi hàm upload chung
+        uploadFile(file, 'video');
     }
 
-    // ✅ HÀM MỚI: UPLOAD FILE LÊN SERVER TRƯỚC
     async function uploadFile(file, type) {
         const formData = new FormData();
-        formData.append('image', file); // Backend key là 'image' nhưng nhận hết mọi loại file
+        formData.append('image', file);
 
         try {
-            const response = await fetch('/upload_chat_image', {
-                method: 'POST',
-                body: formData
-            });
+            const response = await fetch('/upload_chat_image', { method: 'POST', body: formData });
             const result = await response.json();
 
             if (result.success) {
-                // ✅ GỬI ĐƯỜNG LINK QUA SOCKET (KHÔNG GỬI BASE64 NỮA)
                 getSocket().emit('send_message', {
                     sender_id: userId,
                     receiver_id: friendId,
-                    content: result.url, // Gửi đường dẫn ảnh: /static/uploads/xxx.jpg
+                    content: result.url,
                     type: result.type || type
                 });
             } else {
@@ -375,7 +462,6 @@
             alert('Không thể gửi file.');
         }
     }
-
 
     function clearMediaPreview() {
         document.getElementById('mediaPreview').classList.add('hidden');
@@ -492,7 +578,7 @@
         const btn = document.getElementById('micBtn');
         btn.innerHTML = isMicOn ? '<i class="fas fa-microphone text-xl"></i>' : '<i class="fas fa-microphone-slash text-xl"></i>';
         btn.classList.toggle('bg-red-600', !isMicOn);
-        btn.classList.toggle('bg-gray-700', isMicOn);
+        btn.classList.toggle("bg-gray-700", isMicOn);
     }
 
     function toggleCamera() {
@@ -501,7 +587,7 @@
         const btn = document.getElementById('cameraBtn');
         btn.innerHTML = isCameraOn ? '<i class="fas fa-video text-xl"></i>' : '<i class="fas fa-video-slash text-xl"></i>';
         btn.classList.toggle('bg-red-600', !isCameraOn);
-        btn.classList.toggle('bg-gray-700', isCameraOn);
+        btn.classList.toggle("bg-gray-700", isCameraOn);
     }
 
     function endVideoCall() {
@@ -526,6 +612,7 @@
 
     // ===== LỊCH SỬ CHAT =====
     function loadHistory() {
+        if (!chatbox) return;
         fetch(`/chat/history/${friendId}`)
             .then(r => r.json())
             .then(msgs => {
@@ -544,22 +631,16 @@
 
         let content = '';
 
-        // Xử lý hiển thị theo loại tin nhắn
         switch (type) {
             case 'sticker':
                 content = `<p class="text-6xl">${msg.content}</p>`;
                 break;
 
             case 'image':
-                // Kiểm tra nếu content là link (bắt đầu bằng / hoặc http) thì hiện ảnh
-                // Nếu vẫn là base64 (data:image) thì dùng ảnh base64
-                const imgSrc = msg.content.startsWith('data:') || msg.content.startsWith('http') || msg.content.startsWith('/')
-                    ? msg.content
-                    : `data:image/png;base64,${msg.content}`;
                 content = `
-                    <img src="${imgSrc}" 
+                    <img src="${msg.content}" 
                          class="max-w-xs rounded-lg cursor-pointer hover:opacity-90 shadow-md" 
-                         onclick="window.open('${imgSrc}','_blank')"
+                         onclick="window.open('${msg.content}','_blank')"
                          style="max-height: 300px; object-fit: cover;">`;
                 break;
 
@@ -567,7 +648,6 @@
                 content = `
                     <video controls class="max-w-xs rounded-lg shadow-md" style="max-height: 300px;">
                         <source src="${msg.content}" type="video/mp4">
-                        Trình duyệt không hỗ trợ video.
                     </video>`;
                 break;
 
@@ -588,7 +668,6 @@
                 break;
 
             default:
-                // Xử lý link trong text thường
                 const textContent = msg.content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-500 underline">$1</a>');
                 content = `<p style="word-break: break-word;">${textContent}</p>`;
         }
@@ -633,34 +712,14 @@
             icon.className = 'fas fa-play text-sm';
         }
     }
-    <!-- Thêm vào cuối phần <script> trong chat.html -->
-    async function unfriendUser() {
-        if (!confirm('Bạn có chắc muốn hủy kết bạn với ' + '{{ other_user.name }}' + '?')) {
-            return;
-        }
 
-        try {
-            const response = await fetch(`/unfriend/${friendId}`, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
+    // ===== MODAL ĐÁNH GIÁ =====
+    function openFeedbackModal() {
+        document.getElementById('feedbackModal').classList.remove('hidden');
+    }
 
-            const data = await response.json();
-
-            if (data.success) {
-                showToast(data.message || 'Đã hủy kết bạn!', true);
-
-                // Tự động chuyển về trang home sau 1.5 giây
-                setTimeout(() => {
-                    window.location.href = '/';
-                }, 1500);
-            } else {
-                showToast(data.error || 'Không thể hủy kết bạn', false);
-            }
-        } catch (err) {
-            console.error(err);
-            showToast('Lỗi kết nối. Vui lòng thử lại!', false);
-        }
+    function closeFeedbackModal() {
+        document.getElementById('feedbackModal').classList.add('hidden');
     }
 </script>
 {% endblock %}

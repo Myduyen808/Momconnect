@@ -37,7 +37,7 @@
             <div class="slot-card bg-white rounded-xl shadow-md overflow-hidden border-l-4 
                         {{ 'border-green-500' if slot.status == 'available' else 'border-orange-500' if slot.status == 'booked' else 'border-gray-400' }}"
                 data-slot-id="{{ slot.id }}" data-date="{{ slot.start_time.strftime('%Y-%m-%d') }}"
-                data-start-time="{{ slot.start_time.strftime('%H:%M') }}"
+                data-start-time="{{ slot.start_time | vietnam_time }}"
                 data-duration="{{ (slot.end_time - slot.start_time).total_seconds() // 60 }}"
                 data-max-participants="{{ slot.max_participants }}" data-notes="{{ slot.notes or '' }}">
 
@@ -86,7 +86,7 @@
 
                     <div class="text-center mb-4">
                         <div class="text-2xl font-bold text-gray-800">
-                            {{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}
+                            {{ slot.start_time | vietnam_time }} - {{ slot.end_time.strftime('%H:%M') }}
                         </div>
                         <div class="text-sm text-gray-500">
                             {{ ((slot.end_time - slot.start_time).total_seconds() // 60) }} phút
@@ -159,7 +159,7 @@
 
                     <div class="text-center mb-4">
                         <div class="text-2xl font-bold text-gray-600">
-                            {{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}
+                            {{ slot.start_time | vietnam_time }} - {{ slot.end_time.strftime('%H:%M') }}
                         </div>
                         <div class="text-sm text-gray-500">
                             {{ ((slot.end_time - slot.start_time).total_seconds() // 60) }} phút
@@ -244,9 +244,24 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-bold text-gray-700 mb-2">Giờ bắt đầu *</label>
-                        <input type="time" name="start_time" id="slotTime" required
-                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            Giờ bắt đầu
+                            <span class="text-xs font-normal text-gray-400"></span>
+                        </label>
+                        <div class="flex gap-3 items-center">
+                            <input type="time" name="start_time" id="slotTime" required
+                                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-lg"
+                                onchange="showTimePreview(this.value)">
+                            <span id="timePreview" class="text-sm font-bold min-w-[100px] text-right">--</span>
+                        </div>
+                    </div>
+
+                    <!-- ✅ THÊM HIỆN THỜI GIỜ VN -->
+                    <div class="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <p class="text-sm text-blue-700">
+                            <i class="fas fa-clock mr-1"></i>
+                            <span id="vnTimeNow"></span>
+                        </p>
                     </div>
 
                     <div>
@@ -302,29 +317,62 @@
             event.target.classList.add('border-purple-600', 'text-purple-600', 'active-tab');
         }
 
-        // Mặc định mở tab Sắp tới
         document.addEventListener('DOMContentLoaded', () => {
             showTab('upcoming');
+            // Hiển thị thời gian VN ngay khi load
+            updateVnTimePreview();
+            // Cập nhật mỗi phút
+            setInterval(updateVnTimePreview, 60000);
         });
+
+        // ======================
+        // ✅ HIỆN THỜI GIAN VN THỰC TẠI
+        // ======================
+        function updateVnTimePreview() {
+            const now = new Date();
+            const vnTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+            const hh = String(vnTime.getHours()).padStart(2, '0');
+            const mm = String(vnTime.getMinutes()).padStart(2, '0');
+            const el = document.getElementById('vnTimeNow');
+            if (el) {
+                el.textContent = `Giờ VN hiện tại: ${hh}:${mm}`;
+            }
+        }
+
+        // ======================
+        // ✅ CHUYỂN ĐỔI 24H SANG 12H KHI NHẬP
+        // ======================
+        function showTimePreview(time24) {
+            const preview = document.getElementById('timePreview');
+            if (!time24 || !preview) return;
+
+            const [hours, minutes] = time24.split(':').map(Number);
+            const period = hours >= 12 ? 'CH' : 'SA';
+            const hours12 = hours % 12 || 12;
+
+            preview.textContent = `${hours12}:${String(minutes).padStart(2, '0')} ${period}`;
+            preview.className = `flex items-center text-sm font-bold ${period === 'CH' ? 'text-orange-600' : 'text-green-600'
+                }`;
+        }
 
         // ======================
         // MỞ MODAL TẠO MỚI
         // ======================
         function openCreateModal() {
-            // Reset form
             document.getElementById('slotForm').reset();
             document.getElementById('modalTitle').textContent = 'Tạo khung giờ mới';
+            document.getElementById('timePreview').textContent = '--';
 
-            // ✅ XÓA CÁC INPUT ẨN NẾU CÓ
+            // Xóa input ẩn nếu có
             const hiddenId = document.getElementById('slotId');
             if (hiddenId) hiddenId.remove();
 
-            const actionInput = document.getElementById('slotAction');
-            if (actionInput) actionInput.remove();
-
-            // ✅ KHÔNG CẦN action='create' - backend sẽ tự hiểu khi không có slot_id
-
             document.getElementById('slotModal').classList.remove('hidden');
+
+            // Focus vào ô giờ
+            setTimeout(() => {
+                document.getElementById('slotTime').focus();
+            }, 300);
         }
 
         // ======================
@@ -337,14 +385,15 @@
                 return;
             }
 
-            // ✅ Điền dữ liệu vào form
             document.getElementById('slotDate').value = card.dataset.date;
             document.getElementById('slotTime').value = card.dataset.startTime;
             document.getElementById('slotDuration').value = card.dataset.duration;
-            document.getElementById('slotMax').value = card.dataset.maxParticipants;
             document.getElementById('slotNotes').value = card.dataset.notes || '';
 
-            // ✅ Thêm slot_id (dấu hiệu backend biết là EDIT)
+            // Hiện preview
+            showTimePreview(card.dataset.startTime);
+
+            // Thêm slot_id
             let hiddenId = document.getElementById('slotId');
             if (!hiddenId) {
                 hiddenId = document.createElement('input');
@@ -354,8 +403,6 @@
                 document.getElementById('slotForm').appendChild(hiddenId);
             }
             hiddenId.value = slotId;
-
-            // ✅ KHÔNG CẦN action input - backend sẽ tự biết vì có slot_id
 
             document.getElementById('modalTitle').textContent = 'Chỉnh sửa khung giờ';
             document.getElementById('slotModal').classList.remove('hidden');
@@ -367,15 +414,12 @@
         function closeModal() {
             document.getElementById('slotModal').classList.add('hidden');
             document.getElementById('slotForm').reset();
+            document.getElementById('timePreview').textContent = '--';
 
-            // Xóa các input ẩn
             const hiddenId = document.getElementById('slotId');
             if (hiddenId) hiddenId.remove();
 
-            const actionInput = document.getElementById('slotAction');
-            if (actionInput) actionInput.remove();
-
-            document.getElementById('modalTitle').textContent = 'Tạo khung giờ mới';
+            document.getElementById('modalTitle').textContent = 'tạo khung giờ mới';
         }
 
         // ======================
@@ -395,23 +439,18 @@
                 });
 
                 if (res.ok) {
-                    // ✅ Xóa card khỏi giao diện
                     const card = document.querySelector(`.slot-card[data-slot-id="${slotId}"]`);
                     if (card) {
                         card.style.transition = 'opacity 0.5s';
                         card.style.opacity = '0';
                         setTimeout(() => {
                             card.remove();
-
-                            // Kiểm tra nếu không còn slot nào → hiện empty state
                             const container = document.getElementById('slotsContainer');
                             if (container && container.children.length === 0) {
-                                location.reload(); // Reload để hiện empty state
+                                location.reload();
                             }
                         }, 500);
                     }
-
-                    // ✅ Hiện thông báo thành công
                     showToast('✅ Đã xóa khung giờ thành công!', 'success');
                 } else {
                     const data = await res.json();
@@ -424,7 +463,7 @@
         }
 
         // ======================
-        // HÀM HIỂN THỊ TOAST (BONUS)
+        // TOAST NOTIFICATION
         // ======================
         function showToast(message, type = 'info') {
             const colors = {
@@ -432,13 +471,10 @@
                 error: 'bg-red-500',
                 info: 'bg-blue-500'
             };
-
             const toast = document.createElement('div');
             toast.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-4 rounded-lg shadow-2xl z-50 transform transition-all`;
             toast.textContent = message;
-
             document.body.appendChild(toast);
-
             setTimeout(() => {
                 toast.style.opacity = '0';
                 setTimeout(() => toast.remove(), 300);
@@ -446,10 +482,9 @@
         }
 
         // ======================
-        // XỬ LÝ SUBMIT FORM (QUAN TRỌNG!)
+        // ✅ VALIDATION FORM (SỬA LẠI)
         // ======================
         document.getElementById('slotForm').addEventListener('submit', function (e) {
-            // ✅ Kiểm tra dữ liệu trước khi submit
             const date = document.getElementById('slotDate').value;
             const time = document.getElementById('slotTime').value;
             const duration = document.getElementById('slotDuration').value;
@@ -460,18 +495,30 @@
                 return false;
             }
 
-            // ✅ Kiểm tra ngày không được trong quá khứ
-            const selectedDate = new Date(date + 'T' + time);
-            const now = new Date();
-
-            if (selectedDate < now) {
-                e.preventDefault();
-                alert('❌ Không thể tạo khung giờ trong quá khứ!');
-                return false;
+            // ✅ Hiện xác nhận trước khi submit
+            const timePreview = document.getElementById('timePreview').textContent;
+            if (timePreview && timePreview !== '--') {
+                if (!confirm(`Xác nhận tạo khung giờ:\n📅 ${date}\n⏰ ${timePreview}\n⏱ ${duration} phút`)) {
+                    e.preventDefault();
+                    return false;
+                }
             }
 
-            console.log('✅ Form validation passed, submitting...');
-            return true;
+            // ✅ Log để debug
+            console.log('=== DEBUG SUBMIT SCHEDULE ===');
+            console.log('date:', date);
+            console.log('time (RAW):', time);
+            console.log('duration:', duration);
+            console.log('=================================');
+
+            return true; // Để form submit bình thường
+        });
+
+        // ======================
+        // ✅ LISTEN THAY ĐỔI TIME INPUT
+        // ======================
+        document.getElementById('slotTime').addEventListener('input', function () {
+            showTimePreview(this.value);
         });
     </script>
     {% endblock %}

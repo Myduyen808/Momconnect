@@ -1,5 +1,22 @@
 {% extends "base.html" %}
-{% block title %}{{ post.title }}{% endblock %}
+
+{% block title %}
+<!-- ========================================== -->
+<!-- FACEBOOK / ZALO CRAWLER META TAGS -->
+<!-- ========================================== -->
+{% if post %}
+<meta property="og:type" content="article" />
+<meta property="og:title" content="{{ post.title }}" />
+<meta property="og:description" content="{{ post.content[:200] }}" />
+<meta property="og:url" content="{{ request.url }}" />
+{% if post.images %}
+{% set first_image = post.images.split(',') | first %}
+<meta property="og:image" content="{{ request.host_url }}/static/uploads/{{ first_image }}" />
+{% else %}
+<meta property="og:image" content="{{ request.host_url }}/static/images/default-avatar.png" />
+{% endif %}
+{% endif %}
+{{ post.title }} - MomConnect{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl mx-auto p-4 md:p-6">

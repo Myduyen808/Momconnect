@@ -47,7 +47,10 @@ from models import (
     ExpertProfile,
     TimeSlot,      # ← Add this
     Booking,       # ← Add this
-    ExpertPost 
+    ExpertPost,
+    PointHistory,           # ← THÊM
+    Consultation,           # ← THÊM
+    ConsultationFeedback   
 )
 
 
@@ -106,18 +109,23 @@ def load_user(id):
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # ===== THÊM ĐOẠN CODE NÀY =====
+# 3. SỬA vietnam_time_filter - quay về cách cũ
 @app.template_filter('vietnam_time')
 def vietnam_time_filter(dt):
-    """Filter để định dạng datetime object sang giờ Việt Nam."""
     if dt is None:
         return ""
-    
-    # ✅ NẾU DATETIME ĐÃ CÓ TIMEZONE → CONVERT SANG VN
+    # Naive datetime → coi là giờ VN luôn, không convert
     if dt.tzinfo is not None:
         dt = dt.astimezone(pytz.timezone('Asia/Ho_Chi_Minh'))
-    # ✅ NẾU DATETIME NAIVE → COI NHƯ ĐÃ LÀ GIỜ VN (KHÔNG CONVERT)
-    
     return dt.strftime('%H:%M %d/%m/%Y')
+
+VN_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
+
+# === HÀM LẤY GIỜ VN DẠNG NAIVE (ĐỂ SO SÁNH VỚI DATABASE) ===
+# 1. SỬA get_vn_now() - quay về cách cũ
+def get_vn_now():
+    """Trả về giờ VN hiện tại dưới dạng NAIVE datetime"""
+    return datetime.now(VN_TZ).replace(tzinfo=None)
 
 # === HÀM HỖ TRỢ ===
 def get_friends(user):
@@ -197,18 +205,20 @@ def notify_all_admins(title, message, type='system', related_user_id=None, relat
 @app.context_processor
 def utility_processor():
     def now():
-        return vietnam_now()
+        return get_vn_now()
     return dict(now=now)
 
 # Trong app.py - Hàm kiểm tra lịch sắp bắt đầu
 def notify_upcoming_bookings():
-    now = vietnam_now()
-    soon = now + timedelta(minutes=15)  # 15 phút trước
+    now = get_vn_now()
+    soon = now + timedelta(minutes=15)
     
-    upcoming = Booking.query.filter_by(status='scheduled')\
-                           .join(TimeSlot)\
-                           .filter(TimeSlot.start_time.between(now, soon))\
-                           .all()
+    # Sử dụng ngoặc đơn để viết trên nhiều dòng (Sạch và an toàn hơn)
+    upcoming = (Booking.query
+                .filter_by(status='scheduled')
+                .join(TimeSlot)
+                .filter(TimeSlot.start_time.between(now, soon))
+                .all())
     
     for booking in upcoming:
         # Thông báo user
@@ -432,7 +442,7 @@ def comment(post_id):
     if 'media' in request.files:
         file = request.files['media']
         if file and file.filename:
-            filename = secure_filename(f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}")
+            filename = secure_filename(f"{get_vn_now().strftime('%Y%m%d%H%M%S')}_{file.filename}")
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             
@@ -529,7 +539,7 @@ def edit_comment(comment_id):
     
     comment.content = new_content
     comment.is_edited = True
-    comment.updated_at = vietnam_now()
+    comment.updated_at = get_vn_now()
     
     db.session.commit()
     return jsonify({'success': True, 'content': new_content})
@@ -817,7 +827,7 @@ def create_post():
             is_expert_post=is_expert_post  # ← Đánh dấu bài viết chuyên gia
         )
         
-        post.created_at = vietnam_now()
+        post.created_at = get_vn_now()
         db.session.add(post)
 
         # ✅ THÊM DÒNG NÀY - cộng 20 điểm khi đăng bài
@@ -1998,7 +2008,7 @@ def accept_friend_request(request_id):
   
     # Cập nhật trạng thái
     friend_request.status = 'accepted'
-    friend_request.updated_at = vietnam_now()
+    friend_request.updated_at = get_vn_now()
 
     # Tạo quan hệ bạn bè
     friendship = Friendship(
@@ -2059,7 +2069,7 @@ def reject_friend_request(request_id):
     
     # Cập nhật trạng thái lời mời
     friend_request.status = 'rejected'
-    friend_request.updated_at = vietnam_now()
+    friend_request.updated_at = get_vn_now()
     
     db.session.commit()
     
@@ -2178,52 +2188,140 @@ def friends():
         suggested_users=suggested_users
     )
 
-# === CHAT ROUTE ===
-# === CHAT ROUTE - CHO CẢ BẠN BÈ VÀ TƯ VẤN CHUYÊN GIA ===
 @app.route('/chat/<int:user_id>')
 @login_required
 def chat(user_id):
     other_user = User.query.get_or_404(user_id)
     
-    can_chat = False
-    
-    # Trường hợp 1: Đã là bạn bè
+    # ============================================
+    # TRƯỜNG HỢP 1: ĐÃ LÀ BẠN BÈ
+    # ============================================
     friendship = Friendship.query.filter(
         ((Friendship.user1_id == current_user.id) & (Friendship.user2_id == user_id)) |
         ((Friendship.user1_id == user_id) & (Friendship.user2_id == current_user.id))
     ).first()
     
     if friendship:
-        can_chat = True
-    
-    # Trường hợp 2: Có booking hợp lệ (không cần bạn bè)
-    # Check cả 2 chiều: user đặt lịch chuyên gia HOẶC chuyên gia có booking với user
-    if not can_chat:
-        now = datetime.now()
+        messages = Message.query.filter(
+            ((Message.sender_id == current_user.id) & (Message.receiver_id == user_id)) |
+            ((Message.sender_id == user_id) & (Message.receiver_id == current_user.id))
+        ).order_by(Message.timestamp.asc()).all()
         
-        booking = Booking.query.join(TimeSlot).filter(
-            db.or_(
-                # User thường chat với chuyên gia
-                db.and_(
-                    Booking.user_id == current_user.id,
-                    TimeSlot.expert_id == user_id
-                ),
-                # Chuyên gia chat với user
-                db.and_(
-                    Booking.user_id == user_id,
-                    TimeSlot.expert_id == current_user.id
-                )
-            ),
-            Booking.status == 'scheduled'
-        ).first()  # ← BỎ filter start_time để không bị chặn bởi timezone
+        return render_template('chat.html', 
+            other_user=other_user, 
+            messages=messages, 
+            is_active_chat=True,
+            booking=None,
+            chat_type='friend'
+        )
+    
+    # ============================================
+    # TRƯỜNG HỢP 2: CÓ BOOKING TƯ VẤN
+    # ============================================
+    booking = Booking.query.join(TimeSlot).filter(
+        db.or_(
+            db.and_(Booking.user_id == current_user.id, TimeSlot.expert_id == user_id),
+            db.and_(Booking.user_id == user_id, TimeSlot.expert_id == current_user.id)
+        ),
+        Booking.status == 'scheduled',  # Thêm dấu phẩy vào đây
+        TimeSlot.end_time >= get_vn_now()
+    ).order_by(TimeSlot.start_time.asc()).first()
+    
+    if booking:
+        now = get_vn_now()
+        start_time = booking.time_slot.start_time
+        end_time = booking.time_slot.end_time
         
-        if booking:
-            can_chat = True
+        # =============================================
+        # ❌ XÓA ĐOẠN NÀY - KHÔNG CẦN FIX 7 TIẾNG NỮA
+        # =============================================
+        # time_diff = now - start_time
+        # if time_diff.total_seconds() > 6 * 3600:
+        #     start_time = start_time + timedelta(hours=7)
+        #     end_time = end_time + timedelta(hours=7)
+        
+        messages = Message.query.filter(
+            ((Message.sender_id == current_user.id) & (Message.receiver_id == user_id)) |
+            ((Message.sender_id == user_id) & (Message.receiver_id == current_user.id))
+        ).order_by(Message.timestamp.asc()).all()
+        
+        # === DEBUG LOG ===
+        print(f"=== DEBUG CHAT ===")
+        print(f"NOW: {now}")
+        print(f"START: {start_time}")
+        print(f"END: {end_time}")
+        print(f"NOW < START: {now < start_time}")
+        print(f"NOW <= END: {now <= end_time}")
+        print(f"==================")
+        
+        # --- CHƯA ĐẾN GIỜ ---
+        if now < start_time:
+            return render_template('chat.html', 
+                other_user=other_user, 
+                messages=[],
+                is_active_chat=False,
+                booking=booking,
+                chat_type='consultation',
+                chat_status='not_started',
+                start_time=start_time,
+                end_time=end_time
+            )
+        
+        # --- ĐANG TRONG GIỜ ---
+        elif now <= end_time:
+            return render_template('chat.html', 
+                other_user=other_user, 
+                messages=messages,
+                is_active_chat=True,
+                booking=booking,
+                chat_type='consultation',
+                chat_status='active',
+                start_time=start_time,
+                end_time=end_time
+            )
+        
+        # --- HẾT GIỜ ---
+        else:
+            return render_template('chat.html', 
+                other_user=other_user, 
+                messages=messages,
+                is_active_chat=False,
+                booking=booking,
+                chat_type='consultation',
+                chat_status='ended',
+                start_time=start_time,
+                end_time=end_time
+            )
     
-    if not can_chat:
-        return render_template('not_friend.html', other_id=user_id, other_user=other_user)
+    # ============================================
+    # TRƯỜNG HỢP 3: KHÔNG PHẢI BẠN BÈ & KHÔNG CÓ BOOKING
+    # ============================================
+    return render_template('not_friend.html', other_id=user_id, other_user=other_user)
+
+@app.route('/debug-chat-time/<int:booking_id>')
+@login_required
+def debug_chat_time(booking_id):
+    """Debug thời gian chat"""
+    booking = Booking.query.get_or_404(booking_id)
+    slot = booking.time_slot
     
-    return render_template('chat.html', other_user=other_user)
+    now = get_vn_now()
+    
+    result = {
+        'booking_id': booking_id,
+        'now_raw': str(now),
+        'now_formatted': now.strftime('%Y-%m-%d %H:%M:%S'),
+        'slot_start_raw': str(slot.start_time),
+        'slot_start_formatted': slot.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+        'slot_end_formatted': slot.end_time.strftime('%Y-%m-%d %H:%M:%S'),
+        'now_lt_start': now < slot.start_time,
+        'now_lte_end': now <= slot.end_time,
+        'diff_seconds': (now - slot.start_time).total_seconds(),
+        'diff_hours': (now - slot.start_time).total_seconds() / 3600,
+        'status': 'NOT_STARTED' if now < slot.start_time else ('ACTIVE' if now <= slot.end_time else 'ENDED')
+    }
+    
+    return jsonify(result)
 
 @socketio.on('join_chat')
 def on_join_chat(data):
@@ -2248,7 +2346,7 @@ def handle_message(data):
     db.session.add(msg)
     
     sender = User.query.get(sender_id)
-    timestamp = vietnam_now().strftime('%H:%M %d/%m')
+    timestamp = get_vn_now().strftime('%H:%M %d/%m')
 
     # 2. Gửi realtime
     message_data = {
@@ -2469,7 +2567,7 @@ def handle_consult_message(data):
     message_data = {
         'sender_id': sender_id,
         'content': content,
-        'timestamp': vietnam_now().strftime('%H:%M')
+        'timestamp': get_vn_now().strftime('%H:%M')
     }
     
     # Gửi cho người nhận
@@ -2547,7 +2645,7 @@ def rate_post(post_id):
         # Cập nhật đánh giá
         old_stars = existing_rating.stars
         existing_rating.stars = stars
-        existing_rating.created_at = vietnam_now()
+        existing_rating.created_at = get_vn_now()
         
         # Cập nhật rating trung bình
         total = post.rating * post.rating_count
@@ -2752,10 +2850,10 @@ def expert_dashboard():
     ).order_by(Post.created_at.desc()).limit(5).all()
     
     # ✅ LỊCH TƯ VẤN SẮP TỚI
-    now = vietnam_now()
+    now = get_vn_now() 
     upcoming_consultations = Booking.query.join(TimeSlot).filter(
         TimeSlot.expert_id == current_user.id,
-        TimeSlot.start_time >= now,
+        TimeSlot.end_time >= now,  # <-- SỬA DÒNG NÀY (giữ nguyên now = get_vn_now())
         Booking.status == 'scheduled'
     ).order_by(TimeSlot.start_time).limit(5).all()
     
@@ -2849,24 +2947,22 @@ def expert_posts():
 
 
 
-# ✅ 1. TRANG QUẢN LÝ KHUNG GIỜ
-# Thêm vào app.py
 @app.route('/expert/schedule', methods=['GET', 'POST'])
 @expert_required
 def expert_schedule():
     if request.method == 'POST':
-        action = request.form.get('action', 'create')  # ✅ Mặc định là 'create'
-        
-        # ===== XỬ LÝ XÓA =====
+        action = request.form.get('action', 'create')
+        slot_id = request.form.get('slot_id')
+
+        # Xóa khung giờ
         if action == 'delete':
-            slot_id = request.form.get('slot_id')
-            slot = TimeSlot.query.get_or_404(slot_id)
-            
-            if slot.expert_id != current_user.id:
-                flash('Không có quyền xóa khung giờ này!', 'error')
+            if not slot_id:
+                flash('Không tìm thấy khung giờ!', 'error')
                 return redirect(url_for('expert_schedule'))
-            
-            # Thông báo cho người đặt nếu có
+            slot = TimeSlot.query.get_or_404(slot_id)
+            if slot.expert_id != current_user.id:
+                flash('Không có quyền xóa!', 'error')
+                return redirect(url_for('expert_schedule'))
             if slot.booking:
                 notif = Notification(
                     user_id=slot.booking.user_id,
@@ -2875,68 +2971,50 @@ def expert_schedule():
                     type='booking_cancelled'
                 )
                 db.session.add(notif)
-            
             db.session.delete(slot)
             db.session.commit()
             flash('Đã xóa khung giờ thành công!', 'success')
             return redirect(url_for('expert_schedule'))
-        
-        # ===== LẤY DỮ LIỆU TỪ FORM =====
-        slot_id = request.form.get('slot_id')  # ✅ Có = EDIT, Không có = CREATE
+
+        # Tạo / Chỉnh sửa
         date_str = request.form.get('date')
         start_time_str = request.form.get('start_time')
         duration_str = request.form.get('duration', '30')
-        max_participants_str = request.form.get('max_participants', '1')
         notes = request.form.get('notes', '')
-        
-        # ===== VALIDATE =====
+
         if not date_str or not start_time_str:
             flash('Vui lòng điền đầy đủ ngày và giờ!', 'error')
             return redirect(url_for('expert_schedule'))
-        
+
         try:
-            # Parse datetime
-            start_datetime_naive = datetime.strptime(f"{date_str} {start_time_str}", '%Y-%m-%d %H:%M')
-            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
-            start_datetime = vn_tz.localize(start_datetime_naive)
-            
+            start_datetime = datetime.strptime(f"{date_str} {start_time_str}", '%Y-%m-%d %H:%M')
             duration = int(duration_str)
             end_datetime = start_datetime + timedelta(minutes=duration)
-            max_participants = int(max_participants_str)
-            
-            if max_participants < 1:
-                max_participants = 1
-            
-            # Kiểm tra thời gian không được trong quá khứ
-            if start_datetime < vietnam_now():
+
+            if start_datetime < get_vn_now():
                 flash('Không thể tạo khung giờ trong quá khứ!', 'error')
                 return redirect(url_for('expert_schedule'))
-            
         except ValueError as e:
             flash(f'Dữ liệu không hợp lệ: {str(e)}', 'error')
             return redirect(url_for('expert_schedule'))
-        
-        # ===== EDIT HOẶC CREATE =====
-        if slot_id:
-            # ✅ CHỈNH SỬA
+
+        if slot_id:  # Chỉnh sửa
             slot = TimeSlot.query.get_or_404(slot_id)
-            
             if slot.expert_id != current_user.id:
                 flash('Không có quyền chỉnh sửa!', 'error')
                 return redirect(url_for('expert_schedule'))
-            
             if slot.booking:
                 flash('Không thể chỉnh sửa khung giờ đã có người đặt!', 'warning')
                 return redirect(url_for('expert_schedule'))
-            
+
             slot.start_time = start_datetime
             slot.end_time = end_datetime
-            slot.max_participants = max_participants
             slot.notes = notes
-            
+            if 'max_participants' in request.form:
+                slot.max_participants = int(request.form.get('max_participants', 1))
             flash('✅ Đã cập nhật khung giờ thành công!', 'success')
-        else:
-            # ✅ TẠO MỚI
+        else:  # Tạo mới
+            max_participants = int(request.form.get('max_participants', 1))
             slot = TimeSlot(
                 expert_id=current_user.id,
                 start_time=start_datetime,
@@ -2947,24 +3025,22 @@ def expert_schedule():
             )
             db.session.add(slot)
             flash('✅ Đã tạo khung giờ mới thành công!', 'success')
-        
+
         db.session.commit()
         return redirect(url_for('expert_schedule'))
 
-    # ===== GET - HIỂN THỊ DANH SÁCH =====
-    now = vietnam_now()
+    # GET
+    now = get_vn_now()
     min_date = now.strftime('%Y-%m-%d')
-    
-    # Lịch sắp tới
+
     upcoming_slots = TimeSlot.query.filter_by(expert_id=current_user.id)\
                                   .filter(TimeSlot.start_time >= now)\
                                   .order_by(TimeSlot.start_time).all()
-    
-    # Lịch cũ
+
     old_slots = TimeSlot.query.filter_by(expert_id=current_user.id)\
                              .filter(TimeSlot.start_time < now)\
                              .order_by(TimeSlot.start_time.desc()).all()
-    
+
     return render_template(
         'expert/schedule.html',
         upcoming_slots=upcoming_slots,
@@ -3010,7 +3086,7 @@ def view_expert_slots(expert_id):
         return redirect(url_for('home'))
     
     # Lấy khung giờ còn trống
-    now = vietnam_now()
+    now = get_vn_now()
     available_slots = TimeSlot.query.filter_by(
         expert_id=expert_id,
         status='available'
@@ -3034,22 +3110,30 @@ def book_slot(slot_id):
                 'error': 'Khung giờ không còn trống!'
             }), 400
         
-        # Kiểm tra thời gian
-        now = vietnam_now()
-        if now.tzinfo is None:
-            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
-            now = vn_tz.localize(now)
+        # # Kiểm tra thời gian
+        # now = get_vn_now()
+        # if now.tzinfo is None:
+        #     vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+        #     now = vn_tz.localize(now)
         
-        slot_time = slot.start_time
-        if slot_time.tzinfo is None:
-            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
-            slot_time = vn_tz.localize(slot_time)
+        # slot_time = slot.start_time
+        # if slot_time.tzinfo is None:
+        #     vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+        #     slot_time = vn_tz.localize(slot_time)
         
-        if slot_time <= now:
+        # if slot_time <= now:
+        #     return jsonify({
+        #         'success': False,
+        #         'error': 'Khung giờ đã qua!'
+        #     }), 400
+
+        # THAY BẰNG ĐOẠN NGẮN GỌN NÀY
+        now = get_vn_now()
+        if slot.start_time <= now:
             return jsonify({
                 'success': False,
                 'error': 'Khung giờ đã qua!'
-            }), 400
+            }), 40
         
         # Kiểm tra đã đặt chưa
         existing = Booking.query.filter_by(
@@ -3175,32 +3259,73 @@ def cancel_booking(booking_id):
 @app.route('/my-bookings')
 @login_required
 def my_bookings():
-    now = datetime.now()  # ← dùng datetime thuần, không timezone
-    
-    all_bookings = Booking.query.filter_by(user_id=current_user.id).all()
-    print(f"=== DEBUG my_bookings ===")
-    print(f"User ID: {current_user.id}")
-    print(f"Total bookings: {len(all_bookings)}")
-    for b in all_bookings:
-        slot = b.time_slot
-        print(f"  Booking {b.id}: status={b.status}")
-        print(f"  slot.start_time={slot.start_time} (type={type(slot.start_time)})")
-        print(f"  now={now} (type={type(now)})")
-        print(f"  start_time >= now? {slot.start_time >= now}")
+    now = get_vn_now()  
     
     upcoming = Booking.query.filter_by(user_id=current_user.id, status='scheduled')\
-                           .join(TimeSlot)\
-                           .filter(TimeSlot.start_time >= now)\
-                           .order_by(TimeSlot.start_time).all()
-    
+                        .join(TimeSlot)\
+                        .filter(TimeSlot.end_time >= now)\
+                        .order_by(TimeSlot.start_time).all()
+
     old_bookings = Booking.query.filter_by(user_id=current_user.id)\
-                               .join(TimeSlot)\
-                               .filter(TimeSlot.start_time < now)\
-                               .order_by(TimeSlot.start_time.desc()).all()
+                            .join(TimeSlot)\
+                            .filter(TimeSlot.end_time < now)\
+                            .order_by(TimeSlot.start_time.desc()).all()
     
-    print(f"Upcoming: {len(upcoming)}, Old: {len(old_bookings)}")
+    # ✅ Lấy feedback cho từng booking cũ
+    feedback_map = {}
+    for booking in old_bookings:
+        fb = ConsultationFeedback.query.filter_by(
+            booking_id=booking.id, 
+            from_user_id=current_user.id
+        ).first()
+        if fb:
+            feedback_map[booking.id] = fb
     
-    return render_template('my_bookings.html', upcoming=upcoming, old_bookings=old_bookings, now=now)
+    return render_template('my_bookings.html', 
+        upcoming=upcoming, 
+        old_bookings=old_bookings, 
+        now=now,
+        feedback_map=feedback_map
+    )
+
+@app.route('/booking/<int:booking_id>/chat-history')
+@login_required
+def view_chat_history(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    
+    # Kiểm tra quyền: chỉ người tham gia mới xem được
+    expert_id = booking.time_slot.expert_id
+    user_id = booking.user_id
+    
+    if current_user.id not in [user_id, expert_id]:
+        abort(403)
+    
+    expert = booking.time_slot.expert
+    
+    # Xác định "người kia" là ai
+    other_id = expert_id if current_user.id == user_id else user_id
+    
+    # Lấy tin nhắn trong khoảng thời gian buổi tư vấn (±30 phút)
+    slot = booking.time_slot
+    from datetime import timedelta
+    window_start = slot.start_time - timedelta(minutes=30)
+    window_end   = slot.end_time   + timedelta(minutes=30)
+    
+    messages = Message.query.filter(
+        ((Message.sender_id == current_user.id) & (Message.receiver_id == other_id)) |
+        ((Message.sender_id == other_id) & (Message.receiver_id == current_user.id)),
+        Message.timestamp >= window_start,
+        Message.timestamp <= window_end
+    ).order_by(Message.timestamp.asc()).all()
+    
+    is_expert_view = (current_user.id == expert_id)
+    
+    return render_template('chat_history.html',
+        booking=booking,
+        expert=expert,
+        messages=messages,
+        is_expert_view=is_expert_view
+    )
 
 
 # ====================================
@@ -3533,7 +3658,7 @@ def expert_public_profile(expert_id):
         flash('Người này không phải chuyên gia!', 'error')
         return redirect(url_for('home'))
     
-    now = vietnam_now()
+    now = get_vn_now()
     available_slots = TimeSlot.query.filter_by(
         expert_id=expert_id,
         status='available'
@@ -3589,36 +3714,74 @@ def expert_public_profile(expert_id):
 @login_required
 def expert_consult_chat(expert_id):
     expert = User.query.get_or_404(expert_id)
+
+    # Lấy booking SẮP TỚI GẦN NHẤT thay vì đầu tiên
+    now = get_vn_now()
     
     if not expert.is_verified_expert:
         flash('Người này không phải chuyên gia!', 'error')
         return redirect(url_for('experts_list'))
     
-    # Kiểm tra trạng thái chuyên gia
-    if expert.availability == 'busy':
-        flash('Chuyên gia hiện đang bận. Hãy thử lại sau!', 'warning')
+    if expert.availability == 'offline':
+        flash('Chuyên gia hiện không hoạt động!', 'warning')
         return redirect(url_for('expert_public_profile', expert_id=expert_id))
     
-    # KIỂM TRA ĐÃ ĐẶT LỊCH CHƯA (đây là phần mới)
-
-    has_active_booking = Booking.query.join(TimeSlot).filter(
+    # ✅ Dùng expert_id thay vì user_id
+    booking = Booking.query.join(TimeSlot).filter(
         Booking.user_id == current_user.id,
         TimeSlot.expert_id == expert_id,
         Booking.status == 'scheduled',
-        TimeSlot.start_time > vietnam_now()
-    ).first() is not None
+        TimeSlot.end_time >= now
+    ).order_by(TimeSlot.start_time.asc()).first()
 
-    if not has_active_booking:
-        flash('Bạn cần đặt lịch tư vấn trước để chat trực tiếp với chuyên gia!', 'warning')
+    if not booking:
+        flash('Bạn cần đặt lịch tư vấn trước để chat với chuyên gia!', 'warning')
         return redirect(url_for('expert_public_profile', expert_id=expert_id))
     
-    # OK → cho vào chat
-    messages = Message.query.filter(
-        ((Message.sender_id == current_user.id) & (Message.receiver_id == expert_id)) |
-        ((Message.sender_id == expert_id) & (Message.receiver_id == current_user.id))
-    ).order_by(Message.timestamp.asc()).all()
+    now = get_vn_now()                     # ← Dùng hàm mới
+    start_time = booking.time_slot.start_time
+    end_time = booking.time_slot.end_time
+
+    print("=== DEBUG CONSULT CHAT ===")
+    print(f"NOW (VN):     {now}")
+    print(f"START TIME:   {start_time}")
+    print(f"END TIME:     {end_time}")
+    print(f"now < start:  {now < start_time}")
+    print(f"now <= end:   {now <= end_time}")
+    print("==========================")
+
+    # XÁC ĐỊNH TRẠNG THÁI CHAT
+    if now < start_time:
+        chat_status = 'not_started'
+        is_active_chat = False
+        messages = []
+    elif now <= end_time:
+        chat_status = 'active'
+        is_active_chat = True
+        messages = Message.query.filter(
+            ((Message.sender_id == current_user.id) & (Message.receiver_id == expert_id)) |
+            ((Message.sender_id == expert_id) & (Message.receiver_id == current_user.id))
+        ).order_by(Message.timestamp.asc()).all()
+    else:
+        chat_status = 'ended'
+        is_active_chat = False
+        messages = Message.query.filter(
+            ((Message.sender_id == current_user.id) & (Message.receiver_id == expert_id)) |
+            ((Message.sender_id == expert_id) & (Message.receiver_id == current_user.id))
+        ).order_by(Message.timestamp.asc()).all()
     
-    return render_template('chat.html', other_user=expert, messages=messages)
+    # ✅ TRUYỀN ĐẦY ĐỦ TẤT CẢ CÁC BIẾN
+    return render_template(
+        'chat.html',
+        other_user=expert,
+        messages=messages,
+        is_active_chat=is_active_chat,
+        booking=booking,
+        chat_type='consultation',   # ✅ THÊM
+        chat_status=chat_status,    # ✅ THÊM
+        start_time=start_time,      # ✅ THÊM
+        end_time=end_time           # ✅ THÊM
+    )
 
 # ====================================
 # EDIT BÀI VIẾT CHUYÊN GIA
@@ -3660,7 +3823,7 @@ def expert_edit_post(post_id):
             if images_list:
                 post.images = ','.join(images_list)
         
-        post.updated_at = vietnam_now()
+        post.updated_at = get_vn_now()
         db.session.commit()
         
         return jsonify({'success': True, 'message': 'Cập nhật thành công!'})
@@ -3736,7 +3899,7 @@ def submit_feedback(booking_id):
         return redirect(url_for('my_bookings') if current_user.id == booking.user_id else url_for('expert_schedule'))
     
     # Kiểm tra buổi đã kết thúc chưa
-    if booking.time_slot.start_time > vietnam_now():
+    if booking.time_slot.start_time > get_vn_now():
         flash('Buổi tư vấn chưa kết thúc, không thể đánh giá!', 'warning')
         return redirect(url_for('my_bookings') if current_user.id == booking.user_id else url_for('expert_schedule'))
     
@@ -4024,8 +4187,7 @@ def auto_train_model():
             from train_model import train_recommendation_model
             train_recommendation_model()
 
-# Xóa tài khoản
-# ====================== XÓA TÀI KHOẢN ======================
+# ====================== XÓA TÀI KHOẢN - ĐÃ SỬA ĐỦ TẤT CẢ ======================
 @app.route('/delete_account', methods=['POST'])
 @login_required
 def delete_account():
@@ -4038,73 +4200,241 @@ def delete_account():
     try:
         user_id = current_user.id
 
-        # 1. Lấy danh sách ID bài viết của user (để xóa các bản ghi liên quan sau này)
+        # ============================================
+        # BƯỚC 1: Lấy danh sách ID trước khi xóa
+        # ============================================
         post_ids = [p.id for p in Post.query.filter_by(user_id=user_id).all()]
-
-        # 2. Xóa TẤT CẢ các bản ghi có liên quan đến user (quan trọng!)
-        # === BẢNG NGƯỜI DÙNG TẠO RA ===
-        Post.query.filter_by(user_id=user_id).delete()
-        Comment.query.filter_by(user_id=user_id).delete()
-        Notification.query.filter_by(user_id=user_id).delete()
-        Friendship.query.filter(
-            (Friendship.user1_id == user_id) | (Friendship.user2_id == user_id)
-        ).delete()
-        FriendRequest.query.filter(
-            (FriendRequest.sender_id == user_id) | (FriendRequest.receiver_id == user_id)
-        ).delete()
-        Message.query.filter(
-            (Message.sender_id == user_id) | (Message.receiver_id == user_id)
-        ).delete()
-        Report.query.filter_by(user_id=user_id).delete()
-        ExpertRequest.query.filter_by(user_id=user_id).delete()
-        Follow.query.filter(
-            (Follow.follower_id == user_id) | (Follow.followed_id == user_id)
-        ).delete()
-        PostLike.query.filter_by(user_id=user_id).delete()
-        PostRating.query.filter_by(user_id=user_id).delete()
-        HiddenPost.query.filter_by(user_id=user_id).delete()
-        CommentLike.query.filter_by(user_id=user_id).delete()
-        Booking.query.filter_by(user_id=user_id).delete()
+        slot_ids = [s.id for s in TimeSlot.query.filter_by(expert_id=user_id).all()]
         
-        # === BẢNG LIÊN QUAN ĐẾN BÀI VIẾT CỦA USER ===
+        comment_ids = []
         if post_ids:
-            # Xóa comment, like, report... trên bài viết của user
+            comment_ids = [c.id for c in Comment.query.filter(Comment.post_id.in_(post_ids)).all()]
+        
+        booking_ids = []
+        if slot_ids:
+            booking_ids = [b.id for b in Booking.query.filter(Booking.time_slot_id.in_(slot_ids)).all()]
+
+        # ============================================
+        # BƯỚC 2: XÓA TỪ CON NHẤT LÊN CHA
+        # ============================================
+        
+        # 2.1. Xóa like/report trên comments
+        if comment_ids:
+            CommentLike.query.filter(CommentLike.comment_id.in_(comment_ids)).delete(synchronize_session=False)
+            CommentReport.query.filter(CommentReport.comment_id.in_(comment_ids)).delete(synchronize_session=False)
+        
+        # 2.2. Xóa feedback trên bookings
+        if booking_ids:
+            ConsultationFeedback.query.filter(ConsultationFeedback.booking_id.in_(booking_ids)).delete(synchronize_session=False)
+        
+        # 2.3. Xóa comments của bài viết user
+        if post_ids:
             Comment.query.filter(Comment.post_id.in_(post_ids)).delete(synchronize_session=False)
+        
+        # 2.4. Xóa like/rating/hidden/report trên bài viết
+        if post_ids:
             PostLike.query.filter(PostLike.post_id.in_(post_ids)).delete(synchronize_session=False)
             PostRating.query.filter(PostRating.post_id.in_(post_ids)).delete(synchronize_session=False)
             HiddenPost.query.filter(HiddenPost.post_id.in_(post_ids)).delete(synchronize_session=False)
             Report.query.filter(Report.post_id.in_(post_ids)).delete(synchronize_session=False)
-            
-            # Xóa like/report trên comment của bài viết user
-            comment_ids = [c.id for c in Comment.query.filter(Comment.post_id.in_(post_ids)).all()]
-            if comment_ids:
-                CommentLike.query.filter(CommentLike.comment_id.in_(comment_ids)).delete(synchronize_session=False)
-                CommentReport.query.filter(CommentReport.comment_id.in_(comment_ids)).delete(synchronize_session=False)
 
-        # === XỬ LÝ CHUYÊN GIA (nếu user là expert) ===
-        if current_user.is_verified_expert:
-            # Xóa khung giờ tư vấn (TimeSlot) - phải xóa trước Booking
-            TimeSlot.query.filter_by(expert_id=user_id).delete()
-            
-            # Xóa feedback về chuyên gia
-            ConsultationFeedback.query.filter_by(to_user_id=user_id).delete()
-            
-            # Xóa bài viết chuyên gia (đã được xử lý ở phần Post)
+        # ============================================
+        # BƯỚC 3: XÓA BÀI VIẾT (sau khi xóa hết con)
+        # ============================================
+        Post.query.filter_by(user_id=user_id).delete()
 
-        # 3. Cuối cùng xóa user
-        db.session.delete(current_user)
+        # ============================================
+        # BƯỚC 4: XÓA BOOKING SYSTEM (đúng thứ tự)
+        # ============================================
+        if slot_ids:
+            Booking.query.filter(Booking.time_slot_id.in_(slot_ids)).delete(synchronize_session=False)
+        TimeSlot.query.filter_by(expert_id=user_id).delete()
+
+        # ============================================
+        # BƯỚC 5: XÓA TẤT CẢ BẢN GHI TRỰC TIẾP CỦA USER
+        # ============================================
+        
+        # Direct user references
+        CommentLike.query.filter_by(user_id=user_id).delete()
+        CommentReport.query.filter_by(reporter_id=user_id).delete()
+        PostLike.query.filter_by(user_id=user_id).delete()
+        PostRating.query.filter_by(user_id=user_id).delete()
+        HiddenPost.query.filter_by(user_id=user_id).delete()
+        Report.query.filter_by(user_id=user_id).delete()
+        Booking.query.filter_by(user_id=user_id).delete()
+        
+        # ✅ DÙNG RAW SQL ĐỂ TRÁNH LỖI SCHEMA KHÔNG KHỚP
+        from sqlalchemy import text
+        
+        PointHistory.query.filter_by(user_id=user_id).delete()
+        
+        db.session.execute(text("DELETE FROM expert_posts WHERE expert_id = :uid"), {'uid': user_id})
+        db.session.execute(text("DELETE FROM consultations WHERE expert_id = :uid OR user_id = :uid"), {'uid': user_id})
+        db.session.execute(text("DELETE FROM consultation_feedback WHERE from_user_id = :uid OR to_user_id = :uid"), {'uid': user_id})
+        
+        # Notification 2 chiều
+        Notification.query.filter(
+            (Notification.user_id == user_id) | (Notification.related_user_id == user_id)
+        ).delete()
+        
+        # Friendship 2 chiều
+        Friendship.query.filter(
+            (Friendship.user1_id == user_id) | (Friendship.user2_id == user_id)
+        ).delete()
+        
+        # FriendRequest 2 chiều
+        FriendRequest.query.filter(
+            (FriendRequest.sender_id == user_id) | (FriendRequest.receiver_id == user_id)
+        ).delete()
+        
+        # Follow 2 chiều
+        Follow.query.filter(
+            (Follow.follower_id == user_id) | (Follow.followed_id == user_id)
+        ).delete()
+        
+        # Message 2 chiều
+        Message.query.filter(
+            (Message.sender_id == user_id) | (Message.receiver_id == user_id)
+        ).delete()
+        
+        # Expert request
+        ExpertRequest.query.filter_by(user_id=user_id).delete()
+        
+        # Expert profile
+        ExpertProfile.query.filter_by(user_id=user_id).delete()
+
+        # ============================================
+        # BƯỚC 6: CUỐI CÙNG XÓA USER BẰNG RAW SQL
+        # (Tránh SQLAlchemy tự động load các relationship lỗi)
+        # ============================================
+        from sqlalchemy import text
+        db.session.execute(text("DELETE FROM users WHERE id = :uid"), {'uid': user_id})
+        
         db.session.commit()
 
-        logout_user()   # Đăng xuất
-
+        # Đăng xuất và xóa session
+        logout_user()
+        session.clear()
+        
         flash('Tài khoản đã được xóa thành công. Hẹn gặp lại bạn!', 'success')
         return redirect(url_for('home'))
 
     except Exception as e:
         db.session.rollback()
-        print(f"❌ LỖI XÓA TÀI KHOẢN: {e}")  # In chi tiết lỗi ra console
-        flash('Có lỗi xảy ra khi xóa tài khoản. Vui lòng thử lại sau!', 'error')
+        error_msg = str(e)
+        print(f"❌ LỖI XÓA TÀI KHOẢN: {error_msg}")
+        
+        # Nếu lỗi_full ổ cứng
+        if "disk I/O error" in error_msg.lower() or "no space" in error_msg.lower():
+            flash('Ổ cứng máy tính đã đầy! Vui lòng dọn dẹp ổ cứng rồi thử lại.', 'error')
+        else:
+            flash(f'Có lỗi xảy ra: {error_msg}', 'error')
+            
         return redirect(url_for('profile'))
+
+# LẤY DỮ LIỆU BÀI VIẾT ĐỂ SỬA (có ảnh + video)
+@app.route('/post/<int:post_id>/get')
+@login_required
+def get_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    
+    if post.user_id != current_user.id:
+        return jsonify({'success': False, 'error': 'Không có quyền!'}), 403
+    
+    return jsonify({
+        'success': True,
+        'post': {
+            'id': post.id,
+            'title': post.title,
+            'content': post.content,
+            'category': post.category,
+            'post_type': post.post_type or 'question',
+            'images': post.get_images_list() if post.images else [],   # ← THÊM
+            'video': post.video or None                                 # ← THÊM
+        }
+    })
+
+# CẬP NHẬT BÀI VIẾT (FormData - hỗ trợ xóa ảnh cũ + thêm ảnh mới)
+@app.route('/post/<int:post_id>/edit', methods=['POST'])
+@login_required
+def edit_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    
+    if post.user_id != current_user.id:
+        return jsonify({'success': False, 'error': 'Không có quyền!'}), 403
+    
+    # ✅ Đổi sang request.form (vì JS gửi FormData, không phải JSON)
+    title    = request.form.get('title', '').strip()
+    content  = request.form.get('content', '').strip()
+    category = request.form.get('category', 'other')
+    
+    if not title or not content:
+        return jsonify({'success': False, 'error': 'Tiêu đề và nội dung không được để trống!'}), 400
+    
+    post.title    = title
+    post.content  = content
+    post.category = category
+
+    # --- Xóa ảnh cũ được chọn ---
+    delete_images = request.form.getlist('delete_images')
+    if delete_images:
+        current_imgs = post.get_images_list() if post.images else []
+        remaining = [img for img in current_imgs if img not in delete_images]
+        post.images = ','.join(remaining) if remaining else None
+        # Xóa file vật lý
+        for img_name in delete_images:
+            img_path = os.path.join(app.config['UPLOAD_FOLDER'], img_name)
+            if os.path.exists(img_path):
+                try: os.remove(img_path)
+                except: pass
+
+    # --- Xóa video cũ nếu được yêu cầu ---
+    if request.form.get('delete_video'):
+        if post.video:
+            vid_path = os.path.join(app.config['UPLOAD_FOLDER'], post.video)
+            if os.path.exists(vid_path):
+                try: os.remove(vid_path)
+                except: pass
+        post.video = None
+
+    # --- Thêm media mới ---
+    new_images = list(post.get_images_list()) if post.images else []
+    new_video  = post.video
+
+    if 'media' in request.files:
+        files = request.files.getlist('media')
+        for file in files:
+            if file and file.filename:
+                filename = secure_filename(f"{int(time.time())}_{file.filename}")
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                if file.mimetype.startswith('video/'):
+                    new_video = filename
+                else:
+                    new_images.append(filename)
+
+    post.images = ','.join(new_images) if new_images else None
+    post.video  = new_video
+
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Cập nhật thành công!'})
+
+# ========================
+# KHỞI TẠO FLASK-MAIL & SCHEDULER
+# ========================
+from tasks import mail, scheduler, check_and_send_consultation_reminders
+
+# Gắn Mail vào App
+mail.init_app(app)
+
+# Thêm các Job vào Scheduler
+scheduler.add_job(func=check_and_send_consultation_reminders, trigger="interval", minutes=1, args=[app], id='realtime_reminder', replace_existing=True)
+
+# Khởi động scheduler
+if not scheduler.running:
+    scheduler.start()
+    print("✅ Scheduler đã bắt đầu chạy (Nhắc nhở email 1h/lần, Realtime 1p/lần)")
+
     
 # ===== CHẠY APP =====
 if __name__ == '__main__':

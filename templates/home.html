@@ -197,6 +197,13 @@
                                 <span class="font-medium text-red-600">Báo cáo bài viết</span>
                             </button>
 
+                            {% if current_user.is_authenticated and current_user.id == post.author.id %}
+                            <button onclick="editPost({{ post.id }})" style="border-top: 1px solid #f3f4f6;">
+                                <i class="fas fa-edit text-blue-500"></i>
+                                <span class="text-blue-600">Sửa bài viết</span>
+                            </button>
+                            {% endif %}
+
                             {% if current_user.is_authenticated and (current_user.id == post.author.id or
                             current_user.role|lower == 'admin') %}
                             <button onclick="deletePost({{ post.id }})" style="border-top: 1px solid #f3f4f6;">
@@ -457,6 +464,100 @@
         <span id="toast-message" class="font-medium text-gray-800"></span>
     </div>
 </div>
+
+<!-- MODAL SỬA BÀI VIẾT ĐẦY ĐỦ -->
+<div id="edit-post-modal" class="hidden fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4"
+    onclick="if(event.target===this)closeEditModal()">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div
+            class="sticky top-0 bg-white rounded-t-3xl px-8 pt-7 pb-4 border-b border-gray-100 flex items-center justify-between z-10">
+            <h2 class="text-2xl font-bold text-gray-900">✏️ Sửa bài viết</h2>
+            <button onclick="closeEditModal()"
+                class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+        </div>
+
+        <div class="px-8 py-6 space-y-6">
+            <!-- TIÊU ĐỀ -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Tiêu đề</label>
+                <input type="text" id="edit-title" maxlength="200"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-4 focus:ring-pink-300 focus:border-pink-500 text-base"
+                    placeholder="Tiêu đề bài viết...">
+            </div>
+
+            <!-- NỘI DUNG -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Nội dung</label>
+                <textarea id="edit-content" rows="6"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-4 focus:ring-pink-300 focus:border-pink-500 resize-none text-base"
+                    placeholder="Nội dung bài viết..."></textarea>
+            </div>
+
+            <!-- CHỦ ĐỀ -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Chủ đề</label>
+                <select id="edit-category" class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base">
+                    <option value="health">Sức khỏe</option>
+                    <option value="nutrition">Dinh dưỡng</option>
+                    <option value="story">Tâm sự</option>
+                    <option value="tips">Mẹo hay</option>
+                    <option value="other">Khác</option>
+                </select>
+            </div>
+
+            <!-- ẢNH HIỆN TẠI -->
+            <div id="edit-current-images-section" class="hidden">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Ảnh hiện tại
+                    <span class="text-xs text-gray-400 font-normal ml-1">(nhấn ✕ để xóa)</span>
+                </label>
+                <div id="edit-current-images" class="grid grid-cols-3 gap-3"></div>
+            </div>
+
+            <!-- VIDEO HIỆN TẠI -->
+            <div id="edit-current-video-section" class="hidden">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Video hiện tại</label>
+                <div class="relative inline-block w-full">
+                    <video id="edit-current-video" controls class="w-full rounded-2xl shadow-md max-h-52"></video>
+                    <button type="button" onclick="markDeleteVideo()" id="del-video-btn"
+                        class="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 transition shadow-lg">
+                        <i class="fas fa-trash"></i> Xóa video
+                    </button>
+                </div>
+                <p id="del-video-notice" class="hidden mt-2 text-red-500 text-xs font-medium">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>Video sẽ bị xóa khi lưu
+                </p>
+            </div>
+
+            <!-- THÊM ẢNH / VIDEO MỚI -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Thêm ảnh / Video mới</label>
+                <div class="border-2 border-dashed border-pink-300 rounded-2xl p-6 text-center hover:border-pink-500 transition cursor-pointer"
+                    onclick="document.getElementById('edit-media-input').click()">
+                    <input type="file" id="edit-media-input" multiple accept="image/*,video/*" class="hidden"
+                        onchange="previewEditMedia(this)">
+                    <i class="fas fa-cloud-upload-alt text-4xl text-pink-400 mb-2"></i>
+                    <p class="text-base text-gray-500 font-medium">Click để chọn ảnh hoặc video</p>
+                    <p class="text-xs text-gray-400 mt-1">Hỗ trợ nhiều ảnh + 1 video (MP4)</p>
+                </div>
+                <div id="edit-new-media-preview" class="grid grid-cols-3 gap-3 mt-4"></div>
+            </div>
+        </div>
+
+        <!-- NÚT LƯU -->
+        <div class="sticky bottom-0 bg-white rounded-b-3xl px-8 pb-7 pt-4 border-t border-gray-100 flex gap-4">
+            <button onclick="saveEditPost()"
+                class="flex-1 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold text-lg rounded-2xl hover:shadow-xl transition flex items-center justify-center gap-2">
+                <i class="fas fa-save"></i> Lưu thay đổi
+            </button>
+            <button onclick="closeEditModal()"
+                class="flex-1 py-4 bg-gray-200 text-gray-700 font-bold text-lg rounded-2xl hover:bg-gray-300 transition">
+                Hủy
+            </button>
+        </div>
+    </div>
+</div>
+
 <style>
     @keyframes slide-in {
         from {
@@ -1803,6 +1904,221 @@
             if (postId) trackView(postId);
         });
     });
+
+    // ===== SỬA BÀI VIẾT ĐẦY ĐỦ =====
+    let currentEditPostId = null;
+    let editImagesToDelete = [];   // danh sách ảnh cũ muốn xóa
+    let editDeleteVideo = false;   // có xóa video cũ không
+    let editNewFiles = [];         // file mới người dùng chọn thêm
+
+    async function editPost(postId) {
+        closeAllMenus();
+        currentEditPostId = postId;
+        editImagesToDelete = [];
+        editDeleteVideo = false;
+        editNewFiles = [];
+
+        try {
+            const res = await fetch(`/post/${postId}/get`);
+            const data = await res.json();
+            if (!data.success) { showToast('Không thể tải bài viết!', false); return; }
+
+            const p = data.post;
+
+            // Điền dữ liệu
+            document.getElementById('edit-title').value = p.title;
+            document.getElementById('edit-content').value = p.content;
+            document.getElementById('edit-category').value = p.category;
+
+            // Reset preview ảnh mới
+            document.getElementById('edit-new-media-preview').innerHTML = '';
+            document.getElementById('edit-media-input').value = '';
+
+            // --- Ảnh hiện tại ---
+            const imgSection = document.getElementById('edit-current-images-section');
+            const imgContainer = document.getElementById('edit-current-images');
+            imgContainer.innerHTML = '';
+
+            if (p.images && p.images.length > 0) {
+                imgSection.classList.remove('hidden');
+                p.images.forEach((imgName, idx) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'relative group';
+                    wrapper.id = `edit-img-${idx}`;
+                    wrapper.innerHTML = `
+                    <img src="/static/uploads/${imgName}"
+                        class="w-full h-32 object-cover rounded-xl shadow-md transition"
+                        id="edit-img-el-${idx}">
+                    <button type="button"
+                        onclick="toggleDeleteImg('${imgName}', ${idx})"
+                        id="edit-img-btn-${idx}"
+                        class="absolute top-1.5 right-1.5 w-7 h-7 bg-white rounded-full shadow flex items-center justify-center hover:bg-red-500 hover:text-white transition border border-gray-200">
+                        <i class="fas fa-times text-xs text-red-500"></i>
+                    </button>
+                    <div id="edit-img-overlay-${idx}"
+                        class="hidden absolute inset-0 bg-red-500/50 rounded-xl flex items-center justify-center">
+                        <span class="text-white text-xs font-bold bg-red-600 px-2 py-1 rounded-full">Sẽ xóa</span>
+                    </div>
+                `;
+                    imgContainer.appendChild(wrapper);
+                });
+            } else {
+                imgSection.classList.add('hidden');
+            }
+
+            // --- Video hiện tại ---
+            const vidSection = document.getElementById('edit-current-video-section');
+            const vidEl = document.getElementById('edit-current-video');
+            const delBtn = document.getElementById('del-video-btn');
+            const delNotice = document.getElementById('del-video-notice');
+
+            if (p.video) {
+                vidSection.classList.remove('hidden');
+                vidEl.src = `/static/uploads/${p.video}`;
+                delBtn.classList.remove('hidden');
+                delNotice.classList.add('hidden');
+                editDeleteVideo = false;
+            } else {
+                vidSection.classList.add('hidden');
+            }
+
+            document.getElementById('edit-post-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+
+        } catch (err) {
+            console.error(err);
+            showToast('Lỗi kết nối!', false);
+        }
+    }
+
+    function toggleDeleteImg(imgName, idx) {
+        const overlay = document.getElementById(`edit-img-overlay-${idx}`);
+        const imgEl = document.getElementById(`edit-img-el-${idx}`);
+        const btn = document.getElementById(`edit-img-btn-${idx}`);
+        const alreadyMarked = editImagesToDelete.includes(imgName);
+
+        if (alreadyMarked) {
+            // Bỏ đánh dấu xóa
+            editImagesToDelete = editImagesToDelete.filter(n => n !== imgName);
+            overlay.classList.add('hidden');
+            imgEl.style.opacity = '1';
+            btn.classList.remove('bg-red-500');
+        } else {
+            // Đánh dấu xóa
+            editImagesToDelete.push(imgName);
+            overlay.classList.remove('hidden');
+            imgEl.style.opacity = '0.4';
+            btn.classList.add('bg-red-500');
+        }
+    }
+
+    function markDeleteVideo() {
+        editDeleteVideo = true;
+        document.getElementById('del-video-btn').classList.add('hidden');
+        document.getElementById('del-video-notice').classList.remove('hidden');
+        document.getElementById('edit-current-video').style.opacity = '0.3';
+    }
+
+    function previewEditMedia(input) {
+        const preview = document.getElementById('edit-new-media-preview');
+        preview.innerHTML = '';
+        editNewFiles = Array.from(input.files);
+
+        editNewFiles.forEach((file, idx) => {
+            const div = document.createElement('div');
+            div.className = 'relative group';
+
+            if (file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.className = 'w-full h-32 object-cover rounded-xl shadow-md';
+                div.appendChild(img);
+            } else if (file.type.startsWith('video/')) {
+                const vid = document.createElement('video');
+                vid.src = URL.createObjectURL(file);
+                vid.controls = true;
+                vid.className = 'w-full h-32 object-cover rounded-xl shadow-md';
+                div.appendChild(vid);
+            }
+
+            // Nút xóa file mới chưa upload
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'absolute top-1.5 right-1.5 w-7 h-7 bg-red-500 text-white rounded-full shadow flex items-center justify-center hover:bg-red-600 transition';
+            removeBtn.innerHTML = '<i class="fas fa-times text-xs"></i>';
+            removeBtn.onclick = () => {
+                editNewFiles.splice(idx, 1);
+                div.remove();
+            };
+            div.appendChild(removeBtn);
+
+            preview.appendChild(div);
+        });
+    }
+
+    async function saveEditPost() {
+        if (!currentEditPostId) return;
+
+        const title = document.getElementById('edit-title').value.trim();
+        const content = document.getElementById('edit-content').value.trim();
+        const category = document.getElementById('edit-category').value;
+
+        if (!title || !content) {
+            showToast('Tiêu đề và nội dung không được để trống!', false);
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('content', content);
+        formData.append('category', category);
+
+        if (editImagesToDelete.length > 0) {
+            editImagesToDelete.forEach(img => formData.append('delete_images', img));
+        }
+        if (editDeleteVideo) {
+            formData.append('delete_video', '1');
+        }
+        editNewFiles.forEach(file => formData.append('media', file));
+
+        // Đổi nút thành loading
+        const saveBtn = document.querySelector('#edit-post-modal button[onclick="saveEditPost()"]');
+        const origText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu...';
+
+        try {
+            const res = await fetch(`/post/${currentEditPostId}/edit`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                showToast('✅ Đã cập nhật bài viết!');
+                closeEditModal();
+                // Reload để hiển thị ảnh mới
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast(data.error || 'Không thể cập nhật!', false);
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = origText;
+            }
+        } catch (err) {
+            showToast('Lỗi kết nối!', false);
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = origText;
+        }
+    }
+
+    function closeEditModal() {
+        document.getElementById('edit-post-modal').classList.add('hidden');
+        document.body.style.overflow = '';
+        currentEditPostId = null;
+        editImagesToDelete = [];
+        editDeleteVideo = false;
+        editNewFiles = [];
+    }
 
     // Hàm phụ trợ đóng menu
     function closeAllMenus() {
