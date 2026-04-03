@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Nhóm chat{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-5xl">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-bold text-gray-800">
+            <i class="fas fa-users text-purple-600 mr-2"></i> Nhóm chat
+        </h1>
+        <button onclick="document.getElementById('createModal').classList.remove('hidden')"
+            class="bg-purple-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-purple-700 transition flex items-center gap-2">
+            <i class="fas fa-plus"></i> Tạo nhóm mới
+        </button>
+    </div>
+
+    <!-- Topic filter -->
+    <div class="flex gap-2 mb-8 flex-wrap">
+        {% for t, label in [('all','Tất cả'),('health','Sức khỏe'),('nutrition','Dinh dưỡng'),('story','Tâm
+        sự'),('tips','Mẹo hay')] %}
+        <a href="{{ url_for('chat_rooms', topic=t) }}"
+            class="px-4 py-2 rounded-full text-sm font-medium transition
+            {% if selected_topic == t %}bg-purple-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-purple-50 hover:text-purple-600{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Nhóm của tôi -->
+    {% if my_rooms %}
+    <h2 class="text-lg font-bold text-gray-700 mb-4">
+        <i class="fas fa-star text-yellow-500 mr-1"></i> Nhóm của tôi
+    </h2>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+        {% for room in my_rooms %}
+        <div class="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden hover:shadow-lg transition">
+            <div class="h-1.5 bg-gradient-to-r from-purple-500 to-pink-500"></div>
+            <div class="p-5">
+                <div class="flex items-start justify-between mb-3">
+                    <div
+                        class="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center text-2xl">
+                        {% if room.topic == 'health' %}🏥
+                        {% elif room.topic == 'nutrition' %}🥗
+                        {% elif room.topic == 'story' %}💬
+                        {% elif room.topic == 'tips' %}💡
+                        {% else %}👥{% endif %}
+                    </div>
+                    <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                        <i class="fas fa-check-circle mr-1"></i>Đã tham gia
+                    </span>
+                </div>
+                <h3 class="font-bold text-gray-800 mb-1">{{ room.name }}</h3>
+                <p class="text-sm text-gray-500 mb-3 line-clamp-2">{{ room.description or 'Không có mô tả' }}</p>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-400">
+                        <i class="fas fa-users mr-1"></i>{{ room.member_count() }} thành viên
+                    </span>
+                    <a href="{{ url_for('chat_room', room_id=room.id) }}"
+                        class="bg-purple-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-purple-700 transition">
+                        Vào chat
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Khám phá nhóm -->
+    <h2 class="text-lg font-bold text-gray-700 mb-4">
+        <i class="fas fa-compass text-purple-500 mr-1"></i> Khám phá nhóm
+    </h2>
+    {% if other_rooms %}
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for room in other_rooms %}
+        <div class="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden hover:shadow-lg transition">
+            <div class="h-1.5 bg-gradient-to-r from-indigo-400 to-blue-400"></div>
+            <div class="p-5">
+                <div class="flex items-start justify-between mb-3">
+                    <div
+                        class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 flex items-center justify-center text-2xl">
+                        {% if room.topic == 'health' %}🏥
+                        {% elif room.topic == 'nutrition' %}🥗
+                        {% elif room.topic == 'story' %}💬
+                        {% elif room.topic == 'tips' %}💡
+                        {% else %}👥{% endif %}
+                    </div>
+                </div>
+                <h3 class="font-bold text-gray-800 mb-1">{{ room.name }}</h3>
+                <p class="text-sm text-gray-500 mb-3 line-clamp-2">{{ room.description or 'Không có mô tả' }}</p>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-400">
+                        <i class="fas fa-users mr-1"></i>{{ room.member_count() }} thành viên
+                    </span>
+                    <button onclick="joinRoom({{ room.id }}, this)"
+                        class="bg-indigo-50 text-indigo-600 border border-indigo-200 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-100 transition">
+                        Tham gia
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-16 bg-white rounded-2xl border-2 border-dashed border-gray-200">
+        <i class="fas fa-users text-5xl text-gray-300 mb-4"></i>
+        <p class="text-gray-400">Chưa có nhóm nào. Hãy tạo nhóm đầu tiên!</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal tạo nhóm -->
+<div id="createModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div class="flex items-center justify-between mb-5">
+            <h3 class="text-xl font-bold text-gray-800">Tạo nhóm mới</h3>
+            <button onclick="document.getElementById('createModal').classList.add('hidden')"
+                class="text-gray-400 hover:text-gray-600 text-xl">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="createRoomForm">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tên nhóm *</label>
+                    <input type="text" id="roomName" placeholder="VD: Mẹ bỉm sữa Hà Nội"
+                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-purple-300 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Chủ đề</label>
+                    <select id="roomTopic"
+                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-purple-300 outline-none">
+                        <option value="health">🏥 Sức khỏe</option>
+                        <option value="nutrition">🥗 Dinh dưỡng</option>
+                        <option value="story">💬 Tâm sự</option>
+                        <option value="tips">💡 Mẹo hay</option>
+                        <option value="other">👥 Khác</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+                    <textarea id="roomDesc" rows="2" placeholder="Mô tả ngắn về nhóm..."
+                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-purple-300 outline-none resize-none"></textarea>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button type="button" onclick="document.getElementById('createModal').classList.add('hidden')"
+                    class="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl font-medium hover:bg-gray-50 transition">
+                    Hủy
+                </button>
+                <button type="button" onclick="createRoom()"
+                    class="flex-1 bg-purple-600 text-white py-2.5 rounded-xl font-medium hover:bg-purple-700 transition">
+                    Tạo nhóm
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function joinRoom(roomId, btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        fetch(`/chat-rooms/${roomId}/join`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = `/chat-rooms/${roomId}`;
+                } else {
+                    alert(data.error);
+                    btn.disabled = false;
+                    btn.innerHTML = 'Tham gia';
+                }
+            });
+    }
+
+    function createRoom() {
+        const name = document.getElementById('roomName').value.trim();
+        const topic = document.getElementById('roomTopic').value;
+        const desc = document.getElementById('roomDesc').value.trim();
+
+        if (!name) { alert('Vui lòng nhập tên nhóm!'); return; }
+
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('topic', topic);
+        formData.append('description', desc);
+
+        fetch('/chat-rooms/create', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = `/chat-rooms/${data.room_id}`;
+                } else {
+                    alert(data.error);
+                }
+            });
+    }
+</script>
+{% endblock %}

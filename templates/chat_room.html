@@ -1,0 +1,1045 @@
+{% extends "base.html" %}
+{% block title %}{{ room.name }}{% endblock %}
+{% block content %}
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+
+    <!-- Sidebar thành viên -->
+    <div class="hidden lg:flex flex-col w-64 bg-white border-r border-gray-200 flex-shrink-0">
+        <div class="p-4 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center text-xl">
+                    {% if room.topic == 'health' %}🏥
+                    {% elif room.topic == 'nutrition' %}🥗
+                    {% elif room.topic == 'story' %}💬
+                    {% elif room.topic == 'tips' %}💡
+                    {% else %}👥{% endif %}
+                </div>
+                <div>
+                    <h2 class="font-bold text-gray-800 text-sm">{{ room.name }}</h2>
+                    <p class="text-xs text-gray-500">{{ room.member_count() }} thành viên</p>
+                </div>
+            </div>
+            {% if room.description %}
+            <p class="text-xs text-gray-500 mt-2 italic">{{ room.description }}</p>
+            {% endif %}
+        </div>
+        <div class="flex-1 overflow-y-auto p-3">
+            <p class="text-xs font-semibold text-gray-400 uppercase mb-2 px-1">Thành viên</p>
+            {% for mem in members %}
+            <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50" id="member-{{ mem.user.id }}">
+                <div class="relative">
+                    <img src="{{ url_for('static', filename=mem.user.avatar or 'images/default-avatar.png') }}"
+                        class="w-7 h-7 rounded-full object-cover">
+                    <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-white online-dot"
+                        data-user-id="{{ mem.user.id }}"></div>
+                </div>
+                <span class="text-sm text-gray-700 truncate">{{ mem.user.name }}</span>
+                {% if mem.role == 'admin' %}
+                <span class="ml-auto text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">Admin</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="p-3 border-t border-gray-100 space-y-2">
+            <button onclick="startGroupVideoCall()"
+                class="w-full bg-green-50 text-green-600 border border-green-200 text-sm py-2 rounded-lg hover:bg-green-100 transition flex items-center justify-center gap-2">
+                <i class="fas fa-video"></i> Gọi video nhóm
+            </button>
+            <button onclick="openInviteModal()"
+                class="w-full bg-purple-50 text-purple-600 border border-purple-200 text-sm py-2 rounded-lg hover:bg-purple-100 transition flex items-center justify-center gap-2">
+                <i class="fas fa-user-plus"></i> Thêm bạn bè
+            </button>
+            <button onclick="leaveRoom({{ room.id }})"
+                class="w-full text-red-500 text-sm py-2 rounded-lg hover:bg-red-50 transition flex items-center justify-center gap-2">
+                <i class="fas fa-sign-out-alt"></i> Rời nhóm
+            </button>
+        </div>
+    </div>
+
+    <!-- Khu vực chat -->
+    <div class="flex-1 flex flex-col min-w-0">
+        <!-- Header chat -->
+        <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+            <a href="{{ url_for('chat_rooms') }}" class="text-gray-400 hover:text-purple-600 transition">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div
+                class="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center text-lg">
+                {% if room.topic == 'health' %}🏥{% elif room.topic == 'nutrition' %}🥗
+                {% elif room.topic == 'story' %}💬{% elif room.topic == 'tips' %}💡{% else %}👥{% endif %}
+            </div>
+            <div class="flex-1">
+                <h2 class="font-bold text-gray-800">{{ room.name }}</h2>
+                <p class="text-xs text-gray-500" id="memberCount">{{ room.member_count() }} thành viên</p>
+            </div>
+            <!-- Nút gọi video (mobile) -->
+            <button onclick="startGroupVideoCall()"
+                class="lg:hidden text-green-600 hover:bg-green-50 p-2 rounded-lg transition">
+                <i class="fas fa-video text-lg"></i>
+            </button>
+            <button onclick="openInviteModal()"
+                class="lg:hidden text-purple-600 hover:bg-purple-50 p-2 rounded-lg transition">
+                <i class="fas fa-user-plus text-lg"></i>
+            </button>
+        </div>
+
+        <!-- Messages -->
+        <div id="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50">
+            <!-- Tin nhắn hệ thống -->
+            <div class="text-center">
+                <span class="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
+                    🎉 Chào mừng đến với nhóm {{ room.name }}
+                </span>
+            </div>
+
+            {% for msg in messages %}
+            <div
+                class="flex {% if msg.sender_id == current_user.id %}justify-end{% else %}justify-start{% endif %} gap-2">
+                {% if msg.sender_id != current_user.id %}
+                <img src="{{ url_for('static', filename=msg.sender.avatar or 'images/default-avatar.png') }}"
+                    class="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-1">
+                {% endif %}
+                <div class="max-w-[70%]">
+                    {% if msg.sender_id != current_user.id %}
+                    <p class="text-xs text-gray-500 mb-1 ml-1">{{ msg.sender.name }}</p>
+                    {% endif %}
+                    <div
+                        class="{% if msg.sender_id == current_user.id %}bg-purple-600 text-white rounded-2xl rounded-br-md{% else %}bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-bl-md{% endif %} px-4 py-2.5 shadow-sm">
+                        {% if msg.type == 'text' %}
+                        <p class="text-sm leading-relaxed">{{ msg.content }}</p>
+                        {% elif msg.type == 'image' %}
+                        <img src="{{ msg.content }}"
+                            class="rounded-xl max-w-full max-h-64 cursor-pointer hover:opacity-90 transition"
+                            onclick="openImagePreview(this.src)">
+                        {% elif msg.type == 'video' %}
+                        <video src="{{ msg.content }}" controls class="rounded-xl max-w-full max-h-64"
+                            preload="metadata"></video>
+                        {% elif msg.type == 'audio' %}
+                        <div class="flex items-center gap-2 min-w-[200px]">
+                            <button onclick="toggleAudio(this)"
+                                class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                                <i class="fas fa-play text-sm"></i>
+                            </button>
+                            <div class="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
+                                <div class="audio-progress h-full bg-white rounded-full" style="width: 0%"></div>
+                            </div>
+                            <span class="audio-duration text-xs opacity-70">0:00</span>
+                            <audio src="{{ msg.content }}" class="hidden"></audio>
+                        </div>
+                        {% elif msg.type == 'sticker' %}
+                        <img src="{{ msg.content }}" class="w-24 h-24 object-contain">
+                        {% endif %}
+                    </div>
+                    <p
+                        class="text-[10px] text-gray-400 mt-1 {% if msg.sender_id == current_user.id %}text-right{% endif %}">
+                        {{ msg.timestamp.strftime('%H:%M %d/%m') }}
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Thanh công cụ + Input gửi tin nhắn -->
+        <div class="bg-white border-t border-gray-200">
+            <!-- Quick actions bar -->
+            <div class="px-4 py-2 flex items-center gap-2 border-b border-gray-100">
+                <button onclick="triggerImageUpload()"
+                    class="text-gray-500 hover:text-purple-600 p-2 rounded-lg hover:bg-purple-50 transition"
+                    title="Gửi ảnh">
+                    <i class="fas fa-image text-lg"></i>
+                </button>
+                <button onclick="triggerVideoUpload()"
+                    class="text-gray-500 hover:text-purple-600 p-2 rounded-lg hover:bg-purple-50 transition"
+                    title="Gửi video">
+                    <i class="fas fa-video text-lg"></i>
+                </button>
+                <button onclick="startRecording()" id="recordBtn"
+                    class="text-gray-500 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition" title="Ghi âm">
+                    <i class="fas fa-microphone text-lg"></i>
+                </button>
+                <button onclick="toggleStickerPanel()"
+                    class="text-gray-500 hover:text-purple-600 p-2 rounded-lg hover:bg-purple-50 transition"
+                    title="Sticker">
+                    <i class="fas fa-smile text-lg"></i>
+                </button>
+                <div class="flex-1"></div>
+                <span id="recordingIndicator" class="hidden text-red-500 text-sm font-medium flex items-center gap-1">
+                    <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                    Đang ghi âm <span id="recordingTime">0:00</span>
+                </span>
+            </div>
+
+            <!-- Input area -->
+            <div class="px-4 py-3">
+                <div class="flex items-center gap-3 bg-gray-100 rounded-2xl px-4 py-2">
+                    <input type="text" id="msgInput" placeholder="Nhập tin nhắn..."
+                        class="flex-1 bg-transparent text-sm outline-none"
+                        onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button onclick="sendMessage()"
+                        class="w-9 h-9 bg-purple-600 rounded-xl flex items-center justify-center text-white hover:bg-purple-700 transition flex-shrink-0">
+                        <i class="fas fa-paper-plane text-sm"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Hidden file inputs -->
+            <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
+            <input type="file" id="videoInput" accept="video/*" class="hidden" onchange="handleVideoUpload(this)">
+        </div>
+    </div>
+
+    <!-- Sticker Panel -->
+    <div id="stickerPanel"
+        class="hidden absolute bottom-20 right-4 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 z-50 w-72">
+        <div class="flex items-center justify-between mb-3">
+            <h4 class="font-bold text-gray-800 text-sm">Sticker</h4>
+            <button onclick="toggleStickerPanel()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <!-- Tab stickers -->
+        <div class="flex gap-2 mb-3">
+            <button onclick="loadStickerTab('meme')"
+                class="sticker-tab px-3 py-1 text-xs rounded-full bg-purple-100 text-purple-600">Meme</button>
+            <button onclick="loadStickerTab('cute')"
+                class="sticker-tab px-3 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Dễ thương</button>
+            <button onclick="loadStickerTab('emoji')"
+                class="sticker-tab px-3 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Emoji</button>
+        </div>
+        <div id="stickerGrid" class="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
+            <!-- Stickers sẽ load ở đây -->
+        </div>
+    </div>
+</div>
+
+<!-- Modal mời bạn bè -->
+<div id="inviteModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-gray-800">
+                <i class="fas fa-user-plus text-purple-600 mr-2"></i>Mời bạn bè
+            </h3>
+            <button onclick="closeInviteModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <input type="text" id="friendSearch" placeholder="Tìm bạn bè..." oninput="filterFriends(this.value)"
+            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm mb-3 focus:ring-2 focus:ring-purple-300 outline-none">
+        <div id="friendsList" class="space-y-2 max-h-64 overflow-y-auto">
+            <div class="text-center py-6 text-gray-400">
+                <i class="fas fa-spinner fa-spin text-2xl"></i>
+                <p class="text-sm mt-2">Đang tải...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Preview Modal -->
+<div id="imagePreviewModal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4"
+    onclick="closeImagePreview()">
+    <button class="absolute top-4 right-4 text-white text-2xl hover:text-gray-300 transition">
+        <i class="fas fa-times"></i>
+    </button>
+    <img id="previewImage" src="" class="max-w-full max-h-full object-contain rounded-lg">
+</div>
+
+<!-- Group Video Call Modal -->
+<div id="videoCallModal" class="hidden fixed inset-0 bg-black z-[200] flex flex-col">
+    <!-- Header -->
+    <div class="bg-gray-900 text-white px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                <i class="fas fa-video text-sm"></i>
+            </div>
+            <div>
+                <h3 class="font-bold text-sm">{{ room.name }}</h3>
+                <p class="text-xs text-gray-400" id="callDuration">Đang kết nối...</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="bg-green-500/20 text-green-400 px-2 py-1 rounded-full text-xs" id="callParticipants">
+                <i class="fas fa-users mr-1"></i>1 thành viên
+            </span>
+        </div>
+    </div>
+
+    <!-- Video Grid -->
+    <div class="flex-1 bg-gray-800 p-2 overflow-hidden">
+        <div id="videoGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 h-full">
+            <!-- Local video -->
+            <div class="relative bg-gray-700 rounded-xl overflow-hidden">
+                <video id="localVideo" autoplay muted playsinline class="w-full h-full object-cover"></video>
+                <div class="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded-lg text-xs">
+                    <i class="fas fa-user mr-1"></i>Bạn
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="bg-gray-900 px-4 py-4 flex items-center justify-center gap-4">
+        <button onclick="toggleLocalMic()" id="micBtn"
+            class="w-12 h-12 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center text-white transition">
+            <i class="fas fa-microphone"></i>
+        </button>
+        <button onclick="toggleLocalCamera()" id="cameraBtn"
+            class="w-12 h-12 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center text-white transition">
+            <i class="fas fa-video"></i>
+        </button>
+        <button onclick="shareScreen()" id="screenBtn"
+            class="w-12 h-12 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center text-white transition">
+            <i class="fas fa-desktop"></i>
+        </button>
+        <button onclick="endGroupVideoCall()"
+            class="w-14 h-14 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center text-white transition">
+            <i class="fas fa-phone-slash text-lg"></i>
+        </button>
+    </div>
+</div>
+
+<style>
+    .sticker-tab.active {
+        background-color: #7c3aed;
+        color: white;
+    }
+
+    .sticker-item {
+        cursor: pointer;
+        transition: transform 0.2s;
+        border-radius: 8px;
+        padding: 4px;
+    }
+
+    .sticker-item:hover {
+        transform: scale(1.1);
+        background-color: #f3f4f6;
+    }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+    const socket = io();
+    const roomId = {{ room.id }};
+    const currentUserId = {{ current_user.id }};
+    const currentUserName = "{{ current_user.name }}";
+    const currentUserAvatar = "{{ current_user.avatar or 'images/default-avatar.png' }}";
+
+    // Video call variables
+    let localStream = null;
+    let peerConnections = {};
+    let isMuted = false;
+    let isCameraOff = false;
+    let callTimer = null;
+    let callSeconds = 0;
+
+    // Audio recording variables
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let recordingTimer = null;
+    let recordingSeconds = 0;
+
+    // Sticker data
+    const stickerData = {
+        meme: [
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f602.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f923.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f605.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f970.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f60e.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f929.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f973.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f60d.png',
+        ],
+        cute: [
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f436.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f431.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f43c.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f433.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f438.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f430.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f43b.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f981.png',
+        ],
+        emoji: [
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/2764.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f64f.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f44d.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f44f.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f389.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f38a.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f525.png',
+            'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/2b50.png',
+        ]
+    };
+
+    // Join room
+    socket.emit('join_room_chat', { room_id: roomId, user_id: currentUserId });
+
+    // Scroll xuống cuối
+    function scrollToBottom() {
+        const c = document.getElementById('messagesContainer');
+        c.scrollTop = c.scrollHeight;
+    }
+    scrollToBottom();
+
+    // ==================== GỬI TIN NHẮN ====================
+    function sendMessage() {
+        const input = document.getElementById('msgInput');
+        const content = input.value.trim();
+        if (!content) return;
+
+        socket.emit('send_room_message', {
+            room_id: roomId,
+            sender_id: currentUserId,
+            content: content,
+            type: 'text'
+        });
+
+        input.value = '';
+    }
+
+    // ==================== NHẬN TIN NHẮN ====================
+    socket.on('receive_room_message', function (data) {
+        const container = document.getElementById('messagesContainer');
+        const isMe = data.sender_id === currentUserId;
+
+        const div = document.createElement('div');
+        div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} gap-2`;
+        div.innerHTML = renderMessageHTML(data, isMe);
+        container.appendChild(div);
+        scrollToBottom();
+    });
+
+    function renderMessageHTML(data, isMe) {
+        const bubbleClass = isMe
+            ? 'bg-purple-600 text-white rounded-2xl rounded-br-md'
+            : 'bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-bl-md';
+        const avatar = data.sender_avatar || 'images/default-avatar.png';
+
+        let contentHTML = '';
+        switch (data.type) {
+            case 'text':
+                contentHTML = `<p class="text-sm leading-relaxed">${escapeHTML(data.content)}</p>`;
+                break;
+            case 'image':
+                contentHTML = `<img src="${data.content}" class="rounded-xl max-w-full max-h-64 cursor-pointer hover:opacity-90 transition" onclick="openImagePreview(this.src)">`;
+                break;
+            case 'video':
+                contentHTML = `<video src="${data.content}" controls class="rounded-xl max-w-full max-h-64" preload="metadata"></video>`;
+                break;
+            case 'audio':
+                contentHTML = `
+                    <div class="flex items-center gap-2 min-w-[200px]">
+                        <button onclick="toggleAudio(this)" class="w-10 h-10 rounded-full ${isMe ? 'bg-white/20 hover:bg-white/30' : 'bg-purple-100 hover:bg-purple-200'} flex items-center justify-center transition">
+                            <i class="fas fa-play text-sm"></i>
+                        </button>
+                        <div class="flex-1 h-1 ${isMe ? 'bg-white/30' : 'bg-gray-200'} rounded-full overflow-hidden">
+                            <div class="audio-progress h-full ${isMe ? 'bg-white' : 'bg-purple-500'} rounded-full" style="width: 0%"></div>
+                        </div>
+                        <span class="audio-duration text-xs ${isMe ? 'opacity-70' : 'text-gray-500'}">0:00</span>
+                        <audio src="${data.content}" class="hidden" onloadedmetadata="this.parentElement.querySelector('.audio-duration').textContent = formatTime(this.duration)"></audio>
+                    </div>`;
+                break;
+            case 'sticker':
+                contentHTML = `<img src="${data.content}" class="w-24 h-24 object-contain">`;
+                break;
+        }
+
+        return `
+            ${!isMe ? `<img src="/static/${avatar}" class="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-1">` : ''}
+            <div class="max-w-[70%]">
+                ${!isMe ? `<p class="text-xs text-gray-500 mb-1 ml-1">${data.sender_name}</p>` : ''}
+                <div class="${bubbleClass} px-4 py-2.5 shadow-sm">
+                    ${contentHTML}
+                </div>
+                <p class="text-[10px] text-gray-400 mt-1 ${isMe ? 'text-right' : ''}">${data.timestamp}</p>
+            </div>
+        `;
+    }
+
+    function escapeHTML(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // ==================== ẢNH ====================
+    function triggerImageUpload() {
+        document.getElementById('imageInput').click();
+    }
+
+    async function handleImageUpload(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        // Show preview while uploading
+        showUploadingPreview(file, 'image');
+
+        const formData = new FormData();
+        formData.append('media', file);
+
+        try {
+            const res = await fetch(`/chat-rooms/${roomId}/upload-media`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                socket.emit('send_room_message', {
+                    room_id: roomId,
+                    sender_id: currentUserId,
+                    content: data.url,
+                    type: 'image'
+                });
+            } else {
+                showToast(data.error || 'Lỗi upload ảnh', 'error');
+            }
+        } catch (e) {
+            showToast('Lỗi upload ảnh', 'error');
+        }
+
+        input.value = '';
+        removeUploadingPreview();
+    }
+
+    // ==================== VIDEO ====================
+    function triggerVideoUpload() {
+        document.getElementById('videoInput').click();
+    }
+
+    async function handleVideoUpload(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        if (file.size > 50 * 1024 * 1024) {
+            showToast('Video quá lớn (tối đa 50MB)', 'error');
+            return;
+        }
+
+        showUploadingPreview(file, 'video');
+
+        const formData = new FormData();
+        formData.append('media', file);
+
+        try {
+            const res = await fetch(`/chat-rooms/${roomId}/upload-media`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                socket.emit('send_room_message', {
+                    room_id: roomId,
+                    sender_id: currentUserId,
+                    content: data.url,
+                    type: 'video'
+                });
+            } else {
+                showToast(data.error || 'Lỗi upload video', 'error');
+            }
+        } catch (e) {
+            showToast('Lỗi upload video', 'error');
+        }
+
+        input.value = '';
+        removeUploadingPreview();
+    }
+
+    // ==================== GHI ÂM ====================
+    async function startRecording() {
+        if (isRecording) {
+            stopRecording();
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(track => track.stop());
+
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const formData = new FormData();
+                formData.append('media', audioBlob, `recording_${Date.now()}.webm`);
+
+                try {
+                    const res = await fetch(`/chat-rooms/${roomId}/upload-media`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+
+                    if (data.success) {
+                        socket.emit('send_room_message', {
+                            room_id: roomId,
+                            sender_id: currentUserId,
+                            content: data.url,
+                            type: 'audio'
+                        });
+                    }
+                } catch (e) {
+                    showToast('Lỗi gửi ghi âm', 'error');
+                }
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            recordingSeconds = 0;
+
+            document.getElementById('recordBtn').classList.add('text-red-600', 'bg-red-50');
+            document.getElementById('recordBtn').innerHTML = '<i class="fas fa-stop text-lg"></i>';
+            document.getElementById('recordingIndicator').classList.remove('hidden');
+            document.getElementById('recordingIndicator').classList.add('flex');
+
+            recordingTimer = setInterval(() => {
+                recordingSeconds++;
+                document.getElementById('recordingTime').textContent = formatTime(recordingSeconds);
+            }, 1000);
+
+        } catch (e) {
+            showToast('Không thể truy cập microphone', 'error');
+        }
+    }
+
+    function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+        isRecording = false;
+
+        document.getElementById('recordBtn').classList.remove('text-red-600', 'bg-red-50');
+        document.getElementById('recordBtn').innerHTML = '<i class="fas fa-microphone text-lg"></i>';
+        document.getElementById('recordingIndicator').classList.add('hidden');
+        document.getElementById('recordingIndicator').classList.remove('flex');
+
+        if (recordingTimer) {
+            clearInterval(recordingTimer);
+            recordingTimer = null;
+        }
+    }
+
+    // ==================== STICKER ====================
+    function toggleStickerPanel() {
+        const panel = document.getElementById('stickerPanel');
+        panel.classList.toggle('hidden');
+        if (!panel.classList.contains('hidden')) {
+            loadStickerTab('meme');
+        }
+    }
+
+    function loadStickerTab(tab) {
+        // Update active tab
+        document.querySelectorAll('.sticker-tab').forEach(t => {
+            t.classList.remove('bg-purple-100', 'text-purple-600');
+            t.classList.add('bg-gray-100', 'text-gray-600');
+        });
+        event.target.classList.add('bg-purple-100', 'text-purple-600');
+        event.target.classList.remove('bg-gray-100', 'text-gray-600');
+
+        const grid = document.getElementById('stickerGrid');
+        const stickers = stickerData[tab] || [];
+
+        grid.innerHTML = stickers.map(url => `
+            <div class="sticker-item flex items-center justify-center" onclick="sendSticker('${url}')">
+                <img src="${url}" class="w-14 h-14 object-contain">
+            </div>
+        `).join('');
+    }
+
+    function sendSticker(url) {
+        socket.emit('send_room_message', {
+            room_id: roomId,
+            sender_id: currentUserId,
+            content: url,
+            type: 'sticker'
+        });
+        toggleStickerPanel();
+    }
+
+    // ==================== AUDIO PLAYER ====================
+    function toggleAudio(btn) {
+        const audio = btn.parentElement.querySelector('audio');
+        const icon = btn.querySelector('i');
+        const progress = btn.parentElement.querySelector('.audio-progress');
+
+        if (audio.paused) {
+            audio.play();
+            icon.classList.remove('fa-play');
+            icon.classList.add('fa-pause');
+
+            audio.ontimeupdate = () => {
+                const percent = (audio.currentTime / audio.duration) * 100;
+                progress.style.width = percent + '%';
+            };
+
+            audio.onended = () => {
+                icon.classList.remove('fa-pause');
+                icon.classList.add('fa-play');
+                progress.style.width = '0%';
+            };
+        } else {
+            audio.pause();
+            icon.classList.remove('fa-pause');
+            icon.classList.add('fa-play');
+        }
+    }
+
+    // ==================== IMAGE PREVIEW ====================
+    function openImagePreview(src) {
+        document.getElementById('previewImage').src = src;
+        document.getElementById('imagePreviewModal').classList.remove('hidden');
+    }
+
+    function closeImagePreview() {
+        document.getElementById('imagePreviewModal').classList.add('hidden');
+    }
+
+    // ==================== UPLOADING PREVIEW ====================
+    function showUploadingPreview(file, type) {
+        const container = document.getElementById('messagesContainer');
+        const div = document.createElement('div');
+        div.id = 'uploadingPreview';
+        div.className = 'flex justify-end gap-2';
+
+        let previewHTML = '';
+        if (type === 'image') {
+            const url = URL.createObjectURL(file);
+            previewHTML = `<img src="${url}" class="rounded-2xl max-w-[200px] max-h-[200px] opacity-50">`;
+        } else {
+            previewHTML = `<div class="bg-purple-100 rounded-2xl px-4 py-3 flex items-center gap-2"><i class="fas fa-spinner fa-spin text-purple-600"></i><span class="text-sm text-purple-600">Đang gửi video...</span></div>`;
+        }
+
+        div.innerHTML = `
+            <div class="max-w-[70%]">
+                <div class="bg-purple-600 text-white rounded-2xl rounded-br-md px-4 py-2.5 shadow-sm">
+                    ${previewHTML}
+                </div>
+            </div>
+        `;
+        container.appendChild(div);
+        scrollToBottom();
+    }
+
+    function removeUploadingPreview() {
+        const preview = document.getElementById('uploadingPreview');
+        if (preview) preview.remove();
+    }
+
+    // ==================== GỌI VIDEO NHÓM ====================
+    async function startGroupVideoCall() {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+
+            document.getElementById('localVideo').srcObject = localStream;
+            document.getElementById('videoCallModal').classList.remove('hidden');
+
+            // Notify others
+            socket.emit('join_group_video', {
+                room_id: roomId,
+                user_id: currentUserId,
+                user_name: currentUserName
+            });
+
+            // Start timer
+            callSeconds = 0;
+            callTimer = setInterval(() => {
+                callSeconds++;
+                const mins = Math.floor(callSeconds / 60);
+                const secs = callSeconds % 60;
+                document.getElementById('callDuration').textContent =
+                    `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }, 1000);
+
+        } catch (e) {
+            showToast('Không thể truy cập camera/microphone', 'error');
+            console.error('Video call error:', e);
+        }
+    }
+
+    socket.on('user_joined_video', function (data) {
+        if (data.user_id === currentUserId) return;
+        addRemoteVideo(data);
+    });
+
+    socket.on('user_left_video', function (data) {
+        removeRemoteVideo(data.user_id);
+        updateParticipantCount(-1);
+    });
+
+    function addRemoteVideo(data) {
+        const grid = document.getElementById('videoGrid');
+
+        // Check if already exists
+        if (document.getElementById(`remote-${data.user_id}`)) return;
+
+        const div = document.createElement('div');
+        div.id = `remote-${data.user_id}`;
+        div.className = 'relative bg-gray-700 rounded-xl overflow-hidden';
+        div.innerHTML = `
+            <video id="video-${data.user_id}" autoplay playsinline class="w-full h-full object-cover"></video>
+            <div class="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded-lg text-xs">
+                <i class="fas fa-user mr-1"></i>${data.user_name}
+            </div>
+            <div class="absolute top-2 right-2">
+                <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+            </div>
+        `;
+        grid.appendChild(div);
+
+        updateParticipantCount(1);
+
+        // Create peer connection (simplified - in production use WebRTC)
+        createPeerConnection(data.user_id);
+    }
+
+    function removeRemoteVideo(userId) {
+        const div = document.getElementById(`remote-${userId}`);
+        if (div) div.remove();
+
+        if (peerConnections[userId]) {
+            peerConnections[userId].close();
+            delete peerConnections[userId];
+        }
+    }
+
+    function createPeerConnection(userId) {
+        // Simplified peer connection - in production, implement full WebRTC with signaling
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        localStream.getTracks().forEach(track => {
+            pc.addTrack(track, localStream);
+        });
+
+        pc.ontrack = (event) => {
+            const video = document.getElementById(`video-${userId}`);
+            if (video && event.streams[0]) {
+                video.srcObject = event.streams[0];
+            }
+        };
+
+        peerConnections[userId] = pc;
+    }
+
+    function updateParticipantCount(change) {
+        const el = document.getElementById('callParticipants');
+        const current = parseInt(el.textContent.match(/\d+/)[0]);
+        const newCount = current + change;
+        el.innerHTML = `<i class="fas fa-users mr-1"></i>${newCount} thành viên`;
+    }
+
+    function toggleLocalMic() {
+        if (!localStream) return;
+        isMuted = !isMuted;
+        localStream.getAudioTracks().forEach(track => track.enabled = !isMuted);
+
+        const btn = document.getElementById('micBtn');
+        btn.innerHTML = isMuted ? '<i class="fas fa-microphone-slash"></i>' : '<i class="fas fa-microphone"></i>';
+        btn.classList.toggle('bg-red-600', isMuted);
+        btn.classList.toggle('bg-gray-700', !isMuted);
+    }
+
+    function toggleLocalCamera() {
+        if (!localStream) return;
+        isCameraOff = !isCameraOff;
+        localStream.getVideoTracks().forEach(track => track.enabled = !isCameraOff);
+
+        const btn = document.getElementById('cameraBtn');
+        btn.innerHTML = isCameraOff ? '<i class="fas fa-video-slash"></i>' : '<i class="fas fa-video"></i>';
+        btn.classList.toggle('bg-red-600', isCameraOff);
+        btn.classList.toggle('bg-gray-700', !isCameraOff);
+    }
+
+    async function shareScreen() {
+        try {
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+
+            // Replace video track
+            const screenTrack = screenStream.getVideoTracks()[0];
+            const sender = Object.values(peerConnections)[0]?.getSenders().find(s => s.track.kind === 'video');
+            if (sender) {
+                sender.replaceTrack(screenTrack);
+            }
+            document.getElementById('localVideo').srcObject = screenStream;
+
+            screenTrack.onended = () => {
+                document.getElementById('localVideo').srcObject = localStream;
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (sender) sender.replaceTrack(videoTrack);
+            };
+
+            document.getElementById('screenBtn').classList.add('bg-blue-600');
+            document.getElementById('screenBtn').classList.remove('bg-gray-700');
+
+            screenTrack.onended = () => {
+                document.getElementById('screenBtn').classList.remove('bg-blue-600');
+                document.getElementById('screenBtn').classList.add('bg-gray-700');
+            };
+        } catch (e) {
+            showToast('Không thể chia sẻ màn hình', 'error');
+        }
+    }
+
+    function endGroupVideoCall() {
+        // Stop local stream
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+
+        // Close all peer connections
+        Object.values(peerConnections).forEach(pc => pc.close());
+        peerConnections = {};
+
+        // Stop timer
+        if (callTimer) {
+            clearInterval(callTimer);
+            callTimer = null;
+        }
+
+        // Notify others
+        socket.emit('leave_group_video', {
+            room_id: roomId,
+            user_id: currentUserId
+        });
+
+        // Hide modal
+        document.getElementById('videoCallModal').classList.add('hidden');
+
+        // Send system message
+        socket.emit('send_room_message', {
+            room_id: roomId,
+            sender_id: currentUserId,
+            content: `${currentUserName} đã kết thúc cuộc gọi video (${formatTime(callSeconds)})`,
+            type: 'text'
+        });
+    }
+
+    // ==================== RỜI NHÓM ====================
+    function leaveRoom(roomId) {
+        if (!confirm('Bạn có chắc muốn rời nhóm này?')) return;
+        fetch(`/chat-rooms/${roomId}/leave`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) window.location.href = '/chat-rooms';
+            });
+    }
+
+    // ==================== MỜI BẠN BÈ ====================
+    let allFriends = [];
+
+    async function openInviteModal() {
+        document.getElementById('inviteModal').classList.remove('hidden');
+        document.getElementById('friendSearch').value = '';
+
+        const res = await fetch(`/chat-rooms/${roomId}/friends-to-invite`);
+        allFriends = await res.json();
+        renderFriends(allFriends);
+    }
+
+    function closeInviteModal() {
+        document.getElementById('inviteModal').classList.add('hidden');
+    }
+
+    function filterFriends(query) {
+        const filtered = allFriends.filter(f =>
+            f.name.toLowerCase().includes(query.toLowerCase())
+        );
+        renderFriends(filtered);
+    }
+
+    function renderFriends(friends) {
+        const list = document.getElementById('friendsList');
+
+        if (friends.length === 0) {
+            list.innerHTML = `
+            <div class="text-center py-6 text-gray-400">
+                <i class="fas fa-user-friends text-3xl mb-2"></i>
+                <p class="text-sm">Không có bạn bè nào để mời</p>
+            </div>`;
+            return;
+        }
+
+        list.innerHTML = friends.map(f => `
+        <div class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition" id="friend-row-${f.id}">
+            <img src="/static/${f.avatar}" class="w-9 h-9 rounded-full object-cover">
+            <span class="flex-1 text-sm font-medium text-gray-800">${f.name}</span>
+            <button onclick="inviteFriend(${f.id}, '${f.name}', this)"
+                class="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition">
+                Mời
+            </button>
+        </div>
+    `).join('');
+    }
+
+    async function inviteFriend(friendId, friendName, btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        const formData = new FormData();
+        formData.append('friend_id', friendId);
+
+        const res = await fetch(`/chat-rooms/${roomId}/invite`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            const row = document.getElementById(`friend-row-${friendId}`);
+            btn.innerHTML = '<i class="fas fa-check"></i> Đã thêm';
+            btn.className = 'bg-green-100 text-green-600 px-3 py-1.5 rounded-lg text-xs font-medium';
+            allFriends = allFriends.filter(f => f.id !== friendId);
+            showToast(`✅ Đã thêm ${friendName} vào nhóm!`);
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = 'Mời';
+            showToast(`❌ ${data.error}`, 'error');
+        }
+    }
+
+    // ==================== TOAST ====================
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-xl shadow-lg text-sm font-medium text-white transition-all
+        ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Close modals
+    document.getElementById('inviteModal').addEventListener('click', function (e) {
+        if (e.target === this) closeInviteModal();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeInviteModal();
+            closeImagePreview();
+            document.getElementById('stickerPanel').classList.add('hidden');
+        }
+    });
+</script>
+{% endblock %}

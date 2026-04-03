@@ -25,6 +25,7 @@ from flask_login import current_user
 # ===== THÊM DÒNG NÀY ĐỂ IMPORT RECOMMENDER =====
 from recommendation_system import recommender
 from tasks import scheduler
+from models import ChatRoom, RoomMember, RoomMessage
 
 # ✅ THÊM DÒNG NÀY - Import model CommentLike
 from models import (
@@ -1037,6 +1038,9 @@ def api_notifications():
             redirect_url = f'/post/{n.related_id}'
         elif n.type in ['friend_request', 'friend_accepted']:
             redirect_url = '/friends'
+        # THÊM DÒNG NÀY VÀO CUỐI:
+        elif n.type == 'room_invite' and n.related_id:
+            redirect_url = f'/chat-rooms/{n.related_id}'
         
         results.append({
             "id": n.id,
@@ -4418,6 +4422,372 @@ def edit_post(post_id):
 
     db.session.commit()
     return jsonify({'success': True, 'message': 'Cập nhật thành công!'})
+
+# ====================================
+# NHÓM CHAT THEO CHỦ ĐỀ
+# ====================================
+
+@app.route('/chat-rooms')
+@login_required
+def chat_rooms():
+    """Danh sách tất cả nhóm chat"""
+    topic = request.args.get('topic', 'all')
+    
+    query = ChatRoom.query.filter_by(is_active=True)
+    if topic != 'all':
+        query = query.filter_by(topic=topic)
+    
+    rooms = query.order_by(ChatRoom.created_at.desc()).all()
+    
+    # Đánh dấu room nào user đã join
+    for room in rooms:
+        room.user_is_member = room.is_member(current_user.id)
+    
+    my_rooms = [r for r in rooms if r.user_is_member]
+    other_rooms = [r for r in rooms if not r.user_is_member]
+    
+    return render_template('chat_rooms_list.html',
+        my_rooms=my_rooms,
+        other_rooms=other_rooms,
+        selected_topic=topic
+    )
+
+
+@app.route('/chat-rooms/create', methods=['POST'])
+@login_required
+def create_chat_room():
+    name = request.form.get('name', '').strip()
+    description = request.form.get('description', '').strip()
+    topic = request.form.get('topic', 'other')
+    
+    if not name:
+        return jsonify({'error': 'Tên nhóm không được để trống!'}), 400
+    
+    room = ChatRoom(
+        name=name,
+        description=description,
+        topic=topic,
+        created_by=current_user.id
+    )
+    db.session.add(room)
+    db.session.flush()  # Lấy room.id trước khi commit
+    
+    # Người tạo tự động là admin của nhóm
+    member = RoomMember(room_id=room.id, user_id=current_user.id, role='admin')
+    db.session.add(member)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'room_id': room.id})
+
+
+@app.route('/chat-rooms/<int:room_id>/join', methods=['POST'])
+@login_required
+def join_chat_room(room_id):
+    room = ChatRoom.query.get_or_404(room_id)
+    
+    if room.is_member(current_user.id):
+        return jsonify({'error': 'Bạn đã là thành viên rồi!'}), 400
+    
+    if room.member_count() >= room.max_members:
+        return jsonify({'error': 'Nhóm đã đầy!'}), 400
+    
+    member = RoomMember(room_id=room_id, user_id=current_user.id)
+    db.session.add(member)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+
+@app.route('/chat-rooms/<int:room_id>/leave', methods=['POST'])
+@login_required
+def leave_chat_room(room_id):
+    member = RoomMember.query.filter_by(
+        room_id=room_id, user_id=current_user.id
+    ).first_or_404()
+    
+    db.session.delete(member)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+
+@app.route('/chat-rooms/<int:room_id>')
+@login_required
+def chat_room(room_id):
+    room = ChatRoom.query.get_or_404(room_id)
+    
+    if not room.is_member(current_user.id):
+        flash('Bạn cần tham gia nhóm trước!', 'warning')
+        return redirect(url_for('chat_rooms'))
+    
+    messages = RoomMessage.query.filter_by(room_id=room_id)\
+                                .order_by(RoomMessage.timestamp.asc())\
+                                .limit(100).all()
+    
+    members = RoomMember.query.filter_by(room_id=room_id).all()
+    
+    return render_template('chat_room.html',
+        room=room,
+        messages=messages,
+        members=members
+    )
+
+@app.route('/chat-rooms/<int:room_id>/invite', methods=['POST'])
+@login_required
+def invite_to_room(room_id):
+    room = ChatRoom.query.get_or_404(room_id)
+    
+    # Chỉ thành viên mới được mời
+    if not room.is_member(current_user.id):
+        return jsonify({'error': 'Bạn không phải thành viên nhóm!'}), 403
+    
+    friend_id = request.form.get('friend_id', type=int)
+    if not friend_id:
+        return jsonify({'error': 'Không tìm thấy người dùng!'}), 400
+    
+    # Kiểm tra có phải bạn bè không
+    friendship = Friendship.query.filter(
+        db.or_(
+            db.and_(Friendship.user1_id == current_user.id, Friendship.user2_id == friend_id),
+            db.and_(Friendship.user1_id == friend_id, Friendship.user2_id == current_user.id)
+        )
+    ).first()
+    
+    if not friendship:
+        return jsonify({'error': 'Chỉ có thể mời bạn bè!'}), 403
+    
+    # Kiểm tra đã là thành viên chưa
+    if room.is_member(friend_id):
+        return jsonify({'error': 'Người này đã trong nhóm rồi!'}), 400
+    
+    # Kiểm tra nhóm có đầy không
+    if room.member_count() >= room.max_members:
+        return jsonify({'error': 'Nhóm đã đầy!'}), 400
+    
+    # Thêm vào nhóm
+    member = RoomMember(room_id=room_id, user_id=friend_id)
+    db.session.add(member)
+    
+    # Gửi thông báo cho người được mời
+    friend = User.query.get(friend_id)
+    notif = Notification(
+        user_id=friend_id,
+        title="Bạn được mời vào nhóm chat!",
+        message=f"{current_user.name} đã thêm bạn vào nhóm '{room.name}'",
+        type='room_invite',
+        related_user_id=current_user.id,
+        related_id=room_id  # ← THÊM DÒNG NÀY
+    )
+    db.session.add(notif)
+    db.session.commit()
+    
+    # Gửi realtime cho người được mời
+    socketio.emit('new_notification', {
+        'title': notif.title,
+        'message': notif.message,
+        'type': 'room_invite',
+    }, room=f"user_{friend_id}")
+    
+    return jsonify({'success': True, 'message': f'Đã thêm {friend.name} vào nhóm!'})
+
+
+@app.route('/chat-rooms/<int:room_id>/friends-to-invite')
+@login_required  
+def friends_to_invite(room_id):
+    """Lấy danh sách bạn bè chưa trong nhóm"""
+    room = ChatRoom.query.get_or_404(room_id)
+    
+    if not room.is_member(current_user.id):
+        return jsonify([])
+    
+    # Lấy tất cả bạn bè
+    friendships = Friendship.query.filter(
+        db.or_(
+            Friendship.user1_id == current_user.id,
+            Friendship.user2_id == current_user.id
+        )
+    ).all()
+    
+    friend_ids = []
+    for f in friendships:
+        fid = f.user2_id if f.user1_id == current_user.id else f.user1_id
+        friend_ids.append(fid)
+    
+    # Lọc bỏ người đã trong nhóm
+    member_ids = [m.user_id for m in room.members.all()]
+    invitable_ids = [fid for fid in friend_ids if fid not in member_ids]
+    
+    friends = User.query.filter(User.id.in_(invitable_ids)).all()
+    
+    return jsonify([{
+        'id': f.id,
+        'name': f.name,
+        'avatar': f.avatar or 'images/default-avatar.png'
+    } for f in friends])
+
+# SocketIO events cho nhóm chat
+@socketio.on('join_room_chat')
+def on_join_room_chat(data):
+    room_id = data.get('room_id')
+    user_id = data.get('user_id')
+    
+    room = ChatRoom.query.get(room_id)
+    if not room or not room.is_member(user_id):
+        return
+    
+    join_room(f"chatroom_{room_id}")
+    print(f"User {user_id} joined chatroom_{room_id}")
+
+
+@socketio.on('send_room_message')
+def handle_room_message(data):
+    room_id = data.get('room_id')
+    sender_id = data.get('sender_id')
+    content = data.get('content', '').strip()
+    msg_type = data.get('type', 'text')
+    
+    if not content:
+        return
+    
+    room = ChatRoom.query.get(room_id)
+    if not room or not room.is_member(sender_id):
+        emit('room_error', {'message': 'Không có quyền gửi tin!'}, room=request.sid)
+        return
+    
+    sender = User.query.get(sender_id)
+    
+    # Lưu vào DB
+    msg = RoomMessage(
+        room_id=room_id,
+        sender_id=sender_id,
+        content=content,
+        type=msg_type
+    )
+    db.session.add(msg)
+    db.session.commit()
+    
+    # Broadcast tin nhắn cho tất cả trong phòng
+    emit('receive_room_message', {
+        'id': msg.id,
+        'sender_id': sender_id,
+        'sender_name': sender.name,
+        'sender_avatar': sender.avatar or 'images/default-avatar.png',
+        'content': content,
+        'type': msg_type,
+        'timestamp': msg.timestamp.strftime('%H:%M %d/%m')
+    }, room=f"chatroom_{room_id}", include_self=True)
+    
+    # =========================================================
+    # GỬI THÔNG BÁO TOAST CHO CÁC THÀNH VIÊN KHÁC (không online trong phòng)
+    # =========================================================
+    all_members = RoomMember.query.filter_by(room_id=room_id).all()
+    
+    for member in all_members:
+        # Bỏ qua người gửi
+        if member.user_id == sender_id:
+            continue
+        
+        # Lấy socket của thành viên (nếu đang online)
+        member_socket = online_users.get(member.user_id)
+        
+        if member_socket:
+            # Gửi toast notification realtime
+            socketio.emit('new_room_message_notification', {
+                'room_id': room_id,
+                'room_name': room.name,
+                'sender_name': sender.name,
+                'sender_avatar': sender.avatar or 'images/default-avatar.png',
+                'content': content[:60] + ('...' if len(content) > 60 else ''),
+                'room_url': f'/chat-rooms/{room_id}'
+            }, room=member_socket)
+
+# ====================================
+# UPLOAD MEDIA CHO NHÓM CHAT
+# ====================================
+@app.route('/chat-rooms/<int:room_id>/upload-media', methods=['POST'])
+@login_required
+def upload_room_media(room_id):
+    """Upload ảnh/video/audio cho nhóm chat"""
+    room = ChatRoom.query.get_or_404(room_id)
+    
+    if not room.is_member(current_user.id):
+        return jsonify({'error': 'Không có quyền!'}), 403
+    
+    if 'media' not in request.files:
+        return jsonify({'error': 'Không có file'}), 400
+    
+    file = request.files['media']
+    if not file.filename:
+        return jsonify({'error': 'Chưa chọn file'}), 400
+    
+    # Kiểm tra kích thước
+    max_sizes = {
+        'image': 10 * 1024 * 1024,   # 10MB
+        'video': 50 * 1024 * 1024,   # 50MB
+        'audio': 10 * 1024 * 1024    # 10MB
+    }
+    
+    media_type = 'image'
+    if file.mimetype.startswith('video/'):
+        media_type = 'video'
+    elif file.mimetype.startswith('audio/'):
+        media_type = 'audio'
+    
+    max_size = max_sizes.get(media_type, 10 * 1024 * 1024)
+    if file.content_length and file.content_length > max_size:
+        return jsonify({'error': f'File quá lớn! Tối đa {max_size // (1024*1024)}MB'}), 400
+    
+    # Tạo tên file an toàn
+    filename = secure_filename(f"room_{room_id}_{current_user.id}_{int(time.time())}_{file.filename}")
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+    
+    media_url = f"/static/uploads/{filename}"
+    
+    return jsonify({
+        'success': True,
+        'url': media_url,
+        'type': media_type,
+        'filename': filename
+    })
+
+
+# ====================================
+# SOCKET EVENTS CHO VIDEO NHÓM
+# ====================================
+@socketio.on('join_group_video')
+def handle_join_group_video(data):
+    """Xử lý khi thành viên tham gia cuộc gọi video nhóm"""
+    room_id = data.get('room_id')
+    user_id = data.get('user_id')
+    user_name = data.get('user_name', 'Ẩn danh')
+    
+    # Broadcast cho tất cả trong phòng (trừ người gửi)
+    emit('user_joined_video', {
+        'user_id': user_id,
+        'user_name': user_name
+    }, room=f"chatroom_{room_id}", include_self=False)
+    
+    # Gửi thông báo cho thành viên khác
+    emit('receive_room_message', {
+        'sender_id': user_id,
+        'sender_name': user_name,
+        'sender_avatar': 'images/default-avatar.png',
+        'content': f'📹 {user_name} đã bắt đầu cuộc gọi video nhóm',
+        'type': 'text',
+        'timestamp': get_vn_now().strftime('%H:%M %d/%m')
+    }, room=f"chatroom_{room_id}", include_self=False)
+
+
+@socketio.on('leave_group_video')
+def handle_leave_group_video(data):
+    """Xử lý khi thành viên rời cuộc gọi video nhóm"""
+    room_id = data.get('room_id')
+    user_id = data.get('user_id')
+    
+    emit('user_left_video', {
+        'user_id': user_id
+    }, room=f"chatroom_{room_id}", include_self=False)
 
 # ========================
 # KHỞI TẠO FLASK-MAIL & SCHEDULER

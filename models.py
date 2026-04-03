@@ -534,6 +534,52 @@ class ConsultationFeedback(db.Model):
     def __repr__(self):
         return f'<Feedback {self.rating} sao từ {self.from_user.name} cho {self.to_user.name}>'
 
+# NHÓM CHAT
+class ChatRoom(db.Model):
+    __tablename__ = 'chat_rooms'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(300))
+    topic = db.Column(db.String(50))  # 'health', 'nutrition', 'story'...
+    avatar = db.Column(db.String(200))
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=vietnam_now)
+    is_active = db.Column(db.Boolean, default=True)
+    max_members = db.Column(db.Integer, default=100)
+
+    creator = db.relationship('User', foreign_keys=[created_by])
+    members = db.relationship('RoomMember', backref='room', lazy='dynamic', cascade='all, delete-orphan')
+    messages = db.relationship('RoomMessage', backref='room', lazy='dynamic', cascade='all, delete-orphan')
+
+    def member_count(self):
+        return self.members.count()
+
+    def is_member(self, user_id):
+        return self.members.filter_by(user_id=user_id).first() is not None
+
+
+class RoomMember(db.Model):
+    __tablename__ = 'room_members'
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey('chat_rooms.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    joined_at = db.Column(db.DateTime, default=vietnam_now)
+    role = db.Column(db.String(20), default='member')  # 'admin', 'member'
+
+    user = db.relationship('User', foreign_keys=[user_id])
+
+
+class RoomMessage(db.Model):
+    __tablename__ = 'room_messages'
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey('chat_rooms.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    type = db.Column(db.String(20), default='text')  # 'text', 'image'
+    timestamp = db.Column(db.DateTime, default=vietnam_now)
+
+    sender = db.relationship('User', foreign_keys=[sender_id])
+
 # ✅ 1. KHUNG GIỜ - Chuyên gia tạo ra (Expert-owned slots)
 class TimeSlot(db.Model):
     __tablename__ = 'time_slots'

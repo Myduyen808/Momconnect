@@ -284,11 +284,18 @@
                 <!-- Chỉ hiện khi: Đã đăng nhập VÀ (KHÔNG phải Admin VÀ KHÔNG phải Expert đã duyệt) -->
                 {% if current_user.is_authenticated and current_user.role != 'admin' and not
                 current_user.is_verified_expert %}
-                <!-- Thêm vào navigation bar trong base.html -->
                 <a href="{{ url_for('experts_list') }}"
                     class="text-gray-700 hover:text-purple-600 transition-colors font-medium flex items-center gap-2">
                     <i class="fas fa-user-md"></i>
                     <span>Chuyên gia</span>
+                </a>
+                {% endif %}
+
+                {% if current_user.is_authenticated and current_user.role != 'admin' %}
+                <a href="{{ url_for('chat_rooms') }}"
+                    class="text-gray-700 hover:text-purple-600 transition-colors font-medium flex items-center gap-2">
+                    <i class="fas fa-users"></i>
+                    <span class="hidden sm:inline">Nhóm chat</span>
                 </a>
                 {% endif %}
 
@@ -371,31 +378,36 @@
                         return;
                     }
 
+                    // Tìm đoạn return trong notifs.map(n => { ... })
+                    // SỬA LẠI như sau:
+
                     list.innerHTML = notifs.map(n => {
                         const redirectUrl = n.redirect_url || '/notifications';
 
                         return `
-                        <a href="${redirectUrl}" 
-                        class="notif-link block p-3 md:p-4 notif-item transition ${!n.is_read ? 'unread bg-blue-50' : 'hover:bg-gray-50'}"
-                        onclick="handleNotificationClick(event, ${n.id}, '${redirectUrl}')">
-                            <div class="flex gap-3">
-                                <img src="${n.related_user_avatar || '/static/images/default-avatar.png'}"
-                                    class="w-10 h-10 rounded-full object-cover ring-2 ring-pink-300 flex-shrink-0">
-                                <div class="flex-1 min-w-0">
-                                    <p class="font-bold text-gray-800 hover:text-pink-600 transition-colors text-sm md:text-base">${n.title}</p>
-                                    <p class="text-sm text-gray-600 mt-1">${n.message}</p>
-                                    <p class="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                                        <i class="far fa-clock text-xs"></i> ${n.created_at}
-                                    </p>
-                                </div>
-                                <div class="flex-shrink-0">
-                                    ${n.type === 'like' ? '<i class="fas fa-heart text-red-500 text-xl"></i>' :
+    <div class="notif-item transition ${!n.is_read ? 'unread bg-blue-50' : 'hover:bg-gray-50'}"
+        style="cursor:pointer"
+        onclick="goToNotif(${n.id}, '${redirectUrl}')">
+        <div class="flex gap-3 p-3 md:p-4">
+            <img src="${n.related_user_avatar || '/static/images/default-avatar.png'}"
+                class="w-10 h-10 rounded-full object-cover ring-2 ring-pink-300 flex-shrink-0">
+            <div class="flex-1 min-w-0">
+                <p class="font-bold text-gray-800 hover:text-pink-600 transition-colors text-sm md:text-base">${n.title}</p>
+                <p class="text-sm text-gray-600 mt-1">${n.message}</p>
+                <p class="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                    <i class="far fa-clock text-xs"></i> ${n.created_at}
+                </p>
+            </div>
+            <div class="flex-shrink-0">
+                ${n.type === 'like' ? '<i class="fas fa-heart text-red-500 text-xl"></i>' :
                                 n.type === 'comment' ? '<i class="fas fa-comment text-blue-500 text-xl"></i>' :
                                     n.type === 'friend_request' ? '<i class="fas fa-user-check text-purple-500 text-xl"></i>' :
-                                        '<i class="fas fa-user-plus text-green-500 text-xl"></i>'}
-                                </div>
-                            </div>
-                        </a>`;
+                                        n.type === 'friend_accepted' ? '<i class="fas fa-user-friends text-green-500 text-xl"></i>' :
+                                            n.type === 'room_invite' ? '<i class="fas fa-users text-indigo-500 text-xl"></i>' :
+                                                '<i class="fas fa-bell text-gray-400 text-xl"></i>'}
+            </div>
+        </div>
+    </div>`;
                     }).join('');
                 }
             } catch (e) {
@@ -405,6 +417,9 @@
 
         async function handleNotificationClick(event, notifId, redirectUrl) {
             event.preventDefault();
+            event.stopPropagation();
+
+            console.log('🔔 Click notification:', notifId, '→', redirectUrl); // debug
 
             try {
                 await fetch(`/api/notifications/${notifId}/read`, { method: "POST" });
@@ -413,7 +428,13 @@
             }
 
             document.getElementById('notifDropdown').classList.add('hidden');
-            window.location.href = redirectUrl;
+
+            // Đảm bảo redirect đúng
+            if (redirectUrl && redirectUrl !== '/notifications') {
+                window.location.href = redirectUrl;
+            } else {
+                window.location.href = '/notifications';
+            }
         }
 
         function toggleNotif() {
@@ -512,6 +533,16 @@
             if (window.location.pathname === '/chat/' + data.sender_id) return;
             showChatToast(data);
         });
+
+        // ===== NHẬN THÔNG BÁO TIN NHẮN NHÓM =====
+        window._globalSocket.on('new_room_message_notification', function (data) {
+            console.log('👥 Room message notification:', data);
+
+            // Không hiện nếu đang ở trong phòng đó
+            if (window.location.pathname === '/chat-rooms/' + data.room_id) return;
+
+            showRoomToast(data);
+        });
         {% endif %}
 
         // ===== HÀM TOAST =====
@@ -534,6 +565,54 @@
 
             if (chatToastTimer) clearTimeout(chatToastTimer);
             chatToastTimer = setTimeout(hideChatToast, 5000);
+        }
+
+        function showRoomToast(data) {
+            const avatar = data.sender_avatar
+                ? (data.sender_avatar.startsWith('http')
+                    ? data.sender_avatar
+                    : '/static/' + data.sender_avatar)
+                : '/static/images/default-avatar.png';
+
+            document.getElementById('chatToastAvatar').src = avatar;
+            document.getElementById('chatToastName').textContent =
+                `${data.sender_name} • ${data.room_name}`;
+            document.getElementById('chatToastContent').textContent = data.content;
+            chatToastUrl = data.room_url;
+
+            const toast = document.getElementById('chatToast');
+            const toastInner = toast.querySelector('.bg-white');
+
+            // Reset style trước
+            toastInner.style.borderLeft = '';
+
+            // Thêm badge nhóm (màu khác với chat 1-1)
+            toastInner.style.borderLeft = '3px solid #6366f1';
+
+            toast.classList.remove('hidden');
+            toast.style.animation = 'none';
+            toast.offsetHeight;
+            toast.style.animation = '';
+
+            if (chatToastTimer) clearTimeout(chatToastTimer);
+            chatToastTimer = setTimeout(() => {
+                hideChatToast();
+                // Reset border
+                toastInner.style.borderLeft = '';
+            }, 5000);
+        }
+
+        async function goToNotif(notifId, redirectUrl) {
+            console.log('🔔 Go to notif:', notifId, '→', redirectUrl);
+
+            try {
+                await fetch(`/api/notifications/${notifId}/read`, { method: "POST" });
+            } catch (e) {
+                console.error('Error marking as read:', e);
+            }
+
+            document.getElementById('notifDropdown').classList.add('hidden');
+            window.location.href = redirectUrl;
         }
 
         function hideChatToast() {
